@@ -32,8 +32,32 @@ test("normalizes Douyin TikHub response", async () => {
   assert.equal(result.mediaUrl, "https://media.example.com/douyin.mp4");
   assert.equal(result.coverUrl, "https://media.example.com/cover.jpg");
   assert.equal(result.durationSeconds, 61);
+  assert.equal(result.mediaRequestHeaders.referer, "https://www.douyin.com/");
   assert.match(calls[0].url, /fetch_one_video_by_share_url/);
   assert.equal(calls[0].options.headers.authorization, "Bearer test-tikhub-key");
+});
+
+test("keeps alternate Douyin media URLs for automatic CDN fallback", async () => {
+  const result = await fetchTikHubVideoSource({
+    sourceUrl: "https://www.douyin.com/video/douyin-2",
+    apiKey: "test-tikhub-key",
+    fetchImpl: async () => jsonResponse({
+      data: {
+        aweme_id: "douyin-2",
+        video: {
+          play_addr: {
+            url_list: [
+              "https://media.example.com/primary.mp4",
+              "https://backup.example.com/secondary.mp4"
+            ]
+          }
+        }
+      }
+    })
+  });
+
+  assert.equal(result.mediaUrl, "https://media.example.com/primary.mp4");
+  assert.deepEqual(result.mediaAlternativeUrls, ["https://backup.example.com/secondary.mp4"]);
 });
 
 test("normalizes Xiaohongshu TikHub response", async () => {

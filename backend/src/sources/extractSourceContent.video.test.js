@@ -8,6 +8,7 @@ test("classifies universal video URLs before article extraction", () => {
   assert.equal(isVideoUrl("https://youtu.be/abc"), true);
   assert.equal(isVideoUrl("https://www.bilibili.com/video/BV1demo"), true);
   assert.equal(isVideoUrl("https://b23.tv/abc"), true);
+  assert.equal(isVideoUrl("https://www.iesdouyin.com/share/video/123"), true);
   assert.equal(isVideoUrl("https://cdn.example.com/lesson.mp4"), true);
   assert.equal(isVideoUrl("https://example.com/article/1"), false);
 });

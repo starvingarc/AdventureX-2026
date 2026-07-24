@@ -267,6 +267,32 @@ test("normalizes TikHub Douyin video search results", async () => {
   assert.equal(result.results[0].title, "AI 学习方法");
 });
 
+test("normalizes current TikHub Douyin business_data search results", async () => {
+  const result = await searchLinks("云潮新闻 高考726分", {
+    platform: "douyin",
+    tikhubApiKey: "test-key",
+    fetchImpl: async () => ({
+      ok: true,
+      json: async () => ({
+        data: {
+          business_data: [{
+            data: {
+              aweme_info: {
+                aweme_id: "76570001",
+                desc: "高考726分的瑞安学霸没毕业就创业",
+                author: { nickname: "云潮新闻" }
+              }
+            }
+          }]
+        }
+      })
+    })
+  });
+  assert.equal(result.results[0].platform, "douyin");
+  assert.equal(result.results[0].account, "云潮新闻");
+  assert.equal(result.results[0].url, "https://www.douyin.com/video/76570001");
+});
+
 test("keeps candidates from every TikHub platform for an unknown screenshot", async () => {
   const result = await searchLinks("学习方法", {
     maxResults: 2,

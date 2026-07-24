@@ -110,7 +110,14 @@ function findTikHubItems(platform, payload) {
     ? [payload?.data?.result, payload?.data?.data?.result, payload?.result]
     : platform === "xiaohongshu"
       ? [payload?.data?.data?.items, payload?.data?.items, payload?.data?.data, payload?.items]
-      : [payload?.data?.data, payload?.data?.data?.data, payload?.data?.items, payload?.items];
+      : [
+          payload?.data?.business_data,
+          payload?.data?.data?.business_data,
+          payload?.data?.data,
+          payload?.data?.data?.data,
+          payload?.data?.items,
+          payload?.items
+        ];
   return candidates.find(Array.isArray) || [];
 }
 
@@ -138,12 +145,14 @@ function normalizeTikHubItem(platform, item) {
       snippet: cleanValue(data?.desc || data?.user?.nickname || data?.user_info?.nickname)
     };
   }
-  const data = item?.aweme_info || item?.aweme_detail || item;
+  const data = item?.data?.aweme_info || item?.aweme_info || item?.aweme_detail || item;
   const id = cleanValue(data?.aweme_id || data?.id);
   return {
     platform,
     title: cleanValue(data?.desc || data?.caption || data?.title),
-    url: cleanValue(data?.share_url || data?.url) || (id ? `https://www.douyin.com/video/${id}` : ""),
+    // Prefer the stable canonical URL. Search share URLs use iesdouyin.com and
+    // contain short-lived tracking parameters that should not enter caches.
+    url: id ? `https://www.douyin.com/video/${id}` : cleanValue(data?.share_url || data?.url),
     account: cleanValue(data?.author?.nickname || data?.author?.unique_id),
     snippet: cleanValue(data?.author?.nickname || data?.author?.unique_id || data?.desc)
   };

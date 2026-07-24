@@ -15,6 +15,23 @@ test("detects supported TikHub content platforms without treating arbitrary site
   assert.equal(detectTikHubContentPlatform("https://example.com/article"), "unknown");
 });
 
+test("prefers responsive Douyin play hosts over experimental CDN URLs", () => {
+  const result = normalizeTikHubContent("douyin", {
+    aweme_id: "douyin-fast-cdn",
+    video: {
+      play_addr: {
+        url_list: [
+          "https://v5-dy-ov-experiment.zjcdn.com/video.mp4",
+          "https://api-play-hl.amemv.com/aweme/v1/play/?video_id=demo"
+        ]
+      }
+    }
+  }, "https://www.douyin.com/video/douyin-fast-cdn");
+
+  assert.match(result.mediaUrl, /amemv\.com/);
+  assert.match(result.mediaUrls[1], /zjcdn\.com/);
+});
+
 test("uses Xiaohongshu web v3 when evidence token is present and normalizes image notes", async () => {
   const calls = [];
   const result = await fetchTikHubContentSource({

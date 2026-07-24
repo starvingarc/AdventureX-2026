@@ -1,6 +1,6 @@
 import { createMediaExtractionError } from "./mediaErrors.js";
 
-const DOUYIN_HOSTS = ["douyin.com", "v.douyin.com"];
+const DOUYIN_HOSTS = ["douyin.com", "v.douyin.com", "iesdouyin.com"];
 const XIAOHONGSHU_HOSTS = ["xiaohongshu.com", "xhslink.com"];
 const YOUTUBE_HOSTS = ["youtube.com", "youtu.be", "youtube-nocookie.com"];
 const BILIBILI_HOSTS = ["bilibili.com", "b23.tv"];

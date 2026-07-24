@@ -99,6 +99,8 @@ export function isVideoUrl(value) {
     "m.youtube.com",
     "youtu.be",
     "v.douyin.com",
+    "iesdouyin.com",
+    "www.iesdouyin.com",
     "douyin.com",
     "www.douyin.com",
     "xiaohongshu.com",

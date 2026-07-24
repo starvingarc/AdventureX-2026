@@ -55,6 +55,10 @@ export async function fetchTikHubVideoSource({
     account: content.account,
     sourceUrl: content.sourceUrl || url.href,
     mediaUrl: content.mediaUrl,
+    mediaAlternativeUrls: (content.mediaUrls || []).filter((item) => item && item !== content.mediaUrl),
+    mediaRequestHeaders: platform === "douyin"
+      ? { "user-agent": "Mozilla/5.0", referer: "https://www.douyin.com/" }
+      : {},
     coverUrl: content.coverUrl,
     durationSeconds: content.durationSeconds,
     subtitles: content.subtitles

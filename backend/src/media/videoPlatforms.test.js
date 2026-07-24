@@ -11,6 +11,7 @@ import {
 test("detects Douyin hosts", () => {
   assert.equal(detectVideoPlatform("https://v.douyin.com/abc/"), "douyin");
   assert.equal(detectVideoPlatform("https://www.douyin.com/video/123"), "douyin");
+  assert.equal(detectVideoPlatform("https://www.iesdouyin.com/share/video/123"), "douyin");
 });
 
 test("detects Xiaohongshu hosts", () => {

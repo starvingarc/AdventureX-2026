@@ -226,11 +226,11 @@ function normalizeDouyin(payload, sourceUrl) {
       const rightWidth = Number(right?.play_addr?.width || 1920);
       return Math.abs(leftWidth - 1080) - Math.abs(rightWidth - 1080);
     });
-  const mediaUrls = uniqueUrls(
+  const mediaUrls = rankDouyinMediaUrls(uniqueUrls(
     compatibleStreams.flatMap((stream) => stream?.play_addr?.url_list || []),
     root?.video?.play_addr?.url_list,
     root?.video?.download_addr?.url_list
-  );
+  ));
   const contentId = stringValue(root?.aweme_id || root?.id);
   const description = cleanText(root?.desc || root?.caption);
   return {
@@ -253,6 +253,25 @@ function normalizeDouyin(payload, sourceUrl) {
     subtitles: [],
     metadata: { stats: root?.statistics || {} }
   };
+}
+
+function rankDouyinMediaUrls(urls) {
+  // TikHub usually returns equivalent ByteDance CDN URLs. In mainland China,
+  // the API play endpoints respond much faster and more consistently than the
+  // experimental zjcdn hosts, which can otherwise consume the full media
+  // timeout before ASR starts.
+  const hostPriority = (value) => {
+    try {
+      const host = new URL(value).hostname.toLowerCase();
+      if (host.includes("amemv.com")) return 0;
+      if (host.includes("douyinvod.com")) return 1;
+      if (host.includes("zjcdn.com")) return 3;
+      return 2;
+    } catch {
+      return 4;
+    }
+  };
+  return [...urls].sort((left, right) => hostPriority(left) - hostPriority(right));
 }
 
 function normalizeXiaohongshu(payload, sourceUrl) {

@@ -1,7 +1,9 @@
 import { primeTikHubSearchSource } from "../media/tikhubSearchSourceCache.js";
 import { normalizeTikHubContent } from "../sources/tikhubContentProvider.js";
 
-const DEFAULT_TIMEOUT_MS = 8_000;
+// Hedged Douyin searches normally complete in 3-7 seconds. Keep enough room
+// for one slow upstream response without returning a raw AbortError to the UI.
+const DEFAULT_TIMEOUT_MS = 12_000;
 const DEFAULT_TIKHUB_BASE_URL = "https://api.tikhub.io";
 const searchCache = new Map();
 

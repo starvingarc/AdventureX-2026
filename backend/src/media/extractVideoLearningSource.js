@@ -639,6 +639,13 @@ async function downloadVideoMedia({
     });
   }
   const urls = [video.mediaUrl, ...(video.mediaAlternativeUrls || [])].filter(Boolean);
+  if (urls.length > 1 && downloadMedia === downloadMediaToTempFile) {
+    return downloadHedgedMedia(urls.slice(0, 2), {
+      downloadMedia,
+      mediaMaxBytes,
+      requestHeaders: video.mediaRequestHeaders || {}
+    });
+  }
   let lastError;
   for (const mediaUrl of urls) {
     try {
@@ -652,6 +659,38 @@ async function downloadVideoMedia({
     }
   }
   throw lastError;
+}
+
+function downloadHedgedMedia(urls, { downloadMedia, mediaMaxBytes, requestHeaders }) {
+  return new Promise((resolveDownload, rejectDownload) => {
+    const controllers = urls.map(() => new AbortController());
+    const failures = [];
+    let settled = false;
+    urls.forEach((mediaUrl, index) => {
+      downloadMedia({
+        mediaUrl,
+        maxBytes: mediaMaxBytes,
+        requestHeaders,
+        signal: controllers[index].signal
+      }).then((file) => {
+        if (settled) {
+          cleanupMediaTempFiles(file).catch(() => {});
+          return;
+        }
+        settled = true;
+        controllers.forEach((controller, controllerIndex) => {
+          if (controllerIndex !== index) controller.abort();
+        });
+        resolveDownload(file);
+      }).catch((error) => {
+        failures.push(error);
+        if (!settled && failures.length >= urls.length) {
+          settled = true;
+          rejectDownload(failures.at(-1));
+        }
+      });
+    });
+  });
 }
 
 function isAudioMediaFile(mediaFile) {
@@ -696,7 +735,7 @@ async function transcribeWithTemporaryPublicMedia({
     try {
       const chunked = await splitAudio({
         inputPath: mediaFile.path,
-        ...(localAsr ? { chunkSeconds: readPositiveInt(process.env.LOCAL_ASR_CHUNK_SECONDS, 8) } : {})
+        ...(localAsr ? { chunkSeconds: readPositiveInt(process.env.LOCAL_ASR_CHUNK_SECONDS, 10) } : {})
       });
       tempFiles.push({ dir: chunked.dir });
       const chunks = selectRepresentativeChunks(chunked.chunks, {
@@ -731,11 +770,7 @@ async function transcribeWithTemporaryPublicMedia({
           chunks,
           providerName: "local_whisper:sampled",
           concurrency: localAsrConcurrency(),
-          // Short videos need every chunk for a complete summary. Long videos
-          // can return after a small representative quorum and refine later.
-          quorum: Number(durationSeconds) <= 300
-            ? chunks.length
-            : readPositiveInt(process.env.LOCAL_ASR_SUCCESS_QUORUM, 3),
+          quorum: readPositiveInt(process.env.LOCAL_ASR_SUCCESS_QUORUM, 3),
           transcribe: transcribeChunk
         });
       }
@@ -798,10 +833,13 @@ async function transcribeChunksWithQuorum({ chunks, transcribe, providerName, co
 }
 
 function selectRepresentativeChunks(chunks, { maxChunks, preferredTimestampSeconds }) {
-  if (chunks.length <= maxChunks) return chunks;
-  const indexes = new Set([0, chunks.length - 1, Math.floor((chunks.length - 1) / 2)]);
-  for (let slot = 1; indexes.size < maxChunks && slot < maxChunks * 2; slot += 1) {
-    indexes.add(Math.round((slot * (chunks.length - 1)) / (maxChunks - 1)));
+  const indexes = chunks.length <= maxChunks
+    ? new Set(chunks.map((_, index) => index))
+    : new Set([0, chunks.length - 1, Math.floor((chunks.length - 1) / 2)]);
+  if (chunks.length > maxChunks) {
+    for (let slot = 1; indexes.size < maxChunks && slot < maxChunks * 2; slot += 1) {
+      indexes.add(Math.round((slot * (chunks.length - 1)) / (maxChunks - 1)));
+    }
   }
   const timestamp = Number(preferredTimestampSeconds);
   if (Number.isFinite(timestamp)) {

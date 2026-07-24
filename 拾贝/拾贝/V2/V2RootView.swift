@@ -65,6 +65,7 @@ struct V2RootView: View {
     @State private var account: AccountSnapshot?
     @State private var isAccountLoading = false
     @State private var accountMessage = ""
+    @State private var imageFlowResponse: ImageFlowResponse?
 
     private let apiClient: APIClient
     private let allowsMockDataToggle: Bool
@@ -214,7 +215,11 @@ struct V2RootView: View {
                 preflightSourceWithMetadata: { input in
                     try await apiClient.preflightSource(input: input, fetchMetadata: true)
                 },
-                onGenerate: startV2Generation
+                onGenerate: startV2Generation,
+                onScreenshotFlow: { image, progress in
+                    try await apiClient.analyzeImage(image: image, progress: progress)
+                },
+                onScreenshotCompleted: handleImageFlowCompleted
             )
         case .discover:
             V2DiscoverView(
@@ -290,6 +295,12 @@ struct V2RootView: View {
                     openNotification(notification, target: .failure)
                 }
             )
+        case .imageFlowResult:
+            if let imageFlowResponse {
+                V2ImageFlowResultView(response: imageFlowResponse, onBack: goBack)
+            } else {
+                V2MissingRouteView(onBack: goBack)
+            }
         case .generationFailureDetail(let chapterID):
             V2GenerationFailureDetailView(
                 title: "章节详情",
@@ -1518,6 +1529,13 @@ struct V2RootView: View {
         }
 
         startV2GenerationAfterConsent(sourceText: trimmed)
+    }
+
+    @MainActor
+    private func handleImageFlowCompleted(_ response: ImageFlowResponse) {
+        imageFlowResponse = response
+        selectedTab = .learning
+        routeStore.reset(to: .imageFlowResult)
     }
 
     private func startV2GenerationAfterConsent(sourceText: String) {

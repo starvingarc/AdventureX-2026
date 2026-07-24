@@ -37,17 +37,27 @@ export async function searchLinks(query, {
 }
 
 async function callTikHub(query, options) {
-  const cacheKey = options.fetchImpl === fetch
+  let effectiveOptions = options;
+  if (options.fetchImpl === fetch && options.creatorFallback) {
+    const platform = normalizeTikHubPlatform(options.platform) || "all";
+    const standardKey = [platform, query, options.maxResults, "standard"].join(":");
+    const standardSearch = readSearchCache(standardKey);
+    if (standardSearch) {
+      const seed = await standardSearch.catch(() => null);
+      if (Array.isArray(seed?.results)) effectiveOptions = { ...options, seedResults: seed.results };
+    }
+  }
+  const cacheKey = effectiveOptions.fetchImpl === fetch
     ? [
-        normalizeTikHubPlatform(options.platform) || "all",
+        normalizeTikHubPlatform(effectiveOptions.platform) || "all",
         query,
-        options.maxResults,
-        options.creatorFallback ? `creator:${normalizeComparableText(options.account)}` : "standard"
+        effectiveOptions.maxResults,
+        effectiveOptions.creatorFallback ? `creator:${normalizeComparableText(effectiveOptions.account)}` : "standard"
       ].join(":")
     : "";
   const cached = readSearchCache(cacheKey);
   if (cached) return cached;
-  const pending = callTikHubUncached(query, options);
+  const pending = callTikHubUncached(query, effectiveOptions);
   if (cacheKey) writeSearchCache(cacheKey, pending);
   try {
     return await pending;
@@ -60,22 +70,31 @@ async function callTikHub(query, options) {
 async function callTikHubUncached(query, options) {
   const requestedPlatform = normalizeTikHubPlatform(options.platform);
   const platforms = requestedPlatform ? [requestedPlatform] : detectTikHubSearchPlatforms(query);
-  const settled = await Promise.allSettled(
-    platforms.map((platform) => callTikHubPlatform(platform, query, options))
-  );
-  const rawResults = settled
-    .filter((item) => item.status === "fulfilled")
-    // Keep candidates from every platform. The old global slice happened
-    // after Bilibili was flattened first, silently discarding Douyin/XHS.
-    .flatMap((item) => item.value.slice(0, options.maxResults))
+  const settled = Array.isArray(options.seedResults)
+    ? []
+    : await Promise.allSettled(platforms.map((platform) => callTikHubPlatform(platform, query, options)));
+  const rawResults = (Array.isArray(options.seedResults)
+    ? options.seedResults
+    : settled
+      .filter((item) => item.status === "fulfilled")
+      // Keep candidates from every platform. The old global slice happened
+      // after Bilibili was flattened first, silently discarding Douyin/XHS.
+      .flatMap((item) => item.value.slice(0, options.maxResults)))
     .filter((item, index, items) => item.url && items.findIndex((candidate) => candidate.url === item.url) === index);
   let results = await hydrateTikHubSearchResults(rawResults, options);
-  if (options.creatorFallback && requestedPlatform === "bilibili" && options.account) {
-    const creatorResults = await fetchBilibiliCreatorVideos({
-      account: options.account,
-      searchResults: results,
-      ...options
-    }).catch(() => []);
+  if (options.creatorFallback && ["bilibili", "douyin"].includes(requestedPlatform) && options.account) {
+    const creatorResults = requestedPlatform === "bilibili"
+      ? await fetchBilibiliCreatorVideos({
+          account: options.account,
+          searchResults: results,
+          ...options
+        }).catch(() => [])
+      : await fetchDouyinCreatorPosts({
+          account: options.account,
+          query,
+          searchResults: results,
+          ...options
+        }).catch(() => []);
     results = [...results, ...creatorResults]
       .filter((item, index, items) => item.url && items.findIndex((candidate) => candidate.url === item.url) === index);
   }
@@ -109,8 +128,14 @@ async function callTikHubPlatform(platform, query, { apiKey, baseUrl, fetchImpl,
     url = `${root}/api/v1/bilibili/app/fetch_search_by_type?${params}`;
     request = { method: "GET", headers };
   } else if (platform === "xiaohongshu") {
-    const params = new URLSearchParams({ keyword: query, page: "1" });
-    url = `${root}/api/v1/xiaohongshu/web_v3/fetch_search_notes?${params}`;
+    const params = new URLSearchParams({
+      keyword: query,
+      page: "1",
+      sort_type: "general",
+      note_type: "不限",
+      time_filter: "不限"
+    });
+    url = `${root}/api/v1/xiaohongshu/app_v2/search_notes?${params}`;
     request = { method: "GET", headers };
   } else if (platform === "wechat") {
     url = `${root}/api/v1/wechat_search/v2/fetch_search`;
@@ -129,12 +154,37 @@ async function callTikHubPlatform(platform, query, { apiKey, baseUrl, fetchImpl,
   } else if (platform === "zhihu") {
     return searchZhihuContent({ query, account, apiKey, root, fetchImpl, timeoutMs, maxResults });
   } else {
-    // The video-only endpoint returns fewer cards and includes the same rich
-    // aweme metadata needed by extraction, saving both search time and a
-    // second TikHub detail request.
+    // Screenshots can point at ordinary videos, image posts or animated image
+    // posts. TikHub's general endpoint returns all of those; the old
+    // video-only search silently discarded aweme_type=68 posts.
     request = {
       method: "POST",
       headers,
+      body: JSON.stringify({
+        keyword: query,
+        cursor: 0,
+        sort_type: "0",
+        publish_time: "0",
+        filter_duration: "0",
+        content_type: "0",
+        search_id: "",
+        backtrace: ""
+      })
+    };
+    try {
+      const payload = await requestJsonWithRetry(
+        `${root}/api/v1/douyin/search/fetch_general_search_v1`,
+        request,
+        { fetchImpl, timeoutMs, attempts: 2 }
+      );
+      const results = normalizeTikHubResults("douyin", payload);
+      if (results.length) return results;
+    } catch {
+      // Older TikHub deployments may not expose general search. Preserve the
+      // video V2/V1 hedge as a compatibility fallback.
+    }
+    const videoRequest = {
+      ...request,
       body: JSON.stringify({
         keyword: query,
         cursor: 0,
@@ -146,7 +196,7 @@ async function callTikHubPlatform(platform, query, { apiKey, baseUrl, fetchImpl,
         backtrace: ""
       })
     };
-    return callHedgedDouyinSearch({ root, request, fetchImpl, timeoutMs });
+    return callHedgedDouyinSearch({ root, request: videoRequest, fetchImpl, timeoutMs });
   }
   const payload = await requestJsonWithRetry(url, request, { fetchImpl, timeoutMs, attempts: 2 });
   return normalizeTikHubResults(platform, payload);
@@ -253,10 +303,15 @@ function normalizeTikHubItem(platform, item) {
   if (platform === "xiaohongshu") {
     const data = item?.note_card || item?.note || item;
     const id = cleanValue(data?.note_id || data?.id || item?.id);
+    const xsecToken = cleanValue(data?.xsec_token || item?.xsec_token);
+    const canonicalUrl = id
+      ? `https://www.xiaohongshu.com/explore/${id}${xsecToken ? `?xsec_token=${encodeURIComponent(xsecToken)}` : ""}`
+      : "";
     return {
       platform,
+      kind: String(data?.type || data?.note_type || "").toLowerCase().includes("video") ? "video" : "image_text",
       title: cleanValue(data?.display_title || data?.title || data?.desc),
-      url: cleanValue(data?.url || data?.share_url || item?.url) || (id ? `https://www.xiaohongshu.com/explore/${id}` : ""),
+      url: cleanValue(data?.url || data?.share_url || item?.url) || canonicalUrl,
       account: cleanValue(data?.user?.nickname || data?.user_info?.nickname),
       snippet: cleanValue(data?.desc || data?.user?.nickname || data?.user_info?.nickname)
     };
@@ -275,11 +330,15 @@ function normalizeTikHubItem(platform, item) {
   const id = cleanValue(data?.aweme_id || data?.id);
   const normalized = {
     platform,
+    kind: Array.isArray(data?.images) && data.images.length > 0 && !data?.video?.play_addr
+      ? "image_text"
+      : "video",
     title: cleanValue(data?.desc || data?.caption || data?.title),
     // Prefer the stable canonical URL. Search share URLs use iesdouyin.com and
     // contain short-lived tracking parameters that should not enter caches.
     url: id ? `https://www.douyin.com/video/${id}` : cleanValue(data?.share_url || data?.url),
     account: cleanValue(data?.author?.nickname || data?.author?.unique_id),
+    accountId: cleanValue(data?.author?.sec_uid || data?.author?.sec_user_id),
     snippet: cleanValue(data?.author?.nickname || data?.author?.unique_id || data?.desc)
   };
   if (normalized.url) {
@@ -294,48 +353,85 @@ function normalizeTikHubItem(platform, item) {
 
 async function searchZhihuContent({ query, account, apiKey, root, fetchImpl, timeoutMs, maxResults }) {
   const headers = { authorization: `Bearer ${apiKey}`, "content-type": "application/json" };
+  const articlesPromise = searchZhihuArticles({ query, headers, root, fetchImpl, timeoutMs, maxResults })
+    .catch(() => []);
+  let pins = [];
   if (account) {
-    const userParams = new URLSearchParams({ keyword: account, offset: "0", limit: "10" });
-    const usersPayload = await requestJsonWithRetry(
-      `${root}/api/v1/zhihu/web/fetch_user_search_v3?${userParams}`,
-      { method: "GET", headers },
-      { fetchImpl, timeoutMs, attempts: 2 }
-    );
-    const users = firstArray(
-      usersPayload?.data?.data,
-      usersPayload?.data?.items,
-      usersPayload?.data?.data?.items,
-      usersPayload?.data,
-      usersPayload?.items
-    );
-    const wanted = normalizeComparableText(account);
-    const user = users
-      .map((item) => item?.object || item?.user || item)
-      .find((item) => normalizeComparableText(stripHtml(item?.name || item?.title)) === wanted)
-      || users.map((item) => item?.object || item?.user || item)
-        .find((item) => normalizeComparableText(stripHtml(item?.name || item?.title)).includes(wanted));
-    const token = cleanValue(user?.url_token || user?.token || user?.id);
-    if (token) {
-      const pinParams = new URLSearchParams({
-        user_url_token: token,
-        offset: "0",
-        limit: String(Math.min(20, Math.max(10, Number(maxResults) || 10)))
-      });
-      const pinsPayload = await requestJsonWithRetry(
-        `${root}/api/v1/zhihu/web/fetch_user_pins?${pinParams}`,
+    try {
+      const userParams = new URLSearchParams({ keyword: account, offset: "0", limit: "10" });
+      const usersPayload = await requestJsonWithRetry(
+        `${root}/api/v1/zhihu/web/fetch_user_search_v3?${userParams}`,
         { method: "GET", headers },
         { fetchImpl, timeoutMs, attempts: 2 }
       );
-      return firstArray(
-        pinsPayload?.data?.data,
-        pinsPayload?.data?.items,
-        pinsPayload?.data?.data?.items,
-        pinsPayload?.data,
-        pinsPayload?.items
-      ).map((item) => normalizeZhihuPinSearchItem(item, account)).filter((item) => item.url);
+      const users = firstArray(
+        usersPayload?.data?.data,
+        usersPayload?.data?.items,
+        usersPayload?.data?.data?.items,
+        usersPayload?.data,
+        usersPayload?.items
+      );
+      const wanted = normalizeComparableText(account);
+      const normalizedUsers = users.map((item) => item?.object || item?.user || item);
+      const user = normalizedUsers.find((item) => normalizeComparableText(stripHtml(item?.name || item?.title)) === wanted)
+        || normalizedUsers.find((item) => normalizeComparableText(stripHtml(item?.name || item?.title)).includes(wanted));
+      const token = cleanValue(user?.url_token || user?.token || user?.id);
+      if (token) {
+        const pinParams = new URLSearchParams({
+          user_url_token: token,
+          offset: "0",
+          limit: String(Math.min(20, Math.max(10, Number(maxResults) || 10)))
+        });
+        const pinsPayload = await requestJsonWithRetry(
+          `${root}/api/v1/zhihu/web/fetch_user_pins?${pinParams}`,
+          { method: "GET", headers },
+          { fetchImpl, timeoutMs, attempts: 2 }
+        );
+        pins = firstArray(
+          pinsPayload?.data?.data,
+          pinsPayload?.data?.items,
+          pinsPayload?.data?.data?.items,
+          pinsPayload?.data,
+          pinsPayload?.items
+        ).map((item) => normalizeZhihuPinSearchItem(item, account)).filter((item) => item.url);
+      }
+    } catch {
+      // Content search below still covers answers and articles when user lookup fails.
     }
   }
 
+  const articles = await articlesPromise;
+  const combined = [...articles, ...pins].filter((item, index, items) => (
+    item.url && items.findIndex((candidate) => candidate.url === item.url) === index
+  ));
+  return rankPlatformResults(combined, { query, account });
+}
+
+function rankPlatformResults(items, { query, account }) {
+  const accountText = normalizeComparableText(account);
+  const queryText = normalizeComparableText(query);
+  const titleTarget = accountText ? queryText.replace(accountText, "") : queryText;
+  return [...items].sort((left, right) => relevance(right) - relevance(left));
+
+  function relevance(item) {
+    const title = normalizeComparableText(item?.title);
+    const candidateAccount = normalizeComparableText(item?.account);
+    const titleScore = diceBigrams(title, titleTarget);
+    const accountScore = accountText && candidateAccount === accountText ? 1 : 0;
+    return titleScore * 0.85 + accountScore * 0.15;
+  }
+}
+
+function diceBigrams(left, right) {
+  if (!left || !right) return 0;
+  if (left.includes(right) || right.includes(left)) return 1;
+  const leftGrams = new Set(Array.from({ length: Math.max(1, left.length - 1) }, (_, index) => left.slice(index, index + 2)));
+  const rightGrams = new Set(Array.from({ length: Math.max(1, right.length - 1) }, (_, index) => right.slice(index, index + 2)));
+  const common = [...leftGrams].filter((gram) => rightGrams.has(gram)).length;
+  return (2 * common) / (leftGrams.size + rightGrams.size || 1);
+}
+
+async function searchZhihuArticles({ query, headers, root, fetchImpl, timeoutMs, maxResults }) {
   const params = new URLSearchParams({
     keyword: query,
     offset: "0",
@@ -375,10 +471,20 @@ function normalizeZhihuPinSearchItem(item, fallbackAccount = "") {
 function normalizeZhihuArticleSearchItem(item) {
   const data = item?.object || item?.article || item;
   const id = cleanValue(data?.id || data?.article_id);
+  const rawUrl = cleanValue(data?.url);
+  const answerId = rawUrl.match(/\/answers?\/(\d+)/)?.[1]
+    || (data?.type === "answer" ? id : "");
+  const articleId = rawUrl.match(/\/articles?\/(\d+)/)?.[1]
+    || (data?.type === "article" ? id : "");
+  const canonicalUrl = answerId
+    ? `https://www.zhihu.com/answer/${answerId}`
+    : articleId
+      ? `https://zhuanlan.zhihu.com/p/${articleId}`
+      : rawUrl;
   return {
     platform: "zhihu",
     title: stripHtml(data?.title || data?.name),
-    url: cleanValue(data?.url) || (id ? `https://zhuanlan.zhihu.com/p/${id}` : ""),
+    url: canonicalUrl || (id ? `https://zhuanlan.zhihu.com/p/${id}` : ""),
     account: stripHtml(data?.author?.name || data?.author?.nickname),
     snippet: stripHtml(data?.excerpt || data?.description || data?.content).slice(0, 500)
   };
@@ -453,6 +559,117 @@ async function fetchBilibiliCreatorVideos({ account, searchResults, apiKey, base
       discovery: "creator_posts"
     };
   }).filter((item) => item.url && item.title);
+}
+
+async function fetchDouyinCreatorPosts({ account, query, searchResults = [], apiKey, baseUrl, fetchImpl, timeoutMs, maxResults }) {
+  const root = String(baseUrl || DEFAULT_TIKHUB_BASE_URL).replace(/\/+$/, "");
+  const headers = { authorization: `Bearer ${apiKey}`, "content-type": "application/json" };
+  const wanted = normalizeComparableText(account);
+  const seededProfiles = searchResults.map((item) => ({
+    nickname: cleanValue(item?.account),
+    secUid: cleanValue(item?.accountId),
+    followers: 0,
+    similarity: diceBigrams(normalizeComparableText(item?.account), wanted)
+  })).filter((item) => item.secUid && item.similarity >= 0.75)
+    .filter((item, index, items) => items.findIndex((candidate) => candidate.secUid === item.secUid) === index);
+  let profiles = seededProfiles.slice(0, 4);
+  if (profiles.length === 0) {
+    const payload = await requestJsonWithRetry(
+      `${root}/api/v1/douyin/search/fetch_user_search`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          keyword: account,
+          cursor: 0,
+          douyin_user_fans: "",
+          douyin_user_type: "",
+          search_id: ""
+        })
+      },
+      { fetchImpl, timeoutMs, attempts: 2 }
+    );
+    profiles = normalizeDouyinUserProfiles(payload, account).slice(0, 4);
+  }
+  if (profiles.length === 0) return [];
+
+  // Duplicate display names are common on Douyin. Query a few best matching
+  // profiles in parallel, then let the normal title+account scorer select the
+  // exact post instead of trusting the first user-search row.
+  const pages = await Promise.all(profiles.map(async (profile) => {
+    const params = new URLSearchParams({
+      sec_user_id: profile.secUid,
+      max_cursor: "0",
+      count: String(Math.min(20, Math.max(10, Number(maxResults) || 10))),
+      sort_type: "0"
+    });
+    const postsPayload = await requestJsonWithRetry(
+      `${root}/api/v1/douyin/app/v3/fetch_user_post_videos?${params}`,
+      { method: "GET", headers },
+      { fetchImpl, timeoutMs: Math.max(timeoutMs, 12_000), attempts: 2 }
+    );
+    return findDouyinAwemeItems(postsPayload).map((item) => ({ item, profile }));
+  }));
+  return rankPlatformResults(
+    pages.flat().map(({ item, profile }) => ({
+      ...normalizeTikHubItem("douyin", item),
+      account: cleanValue(item?.author?.nickname) || profile.nickname,
+      discovery: "creator_posts"
+    })).filter((item, index, items) => (
+      item.url && item.title && items.findIndex((candidate) => candidate.url === item.url) === index
+    )),
+    { query, account }
+  );
+}
+
+function normalizeDouyinUserProfiles(payload, account) {
+  const wanted = normalizeComparableText(account);
+  const rows = firstArray(payload?.data?.user_list, payload?.data?.data?.user_list, payload?.user_list);
+  return rows.map((row) => {
+    let data = row?.user_info || row?.user || row;
+    const rawData = row?.dynamic_patch?.raw_data;
+    if (rawData) {
+      try {
+        const parsed = JSON.parse(rawData);
+        data = parsed?.user_info || parsed?.user || data;
+      } catch {
+        // Ignore a malformed dynamic card while keeping any direct user_info.
+      }
+    }
+    const nickname = cleanValue(data?.nickname || data?.name);
+    return {
+      nickname,
+      secUid: cleanValue(data?.sec_uid || data?.sec_user_id),
+      followers: Number(data?.follower_count) || 0,
+      similarity: diceBigrams(normalizeComparableText(nickname), wanted)
+    };
+  }).filter((item) => item.nickname && item.secUid && item.similarity >= 0.55)
+    .sort((left, right) => right.similarity - left.similarity || right.followers - left.followers);
+}
+
+function findDouyinAwemeItems(payload) {
+  const direct = firstArray(
+    payload?.data?.aweme_list,
+    payload?.data?.data?.aweme_list,
+    payload?.data?.data,
+    payload?.aweme_list
+  );
+  if (direct.length) return direct.map((item) => item?.aweme_info || item).filter((item) => item?.aweme_id);
+  const found = [];
+  const seen = new Set();
+  const visit = (value) => {
+    if (!value || typeof value !== "object" || seen.has(value)) return;
+    seen.add(value);
+    if (value.aweme_id && value.author) found.push(value);
+    for (const child of Object.values(value)) {
+      if (Array.isArray(child)) child.forEach(visit);
+      else visit(child);
+    }
+  };
+  visit(payload);
+  return found.filter((item, index, items) => (
+    items.findIndex((candidate) => candidate.aweme_id === item.aweme_id) === index
+  ));
 }
 
 async function resolveBilibiliCreator({ account, apiKey, baseUrl, fetchImpl, timeoutMs }) {

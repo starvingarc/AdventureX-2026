@@ -265,6 +265,7 @@ async function handleImageFlow(req, res) {
     ocrText: body.ocrText || "",
     ocrLines: body.ocrLines || [],
     sourceUrl: body.sourceUrl || "",
+    asrMode: body.asrMode === "sampled" ? "sampled" : body.asrMode === "full" ? "full" : "",
     publicMediaBaseUrl: process.env.SHIBEI_PUBLIC_BASE_URL || requestBaseUrl(req),
     includeDetails: body.includeDetails === true
   };

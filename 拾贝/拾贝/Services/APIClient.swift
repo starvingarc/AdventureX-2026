@@ -1,10 +1,11 @@
 import Foundation
+import UIKit
 
 struct APIClient {
     #if DEBUG
     static let localBaseURL = URL(string: "http://127.0.0.1:5173")!
     static var defaultBaseURL: URL {
-        launchArgumentBaseURL ?? productionBaseURL
+        launchArgumentBaseURL ?? localBaseURL
     }
     #else
     static let defaultBaseURL = APIClient.productionBaseURL
@@ -118,9 +119,59 @@ struct APIClient {
         return try await send("/api/sources/preflight", method: "POST", body: request, acceptsFailureBody: true)
     }
 
-    func analyzeImage(ocr: ImageOCRResult, sourceUrl: String? = nil) async throws -> ImageFlowResponse {
-        let request = ImageFlowRequest(ocrText: ocr.keyText, ocrLines: ocr.lines, sourceUrl: sourceUrl)
-        return try await send("/api/sources/image-flow", method: "POST", body: request, acceptsFailureBody: true)
+    func analyzeImage(
+        ocr: ImageOCRResult,
+        sourceUrl: String? = nil,
+        imageBase64: String? = nil,
+        progress: (ImageFlowProgress) -> Void = { _ in }
+    ) async throws -> ImageFlowResponse {
+        let request = ImageFlowRequest(
+            ocrText: ocr.keyText,
+            ocrLines: ocr.lines,
+            sourceUrl: sourceUrl,
+            imageBase64: imageBase64,
+            asynchronous: true,
+            includeDetails: true
+        )
+        let initial: ImageFlowJobResponse = try await send(
+            "/api/sources/image-flow",
+            method: "POST",
+            body: request,
+            acceptsFailureBody: false
+        )
+        guard !initial.jobId.isEmpty else {
+            throw APIClientError.serverMessage("截图任务没有返回有效 ID。")
+        }
+
+        var job = initial
+        for _ in 0..<1_200 {
+            progress(job.progress)
+            if let result = job.result {
+                return result
+            }
+            if job.status == "failed" {
+                throw APIClientError.serverMessage(job.progress.message ?? "截图处理失败，请稍后重试。")
+            }
+            try await Task.sleep(nanoseconds: 1_000_000_000)
+            job = try await get("/api/sources/image-flow/jobs/\(encodedPathComponent(initial.jobId))")
+        }
+        throw APIClientError.serverMessage("截图处理时间过长，请稍后到材料页查看。")
+    }
+
+    func analyzeImage(
+        image: UIImage,
+        sourceUrl: String? = nil,
+        progress: (ImageFlowProgress) -> Void = { _ in }
+    ) async throws -> ImageFlowResponse {
+        let ocr = try await ImageOCR.recognize(image)
+        let imageBase64 = image.jpegData(compressionQuality: 0.82)
+            .map { "data:image/jpeg;base64,\($0.base64EncodedString())" }
+        return try await analyzeImage(
+            ocr: ocr,
+            sourceUrl: sourceUrl,
+            imageBase64: imageBase64,
+            progress: progress
+        )
     }
 
     func fetchV2Chapter(id: String) async throws -> V2BackendChapter {
@@ -567,19 +618,159 @@ struct ImageFlowRequest: Codable {
     var ocrText: String
     var ocrLines: [String]
     var sourceUrl: String?
+    var imageBase64: String?
+
+    var asynchronous: Bool
+    var includeDetails: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case ocrText
+        case ocrLines
+        case sourceUrl
+        case imageBase64
+        case asynchronous = "async"
+        case includeDetails
+    }
+
+    init(
+        ocrText: String,
+        ocrLines: [String],
+        sourceUrl: String? = nil,
+        imageBase64: String? = nil,
+        asynchronous: Bool = true,
+        includeDetails: Bool = true
+    ) {
+        self.ocrText = ocrText
+        self.ocrLines = ocrLines
+        self.sourceUrl = sourceUrl
+        self.imageBase64 = imageBase64
+        self.asynchronous = asynchronous
+        self.includeDetails = includeDetails
+    }
 }
 
 struct ImageFlowResponse: Codable {
     struct Link: Codable {
-        var title: String
-        var url: String
-        var snippet: String
+        var platform: String?
+        var title: String?
+        var account: String?
+        var url: String?
+        var snippet: String?
+        var matchScore: Double?
+    }
+
+    struct OCR: Codable {
+        var provider: String?
+        var latencyMs: Int?
+        var fallback: String?
+        var identity: Identity?
+    }
+
+    struct Identity: Codable {
+        var title: String?
+        var account: String?
+        var timestampSeconds: Double?
+        var platform: String?
+        var locatorTerms: [String]?
+    }
+
+    struct Source: Codable {
+        var sourceType: String?
+        var sourceStatus: String?
+        var title: String?
+        var url: String?
+        var account: String?
+        var platform: String?
+        var focus: Focus?
+        var provenance: Provenance?
+    }
+
+    struct Provenance: Codable {
+        var status: String?
+        var provider: String?
+        var sourceStatus: String?
+        var label: String?
+        var fallbackProvider: String?
+        var fallbackModel: String?
+    }
+
+    struct Focus: Codable {
+        var status: String?
+        var timestampSeconds: Double?
+        var startSeconds: Double?
+        var endSeconds: Double?
+    }
+
+    struct Review: Codable {
+        var title: String?
+        var tags: [String]?
+        var summaryCard: SummaryCard?
+        var units: [Unit]?
+    }
+
+    struct SummaryCard: Codable {
+        var text: String?
+    }
+
+    struct Unit: Codable, Identifiable {
+        var id: String
+        var title: String?
+        var shortSummary: String?
+        var questions: [Question]?
+    }
+
+    struct Question: Codable, Identifiable {
+        var id: String
+        var knowledgePoint: String?
+        var type: String?
+        var stem: String?
+        var options: [Option]?
+        var correctOptionId: String?
+        var explanation: String?
+    }
+
+    struct Option: Codable, Identifiable {
+        var id: String
+        var text: String
+    }
+
+    struct VideoOverview: Codable {
+        var summary: String?
+        var highlights: [String]?
+    }
+
+    struct ErrorInfo: Codable {
+        var code: String?
+        var message: String?
+        var provider: String?
     }
 
     var status: String
+    var message: String?
+    var errorCode: String?
+    var error: ErrorInfo?
     var query: String?
+    var ocr: OCR?
     var link: Link?
+    var source: Source?
+    var review: Review?
+    var videoOverview: VideoOverview?
     var sourceFallback: Bool?
+    var sourceStatus: String?
+    var provenance: Provenance?
+}
+
+struct ImageFlowProgress: Codable, Equatable {
+    var stage: String
+    var message: String?
+    var percent: Double?
+}
+
+struct ImageFlowJobResponse: Codable {
+    var jobId: String
+    var status: String
+    var progress: ImageFlowProgress
+    var result: ImageFlowResponse?
 }
 
 struct AttemptRequest: Codable {

@@ -3,6 +3,7 @@ import Foundation
 enum V2AppRoute: Equatable {
     case awakening
     case notifications
+    case imageFlowResult
     case generationFailureDetail(chapterID: String)
     case profile
     case generatingChapterDetail(chapterID: String?)

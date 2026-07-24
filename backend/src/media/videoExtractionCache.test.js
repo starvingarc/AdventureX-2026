@@ -50,6 +50,12 @@ test("builds distinct learning source cache keys for different extraction signat
   assert.notEqual(first, second);
 });
 
+test("keeps sampled and full ASR learning caches separate", () => {
+  const sampled = buildVideoExtractionSignature({ asrProvider: "local_whisper", asrMode: "sampled" });
+  const full = buildVideoExtractionSignature({ asrProvider: "local_whisper", asrMode: "full" });
+  assert.notEqual(sampled, full);
+});
+
 test("expires in-memory cache entries after ttl", async () => {
   let currentTime = 1_000;
   const cache = createInMemoryTtlCache({

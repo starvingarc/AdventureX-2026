@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { buildSearchQueries, buildSearchQuery, extractScreenshotIdentity, pickCandidate, runImageFlow } from "./index.js";
 import { focusSourceContent } from "./source.js";
 import { searchLinks } from "./search.js";
+import { validatedIdentityFromIndexes } from "./identity.js";
 
 test("builds a compact query from account and title OCR lines", () => {
   const query = buildSearchQuery([
@@ -30,13 +31,13 @@ test("uses one concise high-signal query and keeps strict candidate matching", a
     generateOverview: async () => ({ summary: "全片概览", highlights: ["要点一"] })
   });
   assert.equal(result.status, "completed");
-  assert.deepEqual(queries, ["巫师财经 财经跨年"]);
+  assert.deepEqual(queries, ["巫师财经 财经跨年 中国财经年度盘点Top10"]);
   assert.ok(result.search.attempts.some((attempt) => attempt.matched));
 });
 
 test("builds bounded title search variants for a platform screenshot", () => {
   assert.deepEqual(buildSearchQueries({ title: "【巫师】财经跨年：中国财经年度盘点Top10", account: "巫师财经" }), [
-    "巫师财经 财经跨年"
+    "巫师财经 财经跨年 中国财经年度盘点Top10"
   ]);
 });
 
@@ -44,7 +45,7 @@ test("keeps search to account plus the first short title segment", () => {
   assert.deepEqual(buildSearchQueries({
     title: "【巫师】全球股市年度排名，谁是神，谁是史，2025年策略前瞻",
     account: "巫师财经"
-  }), ["巫师财经 全球股市年度排名"]);
+  }), ["巫师财经 全球股市年度排名 谁是神 谁是史 2025年策略前瞻"]);
 });
 
 test("keeps a season marker in the short title query", () => {
@@ -77,6 +78,50 @@ test("returns OCR/search result without a search provider", async () => {
   assert.match(result.query, /巫师财经/);
 });
 
+test("uses Qwen Plus visual fallback and marks the knowledge map when TikHub has no source", async () => {
+  const questions = [
+    { id: "q-001", stem: "判断题", options: [], type: "true_false" },
+    { id: "q-002", stem: "选择题一", options: [], type: "multiple_choice" },
+    { id: "q-003", stem: "选择题二", options: [], type: "multiple_choice" }
+  ];
+  const result = await runImageFlow({
+    imagePath: "/tmp/unsourced.jpg",
+    ocr: async () => ({ provider: "test", text: "画面中的核心文字", lines: ["画面中的核心文字"] }),
+    refineIdentity: async () => ({ title: "画面中的核心文字", account: "", platform: "douyin", locatorTerms: [] }),
+    searcher: async (query) => ({ provider: "tikhub", query, results: [] }),
+    analyzeUnsourced: async () => ({
+      title: "截图主题",
+      account: "",
+      platform: "douyin",
+      summary: "这是仅依据截图生成的概括。",
+      tags: ["截图"],
+      keyPoints: ["要点一", "要点二"],
+      questions: [{}, {}, {}],
+      provider: "qwen-vl",
+      model: "qwen3-vl-plus",
+      usage: {}
+    }),
+    generateUnsourcedReview: async () => ({
+      title: "截图主题",
+      source: {},
+      summaryCard: { text: "这是仅依据截图生成的概括。" },
+      units: [{ id: "unit-quick-review", questions }],
+      generationMeta: {}
+    })
+  });
+
+  assert.equal(result.status, "completed");
+  assert.equal(result.sourceStatus, "unsourced_image");
+  assert.equal(result.provenance.status, "not_found");
+  assert.equal(result.provenance.provider, "tikhub");
+  assert.equal(result.provenance.fallbackModel, "qwen3-vl-plus");
+  assert.equal(result.source.url, "");
+  assert.equal(result.source.sourceType, "image_only");
+  assert.equal(result.review.units[0].questions.length, 3);
+  assert.equal(result.contentOverview.provenance.status, "not_found");
+  assert.match(result.message, /未找到 TikHub 原始来源/);
+});
+
 test("keeps only title, account, and explicit player timestamp from screenshot OCR", () => {
   const identity = extractScreenshotIdentity([
     "18:35",
@@ -106,6 +151,120 @@ test("ignores OCR-mangled follow controls when finding a Bilibili account", () =
   assert.equal(identity.title, "【巫师】财经跨年：中国财经年度盘点Top10");
 });
 
+test("extracts Bilibili title and UP from the creator block instead of a video watermark", () => {
+  const identity = extractScreenshotIdentity([
+    "空山猎人",
+    "在这颗星球上",
+    "引言",
+    "简介",
+    "评论1001",
+    "空山猎人",
+    "十关注",
+    "91.1万粉丝 178视频",
+    "热搜",
+    "白粉、杠杆与镰刀：韩国黄金时•〈",
+    "1098 2026年7月23日19:23 2000+人正在",
+    "合集•电力帝国",
+    "13/13"
+  ]);
+  assert.equal(identity.platform, "bilibili");
+  assert.equal(identity.account, "空山猎人");
+  assert.equal(identity.title, "白粉、杠杆与镰刀：韩国黄金时•〈");
+});
+
+test("does not mistake a Bilibili collection counter for Xiaohongshu", () => {
+  const identity = extractScreenshotIdentity([
+    "简介 评论1001",
+    "空山猎人",
+    "十关注",
+    "91.1万粉丝 178视频",
+    "白粉、杠杆与镰刀：韩国黄金时.",
+    "不喜欢",
+    "合集•电力帝国",
+    "13/13"
+  ]);
+  assert.equal(identity.platform, "bilibili");
+});
+
+test("ignores dense Bilibili danmaku accounts and extracts the creator block", () => {
+  const identity = extractScreenshotIdentity([
+    "哑巴流：我用眼睛给你看看",
+    "我是穿越者，2031的机器人",
+    "@yivo.com",
+    "好好好，就得这样子，多调试",
+    "简介",
+    "评论5090",
+    "点我发弹幕",
+    "Unitree宇树科技",
+    "充电",
+    "三 已关注",
+    "89.6万粉丝 97视频",
+    "全模态实时交互驱动全身移动操作",
+    "1427 2026年7月20日15:13 296人正在看"
+  ]);
+  assert.equal(identity.platform, "bilibili");
+  assert.equal(identity.account, "Unitree宇树科技");
+  assert.equal(identity.title, "全模态实时交互驱动全身移动操作");
+});
+
+test("Qwen identity selection can only use grounded consecutive OCR lines", () => {
+  const lines = ["简介", "空山猎人", "十关注", "91.1万粉丝 178视频", "白粉、杠杆与镰刀：韩国黄金时."];
+  const fallback = { title: "fallback", account: "fallback", platform: "bilibili", locatorTerms: ["在这颗星球上"] };
+  const identity = validatedIdentityFromIndexes({
+    platform: "bilibili",
+    titleLineIndexes: [4],
+    accountLineIndexes: [1],
+    contentKind: "video",
+    confidence: 0.95
+  }, lines, fallback);
+  assert.equal(identity.title, lines[4]);
+  assert.equal(identity.account, lines[1]);
+  assert.equal(identity.identityProvider, "qwen-ocr-line-selector");
+  assert.deepEqual(identity.locatorTerms, fallback.locatorTerms);
+  assert.equal(validatedIdentityFromIndexes({
+    platform: "bilibili",
+    titleLineIndexes: [99],
+    accountLineIndexes: [1],
+    contentKind: "video",
+    confidence: 0.99
+  }, lines, fallback), fallback);
+});
+
+test("rejects Qwen Bilibili identity lines selected from danmaku", () => {
+  const lines = [
+    "@yivo.com",
+    "好好好，就得这样子",
+    "简介",
+    "Unitree宇树科技",
+    "充电",
+    "已关注",
+    "89.6万粉丝 97视频",
+    "全模态实时交互驱动全身移动操作"
+  ];
+  const fallback = { title: lines[7], account: lines[3], platform: "bilibili" };
+  assert.equal(validatedIdentityFromIndexes({
+    platform: "bilibili",
+    titleLineIndexes: [1],
+    accountLineIndexes: [0],
+    contentKind: "video",
+    confidence: 0.99
+  }, lines, fallback), fallback);
+});
+
+test("requires both title and UP match before accepting a Bilibili source", () => {
+  const candidate = pickCandidate([
+    { platform: "bilibili", title: "白粉、杠杆与镰刀：韩国黄金时代的47天", account: "另一个UP", url: "https://www.bilibili.com/video/BVwrong" },
+    { platform: "bilibili", title: "白粉、杠杆与镰刀：韩国黄金时代的47天", account: "空山猎人", url: "https://www.bilibili.com/video/BVright" }
+  ], {
+    platform: "bilibili",
+    title: "白粉、杠杆与镰刀：韩国黄金时",
+    account: "空山猎人"
+  });
+  assert.equal(candidate.url, "https://www.bilibili.com/video/BVright");
+  assert.ok(candidate.accountSimilarity >= 0.62);
+  assert.ok(candidate.titleSimilarity >= 0.4);
+});
+
 test("keeps the account above a truncated screenshot title", () => {
   const identity = extractScreenshotIdentity([
     "巫师财经",
@@ -129,6 +288,147 @@ test("extracts a WeChat article title and account from its metadata row", () => 
   assert.equal(identity.platform, "wechat");
   assert.equal(identity.title, "腾讯合并大语言模型和多模态团队");
   assert.equal(identity.account, "界面新闻");
+});
+
+test("extracts a multiline WeChat title and repeated account above a standalone date row", () => {
+  const identity = extractScreenshotIdentity([
+    "NeurIPS’26出分，分享一个135篇",
+    "的超大样本",
+    "具身智能之心 具身智能之心",
+    "2026年7月24日 18:00 上海 听全文",
+    "编辑丨具身智能之心",
+    "NeurIPS 2026出分了。昨天开始陆续有人收到邮件",
+    "朋友圈和群从凌晨就开始炸。",
+    "写留言"
+  ]);
+  assert.equal(identity.platform, "wechat");
+  assert.equal(identity.account, "具身智能之心");
+  assert.equal(identity.title, "NeurIPS’26出分，分享一个135篇的超大样本");
+  assert.match(identity.searchText, /昨天开始陆续有人收到邮件/);
+});
+
+test("extracts a WeChat publisher from a composite original-author row and ignores status OCR", () => {
+  const identity = extractScreenshotIdentity([
+    "18:426uc回",
+    "北京说Agent已经能造世界，杭州却",
+    "说它是刚发明的电灯泡",
+    "原创 关注前沿科技 量子位",
+    "2026年7月24日 18:26 北京 4人",
+    "金磊 发自 凹非寺",
+    "量子位 | 公众号 QbitAI",
+    "你敢相信么，现在的AI，已经把横店给直接搞到了线上了！",
+    "写留言"
+  ]);
+  assert.equal(identity.platform, "wechat");
+  assert.equal(identity.account, "量子位");
+  assert.equal(identity.title, "北京说Agent已经能造世界，杭州却说它是刚发明的电灯泡");
+  assert.doesNotMatch(identity.title, /^18:42/);
+  assert.match(identity.searchText, /已经把横店给直接搞到了线上/);
+});
+
+test("prefers a composite WeChat publisher row over the article editor", () => {
+  const identity = extractScreenshotIdentity([
+    "智元创新已启动赴港上市流程",
+    "一财快讯 第一财经 2026年7月24日 18:24 上海",
+    "7月24日，第一财经记者获悉，通用AI机器人企业已启动赴港上市流程。",
+    "记者丨胡淑娟",
+    "编辑丨钉钉",
+    "第一财经官方公众号",
+    "写留言"
+  ]);
+  assert.equal(identity.account, "第一财经");
+  assert.equal(identity.title, "智元创新已启动赴港上市流程");
+});
+
+test("accepts the explicitly named original WeChat source as an account alias", () => {
+  const identity = extractScreenshotIdentity([
+    "历史新高！14位北大人受邀国际数学家大会作报告",
+    "北大人 2026年7月24日 09:25 北京",
+    "以下文章来源于北京大学，作者北京大学",
+    "昨天，国际数学界迎来历史性的一刻。",
+    "写留言"
+  ]);
+  assert.deepEqual(identity.accountAliases, ["北大人", "北京大学"]);
+  const candidate = pickCandidate([{
+    platform: "wechat",
+    title: "历史新高！14位北大人受邀国际数学家大会作报告",
+    account: "北京大学",
+    snippet: "昨天，国际数学界迎来历史性的一刻。",
+    url: "https://mp.weixin.qq.com/s/source"
+  }], identity);
+  assert.equal(candidate?.url, "https://mp.weixin.qq.com/s/source");
+  assert.equal(candidate.accountSimilarity, 1);
+});
+
+test("keeps a single-character final line in a wrapped WeChat title", () => {
+  const identity = extractScreenshotIdentity([
+    "德明利：董事长承诺12个月内不减",
+    "持",
+    "财联社 2026年7月24日 18:53 上海",
+    "德明利今日公告称，董事长承诺十二个月内不减持。",
+    "写留言"
+  ]);
+  assert.equal(identity.account, "财联社");
+  assert.equal(identity.title, "德明利：董事长承诺12个月内不减持");
+});
+
+test("extracts a Zhihu idea author, title, and visible body text", () => {
+  const identity = extractScreenshotIdentity([
+    "一花依世界",
+    "量化金融爱好者",
+    "已关注",
+    "9人赞同了该想法",
+    "小市值策略遭受暴击",
+    "用垃圾因子库，使用树模型造了一个小市值策略。",
+    "最近真是惨不忍睹呀",
+    "评论17",
+    "欢迎参与讨论"
+  ]);
+  assert.equal(identity.platform, "zhihu");
+  assert.equal(identity.account, "一花依世界");
+  assert.equal(identity.title, "小市值策略遭受暴击");
+  assert.equal(identity.contentKind, "pin");
+  assert.match(identity.searchText, /垃圾因子库/);
+});
+
+test("extracts a Zhihu answer author before its profile bio and ignores status OCR", () => {
+  const identity = extractScreenshotIdentity([
+    "21:43",
+    "状态栏乱码",
+    "邀请回答 写回答",
+    "搞什么副业能赚钱？",
+    "知乎 · 822个回答 · 2931个关注",
+    "漂流少年 ◎",
+    "不看私信、不接咨询、有问…",
+    "+关注",
+    "2.2万人赞同了该回答",
+    "第一步：花10秒钟搞个正规授权",
+    "第二步：去素材库白嫖3000G视频",
+    "我在国企打工，下班发小说视频，一天能赚100多。"
+  ]);
+  assert.equal(identity.platform, "zhihu");
+  assert.equal(identity.title, "搞什么副业能赚钱？");
+  assert.equal(identity.account, "漂流少年");
+  assert.equal(identity.contentKind, "answer");
+  assert.match(identity.searchText, /花10秒钟搞个正规授权/);
+  assert.doesNotMatch(identity.searchText, /不看私信/);
+});
+
+test("uses full visible article evidence to accept a matching source", () => {
+  const candidate = pickCandidate([{
+    platform: "wechat",
+    title: "标题有少量OCR差异",
+    account: "具身智能之心",
+    snippet: "昨天开始陆续有人收到邮件，朋友圈和群从凌晨就开始炸。",
+    url: "https://mp.weixin.qq.com/s/example"
+  }], {
+    platform: "wechat",
+    title: "完全不同的标题识别结果",
+    account: "具身智能之心",
+    searchText: "NeurIPS 2026出分了。昨天开始陆续有人收到邮件，朋友圈和群从凌晨就开始炸。"
+  });
+  assert.equal(candidate?.url, "https://mp.weixin.qq.com/s/example");
+  assert.ok(candidate.evidenceSimilarity >= 0.52);
 });
 
 test("extracts a Zhihu pin title and skips the follow button before the author badge", () => {
@@ -199,6 +499,75 @@ test("returns a timestamp-focused review and a whole-video overview", async () =
   assert.equal(Number.isFinite(result.timings.reviewGenerationMs), true);
   assert.equal(Number.isFinite(result.timings.overviewGenerationMs), true);
   assert.equal(Number.isFinite(result.timings.totalMs), true);
+});
+
+test("returns an article overview instead of a video-only empty state", async () => {
+  let overviewInput = null;
+  const result = await runImageFlow({
+    ocrText: "腾讯合并大语言模型和多模态团队\n界面新闻 2026年7月24日 14:34 上海\n阅读原文",
+    searcher: async (query) => ({
+      provider: "tikhub",
+      query,
+      results: [{
+        platform: "wechat",
+        title: "腾讯合并大语言模型和多模态团队",
+        account: "界面新闻",
+        url: "https://mp.weixin.qq.com/s/example"
+      }]
+    }),
+    extract: async () => ({
+      sourceTitle: "腾讯合并大语言模型和多模态团队",
+      sourceUrl: "https://mp.weixin.qq.com/s/example",
+      sourceAccount: "界面新闻",
+      platform: "wechat",
+      rawText: "腾讯将两个模型团队合并为基础模型部。",
+      overviewText: "腾讯将混元多模态模型部门与大语言模型部门合并为基础模型部。",
+      blocks: [{ id: "article-1", text: "腾讯将两个模型团队合并为基础模型部。" }],
+      focus: { status: "timestamp_missing" }
+    }),
+    generate: async () => ({ summaryCard: { text: "团队合并" }, units: [] }),
+    generateOverview: async (input) => {
+      overviewInput = input;
+      return { summary: "文章概览", highlights: ["组织合并", "协同研发"] };
+    }
+  });
+  assert.equal(result.status, "completed");
+  assert.equal(overviewInput.contentType, "article");
+  assert.equal(result.articleOverview.summary, "文章概览");
+  assert.equal(result.contentOverview.summary, "文章概览");
+  assert.equal(result.videoOverview, undefined);
+});
+
+test("falls back to verified caption and screenshot text when a video has no transcript", async () => {
+  let generatedInput = null;
+  const extractionError = new Error("这条视频没有识别到足够清晰的语音内容。");
+  extractionError.code = "failed_extract_video";
+  const result = await runImageFlow({
+    includeDetails: true,
+    ocrText: "智东西快讯\n丘成桐公开澄清：\n我菲尔兹奖时没入美国籍\n当时就是一个中国人",
+    searcher: async (query) => ({
+      provider: "tikhub",
+      query,
+      results: [{
+        platform: "douyin",
+        title: "丘成桐公开澄清：我菲尔兹奖时没入美国籍，当时就是一个中国人",
+        url: "https://www.douyin.com/video/123",
+        account: "智东西"
+      }]
+    }),
+    extract: async () => { throw extractionError; },
+    generate: async (input) => {
+      generatedInput = input;
+      return { summaryCard: { text: "丘成桐澄清获奖时的国籍情况。" }, units: [] };
+    }
+  });
+  assert.equal(result.status, "completed");
+  assert.equal(result.sourceFallback, true);
+  assert.equal(result.source.focus.status, "screenshot_text_fallback");
+  assert.match(result.message, /没有可用字幕/);
+  assert.match(generatedInput.rawText, /当时就是一个中国人/);
+  assert.equal(result.details.source.extractionMeta.fastPath, "screenshot_text_fallback");
+  assert.equal(result.videoOverview, undefined);
 });
 
 test("selects only subtitle blocks around the player timestamp", () => {
@@ -367,7 +736,7 @@ test("normalizes current TikHub Douyin business_data search results", async () =
     tikhubApiKey: "test-key",
     fetchImpl: async (url, options) => {
       requestedUrl = String(url);
-      assert.equal(JSON.parse(options.body).content_type, "1");
+      assert.equal(JSON.parse(options.body).content_type, "0");
       return {
         ok: true,
         json: async () => ({
@@ -386,13 +755,13 @@ test("normalizes current TikHub Douyin business_data search results", async () =
       };
     }
   });
-  assert.match(requestedUrl, /fetch_video_search_v2/);
+  assert.match(requestedUrl, /fetch_general_search_v1/);
   assert.equal(result.results[0].platform, "douyin");
   assert.equal(result.results[0].account, "云潮新闻");
   assert.equal(result.results[0].url, "https://www.douyin.com/video/76570001");
 });
 
-test("hedges a slow Douyin V2 search with V1 instead of waiting for a serial retry", async () => {
+test("falls back to the hedged Douyin video search when general search is empty", async () => {
   const previous = process.env.TIKHUB_SEARCH_HEDGE_DELAY_MS;
   process.env.TIKHUB_SEARCH_HEDGE_DELAY_MS = "1";
   const calls = [];
@@ -403,6 +772,9 @@ test("hedges a slow Douyin V2 search with V1 instead of waiting for a serial ret
       timeoutMs: 1_000,
       fetchImpl: async (url) => {
         calls.push(String(url));
+        if (String(url).includes("fetch_general_search_v1")) {
+          return { ok: true, json: async () => ({ data: { data: [] } }) };
+        }
         if (String(url).includes("_v2")) return new Promise(() => {});
         return {
           ok: true,
@@ -415,11 +787,171 @@ test("hedges a slow Douyin V2 search with V1 instead of waiting for a serial ret
       }
     });
     assert.equal(result.results[0].url, "https://www.douyin.com/video/v1-fast");
+    assert.equal(calls.some((url) => url.includes("fetch_general_search_v1")), true);
     assert.equal(calls.some((url) => url.includes("fetch_video_search_v1")), true);
   } finally {
     if (previous === undefined) delete process.env.TIKHUB_SEARCH_HEDGE_DELAY_MS;
     else process.env.TIKHUB_SEARCH_HEDGE_DELAY_MS = previous;
   }
+});
+
+test("cleans a Douyin date suffix from the OCR author and detects its comment UI", () => {
+  const identity = extractScreenshotIdentity([
+    "18:17",
+    "咕咕嘎嘎",
+    "搜索",
+    "@虎纹章鱼。07月10日",
+    "凑猫和凑鱼教你鉴定凑企鹅#凑企鹅",
+    "期待你的评论"
+  ]);
+  assert.equal(identity.platform, "douyin");
+  assert.equal(identity.account, "虎纹章鱼");
+  assert.equal(identity.title, "凑猫和凑鱼教你鉴定凑企鹅#凑企鹅");
+});
+
+test("extracts a Xiaohongshu video author from the plain follow control", () => {
+  const identity = extractScreenshotIdentity([
+    "刘思哲2026高考690分（物理类）",
+    "小飞侠彼湯",
+    "第11题（压轴题）没有做出来",
+    "佛山学而思",
+    "关注",
+    "7:44",
+    "弹",
+    "【高考690分，预估北大！】 刘思哲同学..展开",
+    "说点什么....",
+    "收藏",
+    "抢首评"
+  ]);
+  assert.equal(identity.platform, "xiaohongshu");
+  assert.equal(identity.account, "佛山学而思");
+  assert.equal(identity.title, "【高考690分，预估北大！】 刘思哲同学");
+  assert.equal(identity.contentKind, "video");
+});
+
+test("rejects a Xiaohongshu model account selected from video-frame text", () => {
+  const lines = [
+    "小飞侠彼湯",
+    "优秀作品",
+    "佛山学而思",
+    "关注",
+    "【高考690分，预估北大！】 刘思哲同学..展开",
+    "说点什么....",
+    "收藏"
+  ];
+  const fallback = { platform: "xiaohongshu", title: "正确标题", account: "佛山学而思" };
+  const identity = validatedIdentityFromIndexes({
+    platform: "xiaohongshu",
+    titleLineIndexes: [4],
+    accountLineIndexes: [0],
+    contentKind: "video",
+    confidence: 0.95
+  }, lines, fallback);
+  assert.deepEqual(identity, fallback);
+});
+
+test("extracts an English Xiaohongshu author and cleans emoji OCR noise from its caption", () => {
+  const identity = extractScreenshotIdentity([
+    "18:38",
+    "Anmo Li",
+    "关注",
+    "弹",
+    "cornell university 太厉害了0.9090°",
+    "说点什么…",
+    "109",
+    "收藏"
+  ]);
+  assert.equal(identity.platform, "xiaohongshu");
+  assert.equal(identity.account, "Anmo Li");
+  assert.equal(identity.title, "cornell university 太厉害了");
+  assert.equal(identity.contentKind, "video");
+});
+
+test("retries Xiaohongshu with title only while retaining strict author matching", async () => {
+  const queries = [];
+  const result = await runImageFlow({
+    ocrText: "Anmo Li\n关注\n弹\ncornell university 太厉害了\n说点什么…",
+    refineIdentity: async (_lines, fallback) => fallback,
+    searcher: async (query) => {
+      queries.push(query);
+      return {
+        provider: "tikhub",
+        query,
+        results: query === "cornell university 太厉害了"
+          ? [{
+              platform: "xiaohongshu",
+              kind: "video",
+              title: "cornell university 太厉害了",
+              account: "Anmo Li",
+              url: "https://www.xiaohongshu.com/explore/xhs-right"
+            }]
+          : []
+      };
+    },
+    extract: async ({ sourceUrl, sourceTitle }) => ({
+      sourceTitle,
+      sourceUrl,
+      sourceAccount: "Anmo Li",
+      platform: "xiaohongshu",
+      rawText: sourceTitle,
+      overviewText: sourceTitle,
+      blocks: [{ id: "b1", text: sourceTitle }],
+      overviewBlocks: [],
+      focus: { status: "caption" }
+    }),
+    generate: async () => ({ summaryCard: { text: "ok" }, units: [] }),
+    generateOverview: async () => ({ summary: "ok", keyPoints: [] })
+  });
+  assert.equal(result.status, "completed");
+  assert.equal(result.link.url, "https://www.xiaohongshu.com/explore/xhs-right");
+  assert.deepEqual(new Set(queries), new Set(["Anmo Li cornell university 太厉害了", "cornell university 太厉害了"]));
+});
+
+test("uses Douyin user search and creator posts for duplicate-name author fallback", async () => {
+  const calls = [];
+  const result = await searchLinks("虎纹章鱼 凑猫和凑鱼教你鉴定凑企鹅", {
+    platform: "douyin",
+    account: "虎纹章鱼",
+    creatorFallback: true,
+    tikhubApiKey: "test-key",
+    fetchImpl: async (url) => {
+      calls.push(String(url));
+      if (String(url).includes("fetch_general_search_v1")) {
+        return { ok: true, json: async () => ({ data: { data: [] } }) };
+      }
+      if (String(url).includes("fetch_video_search_")) {
+        return { ok: true, json: async () => ({ data: { data: [] } }) };
+      }
+      if (String(url).includes("fetch_user_search")) {
+        return {
+          ok: true,
+          json: async () => ({
+            data: {
+              user_list: [{
+                dynamic_patch: {
+                  raw_data: JSON.stringify({ user_info: { nickname: "虎纹章鱼", sec_uid: "sec-target", follower_count: 100 } })
+                }
+              }]
+            }
+          })
+        };
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          data: {
+            aweme_list: [{
+              aweme_id: "creator-hit",
+              desc: "凑猫和凑鱼教你鉴定凑企鹅#凑企鹅",
+              author: { nickname: "虎纹章鱼" }
+            }]
+          }
+        })
+      };
+    }
+  });
+  assert.equal(result.results.find((item) => item.discovery === "creator_posts")?.url, "https://www.douyin.com/video/creator-hit");
+  assert.equal(calls.some((url) => url.includes("fetch_user_post_videos")), true);
 });
 
 test("keeps candidates from every TikHub platform for an unknown screenshot", async () => {

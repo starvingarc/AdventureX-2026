@@ -484,7 +484,7 @@ function readXiaohongshuWebParams(sourceUrl) {
 function readZhihuTarget(sourceUrl) {
   const pinId = sourceUrl.match(/\/pin\/(\d+)/)?.[1];
   if (pinId) return { kind: "pin", id: pinId };
-  const answerId = sourceUrl.match(/\/answer\/(\d+)/)?.[1];
+  const answerId = sourceUrl.match(/\/answers?\/(\d+)/)?.[1];
   if (answerId) return { kind: "answer", id: answerId };
   const articleId = sourceUrl.match(/(?:zhuanlan\.zhihu\.com\/p\/|\/p\/)(\d+)/)?.[1];
   if (articleId) return { kind: "article", id: articleId };

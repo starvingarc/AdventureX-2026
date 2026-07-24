@@ -34,7 +34,9 @@ export async function extractSourceContent(input, {
       sourceTitle: input.sourceTitle,
       preferredTimestampSeconds: input.timestampSeconds,
       preferredLanguage: input.preferredLanguage,
-      publicMediaBaseUrl: input.publicMediaBaseUrl
+      asrMode: input.asrMode,
+      publicMediaBaseUrl: input.publicMediaBaseUrl,
+      onProgress: input.onProgress
     });
     const v2Source = buildV2SourceFromLearningSource(learningSource);
     return {
@@ -59,22 +61,47 @@ export async function extractSourceContent(input, {
   let tikhubError = null;
   if (shouldUseTikHubArticleSource(platform, { env })) {
     try {
-      const content = await fetchTikHubContentSource({ sourceUrl });
+      const content = await measureSourceStage(input?.onProgress, {
+        event: "article_source_fetch_completed",
+        message: "平台图文正文获取完成",
+        details: { provider: "tikhub", platform }
+      }, () => fetchTikHubContentSource({ sourceUrl }));
       return buildTikHubArticleSource(content, sourceUrl);
     } catch (error) {
       tikhubError = error;
     }
   }
   if (isWechatArticleUrl(sourceUrl)) {
-    return extractWechatArticle(sourceUrl);
+    return measureSourceStage(input?.onProgress, {
+      event: "article_source_fetch_completed",
+      message: "微信文章正文获取完成",
+      details: { provider: "wechat", platform: "wechat" }
+    }, () => extractWechatArticle(sourceUrl));
   }
   try {
-    return await extractWebArticle(sourceUrl);
+    return await measureSourceStage(input?.onProgress, {
+      event: "article_source_fetch_completed",
+      message: "网页正文获取完成",
+      details: { provider: "web", platform }
+    }, () => extractWebArticle(sourceUrl));
   } catch (error) {
     if (tikhubError && platform === "xiaohongshu") {
       throw tikhubArticleFailure(tikhubError);
     }
     throw error;
+  }
+}
+
+async function measureSourceStage(onProgress, descriptor, operation) {
+  const startedAt = Date.now();
+  try {
+    return await operation();
+  } finally {
+    try {
+      onProgress?.({ ...descriptor, durationMs: Date.now() - startedAt });
+    } catch {
+      // Diagnostics must not affect source extraction.
+    }
   }
 }
 

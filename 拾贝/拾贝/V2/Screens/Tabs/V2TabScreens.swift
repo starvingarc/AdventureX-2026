@@ -1,4 +1,6 @@
+import PhotosUI
 import SwiftUI
+import UIKit
 
 struct V2TabScaffold<Content: View>: View {
     @Binding var selectedTab: V2HomeTab
@@ -273,10 +275,16 @@ struct V2UploadView: View {
     let preflightSource: (String) async throws -> SourcePreflightResponse
     let preflightSourceWithMetadata: (String) async throws -> SourcePreflightResponse
     let onGenerate: (String) -> Void
+    let onScreenshotFlow: (UIImage, (ImageFlowProgress) -> Void) async throws -> ImageFlowResponse
+    let onScreenshotCompleted: (ImageFlowResponse) -> Void
     @State private var sourceText = ""
     @State private var validationMessage = ""
     @State private var preflightState = V2UploadPreflightState.idle
     @State private var preflightTask: Task<Void, Never>?
+    @State private var selectedScreenshotItem: PhotosPickerItem?
+    @State private var selectedScreenshot: UIImage?
+    @State private var isScreenshotProcessing = false
+    @State private var screenshotStatusText = ""
 
     private var trimmedSourceText: String {
         sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -291,7 +299,7 @@ struct V2UploadView: View {
     }
 
     private var canStartGeneration: Bool {
-        guard !isSubmittingGeneration, !trimmedSourceText.isEmpty else {
+        guard !isSubmittingGeneration, !isScreenshotProcessing, !trimmedSourceText.isEmpty else {
             return false
         }
         let parsed = parsedSourceInput
@@ -317,6 +325,8 @@ struct V2UploadView: View {
                     }
 
                 VStack(spacing: V2UploadPageMetrics.verticalSpacing) {
+                    screenshotUploadCard
+
                     V2UploadMascotInputGroup(
                         urlText: $sourceText,
                         preflightState: preflightState,
@@ -357,6 +367,136 @@ struct V2UploadView: View {
             }
             .onDisappear {
                 preflightTask?.cancel()
+            }
+        }
+    }
+
+    private var screenshotUploadCard: some View {
+        V2InfoCard {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 10) {
+                    Image(systemName: "viewfinder")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(V2Color.primaryAction)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("截图生成复习卡")
+                            .font(V2Typography.bodyEmphasis)
+                            .foregroundStyle(V2Color.textPrimary)
+                        Text("支持抖音、小红书、B站等内容页截图")
+                            .font(V2Typography.caption)
+                            .foregroundStyle(V2Color.textMuted)
+                    }
+                }
+
+                if let selectedScreenshot {
+                    Image(uiImage: selectedScreenshot)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: .infinity, maxHeight: 190)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+
+                PhotosPicker(selection: $selectedScreenshotItem, matching: .images) {
+                    Label(selectedScreenshot == nil ? "选择截图" : "更换截图", systemImage: "photo.on.rectangle")
+                        .font(V2Typography.bodySmallEmphasis)
+                        .foregroundStyle(V2Color.textPrimary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(V2Color.pageGreenBackground.opacity(0.72))
+                        )
+                }
+                .buttonStyle(.plain)
+                .disabled(isScreenshotProcessing)
+                .onChange(of: selectedScreenshotItem) { item in
+                    loadScreenshot(item)
+                }
+
+                if selectedScreenshot != nil {
+                    V2PrimaryActionButton(
+                        title: isScreenshotProcessing ? "正在整理" : "开始整理截图",
+                        tone: isScreenshotProcessing ? .disabled : .normal,
+                        height: 46
+                    ) {
+                        startScreenshotFlow()
+                    }
+                }
+
+                if !screenshotStatusText.isEmpty {
+                    HStack(spacing: 8) {
+                        if isScreenshotProcessing {
+                            ProgressView()
+                                .controlSize(.small)
+                                .tint(V2Color.primaryAction)
+                        }
+                        Text(screenshotStatusText)
+                            .font(V2Typography.label)
+                            .foregroundStyle(isScreenshotProcessing ? V2Color.textSecondary : V2Color.feedbackWrongBorder)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        }
+    }
+
+    private func loadScreenshot(_ item: PhotosPickerItem?) {
+        screenshotStatusText = ""
+        guard let item else {
+            selectedScreenshot = nil
+            return
+        }
+        Task {
+            do {
+                guard let data = try await item.loadTransferable(type: Data.self),
+                      let image = UIImage(data: data) else {
+                    throw ImageOCRError.invalidImage
+                }
+                await MainActor.run {
+                    selectedScreenshot = image
+                }
+            } catch {
+                await MainActor.run {
+                    selectedScreenshot = nil
+                    screenshotStatusText = "无法读取这张图片，请重新选择。"
+                }
+            }
+        }
+    }
+
+    private func startScreenshotFlow() {
+        guard let selectedScreenshot, !isScreenshotProcessing else {
+            return
+        }
+        isScreenshotProcessing = true
+        screenshotStatusText = "正在识别截图"
+        validationMessage = ""
+
+        Task {
+            do {
+                let response = try await onScreenshotFlow(selectedScreenshot) { progress in
+                    Task { @MainActor in
+                        screenshotStatusText = progress.message ?? "正在整理截图"
+                    }
+                }
+                await MainActor.run {
+                    isScreenshotProcessing = false
+                    guard response.status == "completed", response.review?.units?.isEmpty == false else {
+                        screenshotStatusText = response.error?.message
+                            ?? response.message
+                            ?? "没有生成可用的复习卡，请换一张更清晰的截图。"
+                        return
+                    }
+                    screenshotStatusText = "复习卡已生成"
+                    onScreenshotCompleted(response)
+                }
+            } catch {
+                await MainActor.run {
+                    isScreenshotProcessing = false
+                    screenshotStatusText = error.localizedDescription.isEmpty
+                        ? "截图处理失败，请稍后重试。"
+                        : error.localizedDescription
+                }
             }
         }
     }

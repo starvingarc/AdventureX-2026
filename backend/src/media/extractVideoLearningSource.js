@@ -696,7 +696,7 @@ async function transcribeWithTemporaryPublicMedia({
     try {
       const chunked = await splitAudio({
         inputPath: mediaFile.path,
-        ...(localAsr ? { chunkSeconds: readPositiveInt(process.env.LOCAL_ASR_CHUNK_SECONDS, 10) } : {})
+        ...(localAsr ? { chunkSeconds: readPositiveInt(process.env.LOCAL_ASR_CHUNK_SECONDS, 8) } : {})
       });
       tempFiles.push({ dir: chunked.dir });
       const chunks = selectRepresentativeChunks(chunked.chunks, {

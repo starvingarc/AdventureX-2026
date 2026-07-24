@@ -299,6 +299,36 @@ test("normalizes current TikHub Douyin business_data search results", async () =
   assert.equal(result.results[0].url, "https://www.douyin.com/video/76570001");
 });
 
+test("hedges a slow Douyin V2 search with V1 instead of waiting for a serial retry", async () => {
+  const previous = process.env.TIKHUB_SEARCH_HEDGE_DELAY_MS;
+  process.env.TIKHUB_SEARCH_HEDGE_DELAY_MS = "1";
+  const calls = [];
+  try {
+    const result = await searchLinks("云潮新闻 备用检索", {
+      platform: "douyin",
+      tikhubApiKey: "test-key",
+      timeoutMs: 1_000,
+      fetchImpl: async (url) => {
+        calls.push(String(url));
+        if (String(url).includes("_v2")) return new Promise(() => {});
+        return {
+          ok: true,
+          json: async () => ({
+            data: {
+              data: [{ aweme_info: { aweme_id: "v1-fast", desc: "备用检索命中", author: { nickname: "云潮新闻" } } }]
+            }
+          })
+        };
+      }
+    });
+    assert.equal(result.results[0].url, "https://www.douyin.com/video/v1-fast");
+    assert.equal(calls.some((url) => url.includes("fetch_video_search_v1")), true);
+  } finally {
+    if (previous === undefined) delete process.env.TIKHUB_SEARCH_HEDGE_DELAY_MS;
+    else process.env.TIKHUB_SEARCH_HEDGE_DELAY_MS = previous;
+  }
+});
+
 test("keeps candidates from every TikHub platform for an unknown screenshot", async () => {
   const result = await searchLinks("学习方法", {
     maxResults: 2,

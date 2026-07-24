@@ -95,7 +95,6 @@ async function callTikHubPlatform(platform, query, { apiKey, baseUrl, fetchImpl,
     // The video-only endpoint returns fewer cards and includes the same rich
     // aweme metadata needed by extraction, saving both search time and a
     // second TikHub detail request.
-    url = `${root}/api/v1/douyin/search/fetch_video_search_v2`;
     request = {
       method: "POST",
       headers,
@@ -110,9 +109,54 @@ async function callTikHubPlatform(platform, query, { apiKey, baseUrl, fetchImpl,
         backtrace: ""
       })
     };
+    return callHedgedDouyinSearch({ root, request, fetchImpl, timeoutMs });
   }
   const payload = await requestJsonWithRetry(url, request, { fetchImpl, timeoutMs, attempts: 2 });
   return normalizeTikHubResults(platform, payload);
+}
+
+function callHedgedDouyinSearch({ root, request, fetchImpl, timeoutMs }) {
+  const requestEndpoint = async (version) => {
+    const payload = await requestJson(
+      `${root}/api/v1/douyin/search/fetch_video_search_${version}`,
+      request,
+      { fetchImpl, timeoutMs }
+    );
+    const results = normalizeTikHubResults("douyin", payload);
+    if (!results.length) throw new Error(`douyin video search ${version} returned no results`);
+    return results;
+  };
+  const hedgeDelayMs = readPositiveInt(process.env.TIKHUB_SEARCH_HEDGE_DELAY_MS, 1_200);
+  return new Promise((resolveSearch, rejectSearch) => {
+    let settled = false;
+    let fallbackStarted = false;
+    const failures = [];
+    let timer;
+    const succeed = (results) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolveSearch(results);
+    };
+    const fail = (error) => {
+      failures.push(error);
+      if (!fallbackStarted) {
+        startFallback();
+        return;
+      }
+      if (failures.length >= 2 && !settled) {
+        settled = true;
+        rejectSearch(failures.at(-1));
+      }
+    };
+    const startFallback = () => {
+      if (settled || fallbackStarted) return;
+      fallbackStarted = true;
+      requestEndpoint("v1").then(succeed, fail);
+    };
+    timer = setTimeout(startFallback, hedgeDelayMs);
+    requestEndpoint("v2").then(succeed, fail);
+  });
 }
 
 function detectTikHubSearchPlatforms(query) {

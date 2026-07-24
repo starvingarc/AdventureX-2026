@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildSearchQueries, buildSearchQuery, extractScreenshotIdentity, runImageFlow } from "./index.js";
+import { buildSearchQueries, buildSearchQuery, extractScreenshotIdentity, pickCandidate, runImageFlow } from "./index.js";
 import { focusSourceContent } from "./source.js";
 import { searchLinks } from "./search.js";
 
@@ -38,6 +38,33 @@ test("builds bounded title search variants for a platform screenshot", () => {
   assert.deepEqual(buildSearchQueries({ title: "【巫师】财经跨年：中国财经年度盘点Top10", account: "巫师财经" }), [
     "巫师财经 财经跨年"
   ]);
+});
+
+test("keeps search to account plus the first short title segment", () => {
+  assert.deepEqual(buildSearchQueries({
+    title: "【巫师】全球股市年度排名，谁是神，谁是史，2025年策略前瞻",
+    account: "巫师财经"
+  }), ["巫师财经 全球股市年度排名"]);
+});
+
+test("keeps a season marker in the short title query", () => {
+  assert.deepEqual(buildSearchQueries({
+    title: "【巫师】春晚背后资本博弈，第二季",
+    account: "巫师财经"
+  }), ["巫师财经 春晚背后资本博弈 第二季"]);
+});
+
+test("accepts the best same-account result when OCR and indexed titles differ slightly", () => {
+  const candidate = pickCandidate([
+    { title: "【巫师】保健品行业的资本博弈", account: "巫师财经", url: "https://www.bilibili.com/video/BVother" },
+    { title: "【巫师】Lisa资本博弈，但是第二季", account: "巫师财经", url: "https://www.bilibili.com/video/BVright" }
+  ], {
+    title: "【巫师】春晚背后资本博弈，第二季",
+    account: "巫师财经",
+    locatorTerms: []
+  });
+  assert.equal(candidate.url, "https://www.bilibili.com/video/BVright");
+  assert.ok(candidate.accountSimilarity >= 0.78);
 });
 
 test("returns OCR/search result without a search provider", async () => {
@@ -238,4 +265,18 @@ test("normalizes TikHub Douyin video search results", async () => {
   assert.equal(result.provider, "tikhub");
   assert.equal(result.results[0].url, "https://www.douyin.com/video/123456");
   assert.equal(result.results[0].title, "AI 学习方法");
+});
+
+test("keeps candidates from every TikHub platform for an unknown screenshot", async () => {
+  const result = await searchLinks("学习方法", {
+    maxResults: 2,
+    tikhubApiKey: "test-key",
+    fetchImpl: async (url) => {
+      const value = String(url);
+      if (value.includes("bilibili")) return { ok: true, json: async () => ({ data: { result: [{ bvid: "BV1", title: "B站学习" }] } }) };
+      if (value.includes("xiaohongshu")) return { ok: true, json: async () => ({ data: { data: { items: [{ id: "x1", note_card: { display_title: "小红书学习" } }] } } }) };
+      return { ok: true, json: async () => ({ data: { data: [{ aweme_info: { aweme_id: "d1", desc: "抖音学习" } }] } }) };
+    }
+  });
+  assert.deepEqual(new Set(result.results.map((item) => item.platform)), new Set(["bilibili", "douyin", "xiaohongshu"]));
 });

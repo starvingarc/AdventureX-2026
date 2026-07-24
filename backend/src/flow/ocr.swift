@@ -46,9 +46,9 @@ request.recognitionLevel = ProcessInfo.processInfo.environment["APPLE_VISION_OCR
 request.recognitionLanguages = ["zh-Hans", "en-US"]
 request.usesLanguageCorrection = false
 request.minimumTextHeight = 0.008
-// Screenshot identity is located in the upper 72%; excluding navigation chrome
-// at the bottom reduces both latency and false account/title candidates.
-request.regionOfInterest = CGRect(x: 0, y: 0.28, width: 1, height: 0.72)
+// Short-video accounts and captions live in the lower quarter. Scan the full
+// screenshot and let the platform-aware identity parser remove navigation UI.
+request.regionOfInterest = CGRect(x: 0, y: 0, width: 1, height: 1)
 
 do {
     try VNImageRequestHandler(cgImage: cgImage, orientation: .up).perform([request])

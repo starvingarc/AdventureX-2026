@@ -11,7 +11,7 @@ export async function transcribeMediaWithQwen({
   apiKey = process.env.QWEN_ASR_API_KEY || process.env.QWEN_API || process.env.DASHSCOPE_API_KEY || "",
   baseUrl = process.env.QWEN_ASR_BASE_URL || process.env.BASE_URL || "https://dashscope.aliyuncs.com",
   model = process.env.QWEN_ASR_MODEL || "qwen3-asr-flash-filetrans",
-  language = process.env.LOCAL_WHISPER_LANGUAGE || "zh",
+  language = process.env.QWEN_ASR_LANGUAGE || process.env.LOCAL_WHISPER_LANGUAGE || "auto",
   fetchImpl = fetch,
   timeoutMs = DEFAULT_TIMEOUT_MS,
   pollMs = DEFAULT_POLL_MS
@@ -20,6 +20,8 @@ export async function transcribeMediaWithQwen({
     throw createMediaExtractionError("asr_config_missing", "Qwen 语音转写缺少音频地址或 API 配置。", { retryable: false, provider: "qwen_filetrans" });
   }
   const root = apiRoot(baseUrl);
+  const parameters = { channel_id: [0], enable_itn: false };
+  if (!isAutomaticLanguage(language)) parameters.language = language;
   const task = await requestJson(`${root}/services/audio/asr/transcription`, {
     method: "POST",
     headers: {
@@ -30,7 +32,7 @@ export async function transcribeMediaWithQwen({
     body: JSON.stringify({
       model,
       input: { file_url: mediaUrl },
-      parameters: { channel_id: [0], language, enable_itn: false }
+      parameters
     })
   }, { fetchImpl, timeoutMs, provider: "qwen_filetrans" });
   const taskId = task?.output?.task_id || task?.task_id;
@@ -59,6 +61,10 @@ export async function transcribeMediaWithQwen({
       text: item?.text || item?.sentence_text || ""
     }))
   }, { provider: "qwen_filetrans" });
+}
+
+function isAutomaticLanguage(value) {
+  return ["", "auto", "automatic", "detect"].includes(String(value || "").trim().toLowerCase());
 }
 
 function apiRoot(value) {

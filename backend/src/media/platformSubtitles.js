@@ -1,7 +1,7 @@
 import { normalizeTranscriptionPayload } from "./transcriptionResult.js";
 
 const DEFAULT_TIMEOUT_MS = 15_000;
-const PREFERRED_LANGUAGES = ["zh-CN", "source", "en-US"];
+const PREFERRED_LANGUAGES = ["ai-zh", "zh-CN", "zh-Hans", "zh", "source", "en-US"];
 
 export async function fetchPlatformSubtitleTranscript({
   subtitles = null,

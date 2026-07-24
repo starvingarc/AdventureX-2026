@@ -165,9 +165,9 @@ export function buildSearchQueries(identity) {
   const rawTitle = title.replace(/【[^】]*】/g, "").trim();
   const titleSegments = rawTitle.split(/[：:，,。！？!?]+/).map((item) => item.trim()).filter(Boolean);
   const plainTitle = titleSegments.join(" ");
-  const anchorTitle = titleSegments[0]?.length >= 6
-    ? titleSegments.slice(0, 2).join(" ")
-    : titleSegments[0] || plainTitle;
+  const firstTitleSegment = (titleSegments[0] || plainTitle).slice(0, 24);
+  const edition = rawTitle.match(/第[一二三四五六七八九十0-9]+季|第\d+[期集]|[上下]集/)?.[0] || "";
+  const anchorTitle = [firstTitleSegment, firstTitleSegment.includes(edition) ? "" : edition].filter(Boolean).join(" ");
   // One concise account + title-anchor query is faster and proved more stable
   // than firing several long variants at TikHub. Candidate ranking still uses
   // the complete OCR title and account below.
@@ -176,10 +176,75 @@ export function buildSearchQueries(identity) {
 
 async function searchScreenshotSource({ identity, queries, searcher }) {
   const [primaryQuery] = queries;
-  const primarySearch = await searcher(primaryQuery);
+  const preferredPlatform = identity?.platform || "";
+  const primarySearch = await searcher(primaryQuery, { platform: preferredPlatform });
   const primaryCandidate = pickCandidate(primarySearch.results, identity);
   const attempts = [{ query: primaryQuery, resultCount: Array.isArray(primarySearch.results) ? primarySearch.results.length : 0, matched: Boolean(primaryCandidate) }];
-  return { search: { ...primarySearch, query: primaryQuery, attempts }, candidate: primaryCandidate };
+  if (primaryCandidate && isStrongCandidate(primaryCandidate)) {
+    return { search: { ...primarySearch, query: primaryQuery, attempts }, candidate: primaryCandidate };
+  }
+  const fallbackSearches = await Promise.all(queries.slice(1).map(async (query) => {
+    try {
+      return await searcher(query, { platform: preferredPlatform });
+    } catch (error) {
+      return { provider: primarySearch.provider, query, results: [], errorCode: error?.code || "search_failed" };
+    }
+  }));
+  const allResults = dedupeSearchResults([
+    ...(primarySearch.results || []),
+    ...fallbackSearches.flatMap((search) => search.results || [])
+  ]);
+  let candidate = pickCandidate(allResults, identity);
+  attempts.push(...fallbackSearches.map((search) => ({
+    query: search.query,
+    resultCount: Array.isArray(search.results) ? search.results.length : 0,
+    matched: Boolean(pickCandidate(search.results, identity))
+  })));
+  if ((!candidate || !isStrongCandidate(candidate)) && preferredPlatform === "bilibili" && identity?.account) {
+    try {
+      const creatorSearch = await searcher(primaryQuery, {
+        platform: "bilibili",
+        account: identity.account,
+        creatorFallback: true
+      });
+      const creatorResults = (creatorSearch.results || []).filter((item) => item.discovery === "creator_posts");
+      allResults.push(...creatorResults.filter((item) => !allResults.some((existing) => existing.url === item.url)));
+      candidate = pickCandidate(allResults, identity);
+      attempts.push({
+        query: `${identity.account}（UP主投稿兜底）`,
+        resultCount: creatorResults.length,
+        matched: Boolean(candidate)
+      });
+    } catch {
+      attempts.push({ query: `${identity.account}（UP主投稿兜底）`, resultCount: 0, matched: false });
+    }
+  }
+  if (!candidate && preferredPlatform) {
+    try {
+      const crossPlatformSearch = await searcher(primaryQuery, { platform: "" });
+      allResults.push(...dedupeSearchResults([
+        ...allResults,
+        ...(crossPlatformSearch.results || [])
+      ]).filter((item) => !allResults.some((existing) => existing.url === item.url)));
+      candidate = pickCandidate(allResults, identity);
+      attempts.push({
+        query: `${primaryQuery}（跨平台兜底）`,
+        resultCount: Array.isArray(crossPlatformSearch.results) ? crossPlatformSearch.results.length : 0,
+        matched: Boolean(candidate)
+      });
+    } catch {
+      attempts.push({ query: `${primaryQuery}（跨平台兜底）`, resultCount: 0, matched: false });
+    }
+  }
+  return { search: { ...primarySearch, query: primaryQuery, results: allResults, attempts }, candidate };
+}
+
+function isStrongCandidate(candidate) {
+  return Number(candidate?.titleSimilarity) >= 0.58 || Number(candidate?.matchScore) >= 0.75;
+}
+
+function dedupeSearchResults(items) {
+  return items.filter((item, index) => item?.url && items.findIndex((candidate) => candidate?.url === item.url) === index);
 }
 
 function normalizeSearchTitle(value) {
@@ -190,19 +255,87 @@ export function extractScreenshotIdentity(input) {
   const lines = Array.isArray(input) ? input : String(input || "").split(/\r?\n/);
   const cleaned = lines.map((line) => String(line || "").replace(/\s+/g, " ").trim());
   const usable = cleaned.filter((line) => isContentLine(line));
-  const title = [...usable]
+  const platform = inferPlatform(cleaned);
+  const explicitAccount = findShortVideoAccount(cleaned);
+  const shortVideoTitle = platform === "bilibili"
+    ? findBilibiliTitle(cleaned, explicitAccount)
+    : findShortVideoTitle(cleaned, explicitAccount);
+  const title = shortVideoTitle ? { line: shortVideoTitle, score: 24 } : [...usable]
     .map((line, index) => ({ line, index, score: titleScore(line) }))
     .sort((a, b) => b.score - a.score || b.line.length - a.line.length)[0];
   const titleIndex = title ? cleaned.indexOf(title.line) : -1;
-  const account = findAccount(cleaned, titleIndex);
+  const account = explicitAccount || findAccount(cleaned, titleIndex);
   return {
     title: title?.line || "",
     account,
     timestampSeconds: findPlayerTimestamp(cleaned),
-    platform: inferPlatform(cleaned),
+    platform,
     locatorTerms: usable.filter((line) => line !== title?.line && line !== account).slice(0, 8),
     confidence: title?.line ? Math.min(1, title.score / 20) : 0
   };
+}
+
+function findBilibiliTitle(lines, account) {
+  const accountIndex = account
+    ? lines.findIndex((line) => normalizeAccountLine(line).includes(normalizeAccountLine(account)))
+    : -1;
+  if (accountIndex < 0) return "";
+  for (const rawLine of lines.slice(accountIndex + 1, accountIndex + 14)) {
+    const line = rawLine
+      .replace(/\s+\d+(?:\.\d+)?\s*万?播放.*$/, "")
+      .replace(/[.。…\s]*展开\s*[~～>〉]?$/, "")
+      .trim();
+    if (line.length < 4 || !/[\u4e00-\u9fff]{2}/.test(line)) continue;
+    if (isUiChrome(line) || /(含虚构|演绎内容|请勿模仿|不良引导)/.test(line)) continue;
+    if (/^(?:详情页|发弹幕|视频提及|合集)/.test(line)) continue;
+    return line;
+  }
+  return "";
+}
+
+function findShortVideoAccount(lines) {
+  for (const line of lines) {
+    const explicit = line.match(/^@\s*([^\s]+(?:\s+[^\s]+)?)/);
+    if (explicit) return explicit[1].replace(/\s+[vV]$/, "").trim();
+  }
+  const followIndex = lines.findIndex((line) => /^(?:\+\s*)?关注$/.test(line));
+  if (followIndex > 0) {
+    const before = lines[followIndex - 1].replace(/^[@#•·J\s]+/, "").trim();
+    if (isLikelyAccount(before)) return before;
+  }
+  for (const line of lines) {
+    const audio = line.match(/(?:^|\s)([^|｜]{2,18})的原声(?:\s|[|｜]|$)/);
+    if (audio && isLikelyAccount(audio[1].trim())) return audio[1].trim();
+  }
+  return "";
+}
+
+function findShortVideoTitle(lines, account) {
+  const accountIndex = account
+    ? lines.findIndex((line) => normalizeAccountLine(line).includes(normalizeAccountLine(account)))
+    : -1;
+  if (accountIndex >= 0) {
+    const caption = lines.slice(accountIndex + 1, accountIndex + 7)
+      .map(stripExpandSuffix)
+      .find((line) => isContentLine(line) && !/^\d+(?:\.\d+)?[万亿]?$/.test(line));
+    if (caption) return caption;
+  }
+  const expanded = lines.map(stripExpandSuffix).find((line, index) => (
+    /展开\s*[~～>〉]?$/.test(lines[index]) && isContentLine(line)
+  ));
+  return expanded || "";
+}
+
+function normalizeAccountLine(value) {
+  return String(value || "").replace(/^[@#•·J\s]+/, "").replace(/\s+[vV]$/, "").trim();
+}
+
+function stripExpandSuffix(value) {
+  return String(value || "").replace(/[.。…\s]*展开\s*[~～>〉]?$/, "").trim();
+}
+
+function isLikelyAccount(value) {
+  return value.length >= 2 && value.length <= 18 && /[\u4e00-\u9fffA-Za-z]/.test(value) && !isUiChrome(value);
 }
 
 function isContentLine(line) {
@@ -247,28 +380,51 @@ function findPlayerTimestamp(lines) {
 
 function inferPlatform(lines) {
   const text = lines.join(" ");
-  if (/bilibili|哔哩|B站/i.test(text)) return "bilibili";
+  if (/bilibili|bilbili|\bbili\b|哔哩|B站|充电|弹幕/i.test(text)) return "bilibili";
   if (/小红书|xhs/i.test(text)) return "xiaohongshu";
   if (/抖音|douyin/i.test(text)) return "douyin";
+  if (/首页[:：]?\s*朋友.*消息.*我|发同款|的原声|\b热点\b/i.test(text)) return "douyin";
   if (/youtube/i.test(text)) return "youtube";
   return "";
 }
 
 export function pickCandidate(results, identity) {
   const items = Array.isArray(results) ? results : [];
-  const ranked = items.map((item) => ({ ...item, matchScore: scoreCandidate(item, identity) }))
+  const ranked = items.map((item) => ({ ...item, ...scoreCandidate(item, identity) }))
     .sort((a, b) => b.matchScore - a.matchScore);
   const best = ranked[0];
-  return best && best.matchScore >= 0.68 ? best : null;
+  if (!best) return null;
+  const trustworthy = best.titleSimilarity >= 0.58
+    || (best.accountSimilarity >= 0.78 && best.titleSimilarity >= 0.26)
+    || (best.platformSimilarity === 1 && best.titleSimilarity >= 0.42)
+    || best.matchScore >= 0.62;
+  return trustworthy ? best : null;
 }
 
 function scoreCandidate(item, identity) {
-  const titleScore = textSimilarity(item?.title, identity?.title);
-  const accountScore = identity?.account
+  // Overlay subtitles and watermarks are useful later for timestamp location,
+  // but must not influence source-title matching.
+  const titleSimilarity = textSimilarity(item?.title, identity?.title);
+  const accountSimilarity = identity?.account
     ? textSimilarity([item?.account, item?.snippet].filter(Boolean).join(" "), identity.account)
     : 0;
-  const platformScore = identity?.platform && String(item?.url || "").toLowerCase().includes(identity.platform) ? 1 : 0;
-  return titleScore * 0.82 + accountScore * 0.13 + platformScore * 0.05;
+  const candidatePlatform = item?.platform || platformFromUrl(item?.url);
+  const platformSimilarity = identity?.platform && candidatePlatform === identity.platform ? 1 : 0;
+  return {
+    matchScore: titleSimilarity * 0.7 + accountSimilarity * 0.25 + platformSimilarity * 0.05,
+    titleSimilarity,
+    accountSimilarity,
+    platformSimilarity
+  };
+}
+
+function platformFromUrl(value) {
+  const url = String(value || "").toLowerCase();
+  if (url.includes("bilibili.com")) return "bilibili";
+  if (url.includes("douyin.com")) return "douyin";
+  if (url.includes("xiaohongshu.com") || url.includes("xhslink.com")) return "xiaohongshu";
+  if (url.includes("youtube.com") || url.includes("youtu.be")) return "youtube";
+  return "";
 }
 
 function textSimilarity(left, right) {

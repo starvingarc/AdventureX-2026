@@ -10,7 +10,7 @@ def main():
     parser.add_argument("--model", default="small")
     parser.add_argument("--device", default="auto")
     parser.add_argument("--compute-type", default="int8")
-    parser.add_argument("--language", default="zh")
+    parser.add_argument("--language", default="auto")
     parser.add_argument("--beam-size", type=int, default=1)
     parser.add_argument("--cpu-threads", type=int, default=2)
     args = parser.parse_args()
@@ -31,7 +31,7 @@ def main():
         )
         segments, _info = model.transcribe(
             args.audio,
-            language=args.language or None,
+            language=None if args.language.lower() in ("", "auto", "automatic", "detect") else args.language,
             vad_filter=True,
             beam_size=max(1, args.beam_size),
         )

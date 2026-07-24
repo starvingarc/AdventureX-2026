@@ -12,7 +12,7 @@ export const VIDEO_DEFAULTS = Object.freeze({
   localWhisperModel: "small",
   localWhisperDevice: "auto",
   localWhisperComputeType: "int8",
-  localWhisperLanguage: "zh",
+  localWhisperLanguage: "auto",
   frameProvider: "none",
   visualProvider: "none",
   visualModel: "qwen3-vl-flash",

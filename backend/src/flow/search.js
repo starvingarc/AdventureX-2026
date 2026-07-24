@@ -2,7 +2,8 @@ const DEFAULT_TIMEOUT_MS = 8_000;
 const DEFAULT_TIKHUB_BASE_URL = "https://api.tikhub.io";
 
 export async function searchLinks(query, {
-  maxResults = 5,
+  maxResults = 10,
+  platform = "",
   fetchImpl = fetch,
   timeoutMs = Number(process.env.SEARCH_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS,
   apiUrl = process.env.SEARCH_API_URL || "",
@@ -12,23 +13,34 @@ export async function searchLinks(query, {
   const cleanQuery = String(query || "").trim();
   if (!cleanQuery) return { provider: "none", query: "", results: [] };
   if (apiUrl) return callGenericSearch(cleanQuery, { apiUrl, maxResults, fetchImpl, timeoutMs });
-  if (tikhubApiKey) return callTikHub(cleanQuery, { apiKey: tikhubApiKey, baseUrl: tikhubBaseUrl, maxResults, fetchImpl, timeoutMs });
+  if (tikhubApiKey) return callTikHub(cleanQuery, { apiKey: tikhubApiKey, baseUrl: tikhubBaseUrl, maxResults, fetchImpl, timeoutMs, platform });
   if (process.env.TAVILY_API_KEY) return callTavily(cleanQuery, { maxResults, fetchImpl, timeoutMs });
   if (process.env.SERPER_API_KEY) return callSerper(cleanQuery, { maxResults, fetchImpl, timeoutMs });
   return { provider: "none", query: cleanQuery, results: [], errorCode: "search_provider_missing" };
 }
 
 async function callTikHub(query, options) {
-  const platforms = detectTikHubSearchPlatforms(query);
+  const requestedPlatform = normalizeTikHubPlatform(options.platform);
+  const platforms = requestedPlatform ? [requestedPlatform] : detectTikHubSearchPlatforms(query);
   const settled = await Promise.allSettled(
     platforms.map((platform) => callTikHubPlatform(platform, query, options))
   );
   const rawResults = settled
     .filter((item) => item.status === "fulfilled")
-    .flatMap((item) => item.value)
-    .filter((item, index, items) => item.url && items.findIndex((candidate) => candidate.url === item.url) === index)
-    .slice(0, options.maxResults);
-  const results = await hydrateTikHubSearchResults(rawResults, options);
+    // Keep candidates from every platform. The old global slice happened
+    // after Bilibili was flattened first, silently discarding Douyin/XHS.
+    .flatMap((item) => item.value.slice(0, options.maxResults))
+    .filter((item, index, items) => item.url && items.findIndex((candidate) => candidate.url === item.url) === index);
+  let results = await hydrateTikHubSearchResults(rawResults, options);
+  if (options.creatorFallback && requestedPlatform === "bilibili" && options.account) {
+    const creatorResults = await fetchBilibiliCreatorVideos({
+      account: options.account,
+      searchResults: results,
+      ...options
+    }).catch(() => []);
+    results = [...results, ...creatorResults]
+      .filter((item, index, items) => item.url && items.findIndex((candidate) => candidate.url === item.url) === index);
+  }
   if (results.length === 0) {
     const failure = settled.find((item) => item.status === "rejected");
     if (failure) throw failure.reason;
@@ -36,13 +48,23 @@ async function callTikHub(query, options) {
   return { provider: "tikhub", query, platforms, results };
 }
 
-async function callTikHubPlatform(platform, query, { apiKey, baseUrl, fetchImpl, timeoutMs }) {
+function normalizeTikHubPlatform(value) {
+  const platform = String(value || "").trim().toLowerCase();
+  return ["bilibili", "douyin", "xiaohongshu"].includes(platform) ? platform : "";
+}
+
+async function callTikHubPlatform(platform, query, { apiKey, baseUrl, fetchImpl, timeoutMs, maxResults }) {
   const root = String(baseUrl || DEFAULT_TIKHUB_BASE_URL).replace(/\/+$/, "");
   const headers = { authorization: `Bearer ${apiKey}`, "content-type": "application/json" };
   let url;
   let request;
   if (platform === "bilibili") {
-    const params = new URLSearchParams({ keyword: query, order: "totalrank", page: "1", page_size: "10" });
+    const params = new URLSearchParams({
+      keyword: query,
+      order: "totalrank",
+      page: "1",
+      page_size: String(Math.min(50, Math.max(10, Number(maxResults) || 10)))
+    });
     url = `${root}/api/v1/bilibili/web/fetch_general_search?${params}`;
     request = { method: "GET", headers };
   } else if (platform === "xiaohongshu") {
@@ -66,7 +88,7 @@ async function callTikHubPlatform(platform, query, { apiKey, baseUrl, fetchImpl,
       })
     };
   }
-  const payload = await requestJson(url, request, { fetchImpl, timeoutMs });
+  const payload = await requestJsonWithRetry(url, request, { fetchImpl, timeoutMs, attempts: 2 });
   return normalizeTikHubResults(platform, payload);
 }
 
@@ -97,9 +119,11 @@ function normalizeTikHubItem(platform, item) {
     const data = item?.video || item;
     const bvid = cleanValue(data?.bvid);
     return {
+      platform,
       title: stripHtml(data?.title || data?.name),
       url: cleanValue(data?.arcurl || data?.url) || (bvid ? `https://www.bilibili.com/video/${bvid}` : ""),
       account: cleanValue(data?.author || data?.up_name),
+      accountId: cleanValue(data?.mid || data?.uid),
       snippet: cleanValue(data?.description || data?.desc || data?.author || data?.up_name)
     };
   }
@@ -107,6 +131,7 @@ function normalizeTikHubItem(platform, item) {
     const data = item?.note_card || item?.note || item;
     const id = cleanValue(data?.note_id || data?.id || item?.id);
     return {
+      platform,
       title: cleanValue(data?.display_title || data?.title || data?.desc),
       url: cleanValue(data?.url || data?.share_url || item?.url) || (id ? `https://www.xiaohongshu.com/explore/${id}` : ""),
       account: cleanValue(data?.user?.nickname || data?.user_info?.nickname),
@@ -116,11 +141,51 @@ function normalizeTikHubItem(platform, item) {
   const data = item?.aweme_info || item?.aweme_detail || item;
   const id = cleanValue(data?.aweme_id || data?.id);
   return {
+    platform,
     title: cleanValue(data?.desc || data?.caption || data?.title),
     url: cleanValue(data?.share_url || data?.url) || (id ? `https://www.douyin.com/video/${id}` : ""),
     account: cleanValue(data?.author?.nickname || data?.author?.unique_id),
     snippet: cleanValue(data?.author?.nickname || data?.author?.unique_id || data?.desc)
   };
+}
+
+async function fetchBilibiliCreatorVideos({ account, searchResults, apiKey, baseUrl, fetchImpl, timeoutMs }) {
+  const normalizedAccount = normalizeComparableText(account);
+  const owner = searchResults.find((item) => (
+    item.accountId && normalizeComparableText(item.account) === normalizedAccount
+  ));
+  if (!owner?.accountId) return [];
+  const root = String(baseUrl || DEFAULT_TIKHUB_BASE_URL).replace(/\/+$/, "");
+  const params = new URLSearchParams({
+    user_id: owner.accountId,
+    post_filter: "archive",
+    page: "1",
+    ps: "30"
+  });
+  const payload = await requestJson(`${root}/api/v1/bilibili/app/fetch_user_videos?${params}`, {
+    headers: { authorization: `Bearer ${apiKey}` }
+  }, { fetchImpl, timeoutMs: Math.max(timeoutMs, 12_000) });
+  const items = payload?.data?.data?.item
+    || payload?.data?.data?.data?.item
+    || payload?.data?.item
+    || [];
+  return (Array.isArray(items) ? items : []).map((item) => {
+    const aid = cleanValue(item?.param || item?.aid);
+    const bvid = cleanValue(item?.bvid);
+    return {
+      platform: "bilibili",
+      title: cleanValue(item?.title),
+      url: bvid ? `https://www.bilibili.com/video/${bvid}` : aid ? `https://www.bilibili.com/video/av${aid}` : "",
+      account: cleanValue(item?.author).replace(/\s*等联合创作$/, "") || account,
+      accountId: owner.accountId,
+      snippet: cleanValue(item?.subtitle || item?.tname || account),
+      discovery: "creator_posts"
+    };
+  }).filter((item) => item.url && item.title);
+}
+
+function normalizeComparableText(value) {
+  return String(value || "").toLowerCase().replace(/[^\u4e00-\u9fff0-9a-z]/g, "");
 }
 
 async function hydrateTikHubSearchResults(results, { fetchImpl, timeoutMs }) {
@@ -214,6 +279,19 @@ async function requestJson(url, options, { fetchImpl, timeoutMs }) {
   } finally {
     clearTimeout(timer);
   }
+}
+
+async function requestJsonWithRetry(url, options, { attempts = 2, ...context }) {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await requestJson(url, options, context);
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts) await new Promise((resolve) => setTimeout(resolve, 250 * attempt));
+    }
+  }
+  throw lastError;
 }
 
 function normalizeResults(provider, query, items) {

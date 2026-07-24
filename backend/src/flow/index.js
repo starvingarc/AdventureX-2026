@@ -81,7 +81,9 @@ export async function runImageFlow({
   result.link = candidate;
   reportProgress(onProgress, {
     stage: "extract",
-    message: "已找到来源，正在并发转写代表片段；少量片段成功后立即继续",
+    message: isVideoUrl(candidate.url)
+      ? "已找到来源，正在并发转写代表片段；少量片段成功后立即继续"
+      : "已找到来源，正在提取文章正文",
     percent: 40,
     partial: { identity, link: publicCandidate(candidate) }
   });
@@ -130,12 +132,15 @@ export async function runImageFlow({
     };
     reportProgress(onProgress, {
       stage: "generate",
-      message: "内容已提取，正在生成截图知识卡和全片总结",
+      message: sourceType === "video_link"
+        ? "内容已提取，正在生成截图知识卡和全片总结"
+        : "正文已提取，正在生成文章知识卡和内容总结",
       percent: 82,
       partial: {
         identity,
         link: publicCandidate(candidate),
         source: {
+          sourceType,
           title: source.sourceTitle,
           account: source.sourceAccount,
           url: source.sourceUrl,
@@ -145,14 +150,21 @@ export async function runImageFlow({
       }
     });
     const reviewRequest = measureAsync(timings, "reviewGenerationMs", () => generate(reviewInput));
-    const overviewRequest = sourceType === "video_link"
-      ? measureAsync(timings, "overviewGenerationMs", () => generateOverview({ title: source.sourceTitle, account: source.sourceAccount, rawText: source.overviewText }))
-      : null;
+    const overviewRequest = measureAsync(timings, "overviewGenerationMs", () => generateOverview({
+      title: source.sourceTitle,
+      account: source.sourceAccount,
+      rawText: source.overviewText,
+      contentType: sourceType === "video_link" ? "video" : "article"
+    }));
     const generationStartedAt = Date.now();
-    const [review, videoOverview] = await Promise.all([reviewRequest, overviewRequest]);
+    const [review, contentOverview] = await Promise.all([reviewRequest, overviewRequest]);
     timings.generationWallMs = Date.now() - generationStartedAt;
     result.review = review;
-    if (videoOverview) result.videoOverview = videoOverview;
+    if (contentOverview) {
+      result.contentOverview = contentOverview;
+      if (sourceType === "video_link") result.videoOverview = contentOverview;
+      else result.articleOverview = contentOverview;
+    }
     result.status = "completed";
     reportProgress(onProgress, { stage: "completed", message: "复习卡已生成", percent: 100 });
   } catch (error) {
@@ -223,21 +235,42 @@ export function buildSearchQueries(identity) {
 async function searchScreenshotSource({ identity, queries, searcher }) {
   const [primaryQuery] = queries;
   const preferredPlatform = identity?.platform || "";
-  const primarySearch = await searcher(primaryQuery, { platform: preferredPlatform });
-  const primaryCandidate = pickCandidate(primarySearch.results, identity);
-  const attempts = [{ query: primaryQuery, resultCount: Array.isArray(primarySearch.results) ? primarySearch.results.length : 0, matched: Boolean(primaryCandidate) }];
+  const initialQueries = preferredPlatform === "bilibili"
+    ? dedupeStrings([primaryQuery, normalizeSearchTitle(identity?.title), buildBilibiliAnchorQuery(identity)])
+    : [primaryQuery];
+  const initialSearches = await Promise.all(initialQueries.map(async (searchQuery) => {
+    try {
+      return await searcher(searchQuery, {
+        platform: preferredPlatform,
+        account: identity?.account || ""
+      });
+    } catch (error) {
+      return { provider: "tikhub", query: searchQuery, results: [], errorCode: error?.code || "search_failed" };
+    }
+  }));
+  const primarySearch = initialSearches[0];
+  const initialResults = dedupeSearchResults(initialSearches.flatMap((search) => search.results || []));
+  const primaryCandidate = pickCandidate(initialResults, identity);
+  const attempts = initialSearches.map((search, index) => ({
+    query: index === 0 ? search.query || primaryQuery : `${search.query || initialQueries[index]}（B站高召回）`,
+    resultCount: Array.isArray(search.results) ? search.results.length : 0,
+    matched: Boolean(pickCandidate(search.results, identity))
+  }));
   if (primaryCandidate && isStrongCandidate(primaryCandidate)) {
-    return { search: { ...primarySearch, query: primaryQuery, attempts }, candidate: primaryCandidate };
+    return {
+      search: { ...primarySearch, query: primaryQuery, results: initialResults, attempts },
+      candidate: primaryCandidate
+    };
   }
   const fallbackSearches = await Promise.all(queries.slice(1).map(async (query) => {
     try {
-      return await searcher(query, { platform: preferredPlatform });
+      return await searcher(query, { platform: preferredPlatform, account: identity?.account || "" });
     } catch (error) {
       return { provider: primarySearch.provider, query, results: [], errorCode: error?.code || "search_failed" };
     }
   }));
   const allResults = dedupeSearchResults([
-    ...(primarySearch.results || []),
+    ...initialResults,
     ...fallbackSearches.flatMap((search) => search.results || [])
   ]);
   let candidate = pickCandidate(allResults, identity);
@@ -246,23 +279,20 @@ async function searchScreenshotSource({ identity, queries, searcher }) {
     resultCount: Array.isArray(search.results) ? search.results.length : 0,
     matched: Boolean(pickCandidate(search.results, identity))
   })));
-  if ((!candidate || !isStrongCandidate(candidate)) && preferredPlatform === "bilibili" && identity?.account) {
-    try {
-      const creatorSearch = await searcher(primaryQuery, {
-        platform: "bilibili",
-        account: identity.account,
-        creatorFallback: true
-      });
-      const creatorResults = (creatorSearch.results || []).filter((item) => item.discovery === "creator_posts");
-      allResults.push(...creatorResults.filter((item) => !allResults.some((existing) => existing.url === item.url)));
-      candidate = pickCandidate(allResults, identity);
-      attempts.push({
-        query: `${identity.account}（UP主投稿兜底）`,
-        resultCount: creatorResults.length,
-        matched: Boolean(candidate)
-      });
-    } catch {
-      attempts.push({ query: `${identity.account}（UP主投稿兜底）`, resultCount: 0, matched: false });
+  if ((!candidate || !isStrongCandidate(candidate)) && preferredPlatform === "bilibili") {
+    const creatorSearch = identity?.account
+      ? await searcher(primaryQuery, {
+          platform: "bilibili",
+          account: identity.account,
+          creatorFallback: true
+        }).catch(() => ({ results: [] }))
+      : { results: [] };
+    const creatorResults = (creatorSearch.results || []).filter((item) => item.discovery === "creator_posts");
+    allResults.push(...dedupeSearchResults(creatorResults)
+      .filter((item) => !allResults.some((existing) => existing.url === item.url)));
+    candidate = pickCandidate(allResults, identity);
+    if (identity?.account) {
+      attempts.push({ query: `${identity.account}（UP主投稿兜底）`, resultCount: creatorResults.length, matched: Boolean(pickCandidate(creatorResults, identity)) });
     }
   }
   if (!candidate && preferredPlatform) {
@@ -285,6 +315,22 @@ async function searchScreenshotSource({ identity, queries, searcher }) {
   return { search: { ...primarySearch, query: primaryQuery, results: allResults, attempts }, candidate };
 }
 
+function buildBilibiliAnchorQuery(identity) {
+  const title = normalizeSearchTitle(identity?.title).replace(/【[^】]*】/g, "");
+  const locator = (identity?.locatorTerms || []).join(" ");
+  const action = title.match(/\d+天摸透|快速学习|快速了解/)?.[0] || "";
+  const object = locator.match(/一个(?:行业|领域|方向)/)?.[0] || "";
+  const topic = title.match(/投行|财经|股市|基金|AI|人工智能|录音卡片/)?.[0] || "";
+  const anchor = [action + object, topic].filter(Boolean).join(" ").trim();
+  return anchor.length >= 4 ? anchor : "";
+}
+
+function dedupeStrings(values) {
+  return values.map((value) => String(value || "").trim()).filter((value, index, items) => (
+    value && items.findIndex((item) => normalizedText(item) === normalizedText(value)) === index
+  ));
+}
+
 function isStrongCandidate(candidate) {
   return Number(candidate?.titleSimilarity) >= 0.58 || Number(candidate?.matchScore) >= 0.75;
 }
@@ -302,6 +348,16 @@ export function extractScreenshotIdentity(input) {
   const cleaned = lines.map((line) => String(line || "").replace(/\s+/g, " ").trim());
   const usable = cleaned.filter((line) => isContentLine(line));
   const platform = inferPlatform(cleaned);
+  const articleIdentity = extractArticleIdentity(cleaned, platform);
+  if (articleIdentity) {
+    return {
+      ...articleIdentity,
+      timestampSeconds: null,
+      platform,
+      locatorTerms: usable.filter((line) => line !== articleIdentity.title && line !== articleIdentity.account).slice(0, 8),
+      confidence: 1
+    };
+  }
   const explicitAccount = findShortVideoAccount(cleaned);
   const shortVideoTitle = platform === "bilibili"
     ? findBilibiliTitle(cleaned, explicitAccount)
@@ -319,6 +375,36 @@ export function extractScreenshotIdentity(input) {
     locatorTerms: usable.filter((line) => line !== title?.line && line !== account).slice(0, 8),
     confidence: title?.line ? Math.min(1, title.score / 20) : 0
   };
+}
+
+function extractArticleIdentity(lines, platform) {
+  if (platform === "wechat") {
+    const metadataIndex = lines.findIndex((line) => /20\d{2}年\d{1,2}月\d{1,2}日\s+\d{1,2}:\d{2}/.test(line));
+    if (metadataIndex > 0) {
+      const metadata = lines[metadataIndex];
+      const account = metadata.split(/\s+20\d{2}年/)[0].trim();
+      const title = [...lines.slice(0, metadataIndex)].reverse().find((line) => (
+        line.length >= 4 && /[\u4e00-\u9fffA-Za-z]{3}/.test(line) && !isUiChrome(line)
+      ));
+      if (title && account) return { title, account };
+    }
+  }
+  if (platform === "zhihu") {
+    const authorBadgeIndex = lines.findIndex((line) => /优秀答主|话题下/.test(line));
+    const account = authorBadgeIndex > 0
+      ? [...lines.slice(0, authorBadgeIndex)].reverse().find((line) => (
+          isLikelyAccount(line.replace(/^@/, "").trim()) && !/关注/.test(line)
+        ))?.replace(/^@/, "").trim() || ""
+      : "";
+    const approvalIndex = lines.findIndex((line) => /赞同了该想法|赞同了该回答/.test(line));
+    const title = approvalIndex >= 0
+      ? lines.slice(approvalIndex + 1).find((line) => (
+          line.length >= 4 && /[\u4e00-\u9fffA-Za-z]{3}/.test(line) && !isUiChrome(line)
+        ))
+      : "";
+    if (title && account) return { title, account };
+  }
+  return null;
 }
 
 function findBilibiliTitle(lines, account) {
@@ -431,6 +517,8 @@ function inferPlatform(lines) {
   if (/抖音|douyin/i.test(text)) return "douyin";
   if (/首页[:：]?\s*朋友.*消息.*我|发同款|的原声|\b热点\b/i.test(text)) return "douyin";
   if (/youtube/i.test(text)) return "youtube";
+  if (/阅读原文|写留言|个朋友关注|mp\.weixin|公众号/.test(text)) return "wechat";
+  if (/赞同了该想法|优秀答主|欢迎参与讨论|知乎/.test(text)) return "zhihu";
   return "";
 }
 
@@ -470,6 +558,8 @@ function platformFromUrl(value) {
   if (url.includes("douyin.com")) return "douyin";
   if (url.includes("xiaohongshu.com") || url.includes("xhslink.com")) return "xiaohongshu";
   if (url.includes("youtube.com") || url.includes("youtu.be")) return "youtube";
+  if (url.includes("mp.weixin.qq.com")) return "wechat";
+  if (url.includes("zhihu.com")) return "zhihu";
   return "";
 }
 

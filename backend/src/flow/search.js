@@ -10,6 +10,8 @@ const searchCache = new Map();
 export async function searchLinks(query, {
   maxResults = 10,
   platform = "",
+  account = "",
+  creatorFallback = false,
   fetchImpl = fetch,
   timeoutMs = Number(process.env.SEARCH_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS,
   apiUrl = process.env.SEARCH_API_URL || "",
@@ -19,7 +21,16 @@ export async function searchLinks(query, {
   const cleanQuery = String(query || "").trim();
   if (!cleanQuery) return { provider: "none", query: "", results: [] };
   if (apiUrl) return callGenericSearch(cleanQuery, { apiUrl, maxResults, fetchImpl, timeoutMs });
-  if (tikhubApiKey) return callTikHub(cleanQuery, { apiKey: tikhubApiKey, baseUrl: tikhubBaseUrl, maxResults, fetchImpl, timeoutMs, platform });
+  if (tikhubApiKey) return callTikHub(cleanQuery, {
+    apiKey: tikhubApiKey,
+    baseUrl: tikhubBaseUrl,
+    maxResults,
+    fetchImpl,
+    timeoutMs,
+    platform,
+    account,
+    creatorFallback
+  });
   if (process.env.TAVILY_API_KEY) return callTavily(cleanQuery, { maxResults, fetchImpl, timeoutMs });
   if (process.env.SERPER_API_KEY) return callSerper(cleanQuery, { maxResults, fetchImpl, timeoutMs });
   return { provider: "none", query: cleanQuery, results: [], errorCode: "search_provider_missing" };
@@ -27,7 +38,12 @@ export async function searchLinks(query, {
 
 async function callTikHub(query, options) {
   const cacheKey = options.fetchImpl === fetch
-    ? `${normalizeTikHubPlatform(options.platform) || "all"}:${query}:${options.maxResults}`
+    ? [
+        normalizeTikHubPlatform(options.platform) || "all",
+        query,
+        options.maxResults,
+        options.creatorFallback ? `creator:${normalizeComparableText(options.account)}` : "standard"
+      ].join(":")
     : "";
   const cached = readSearchCache(cacheKey);
   if (cached) return cached;
@@ -72,10 +88,10 @@ async function callTikHubUncached(query, options) {
 
 function normalizeTikHubPlatform(value) {
   const platform = String(value || "").trim().toLowerCase();
-  return ["bilibili", "douyin", "xiaohongshu"].includes(platform) ? platform : "";
+  return ["bilibili", "douyin", "xiaohongshu", "wechat", "zhihu"].includes(platform) ? platform : "";
 }
 
-async function callTikHubPlatform(platform, query, { apiKey, baseUrl, fetchImpl, timeoutMs, maxResults }) {
+async function callTikHubPlatform(platform, query, { apiKey, baseUrl, fetchImpl, timeoutMs, maxResults, account }) {
   const root = String(baseUrl || DEFAULT_TIKHUB_BASE_URL).replace(/\/+$/, "");
   const headers = { authorization: `Bearer ${apiKey}`, "content-type": "application/json" };
   let url;
@@ -83,16 +99,35 @@ async function callTikHubPlatform(platform, query, { apiKey, baseUrl, fetchImpl,
   if (platform === "bilibili") {
     const params = new URLSearchParams({
       keyword: query,
-      order: "totalrank",
-      page: "1",
-      page_size: String(Math.min(50, Math.max(10, Number(maxResults) || 10)))
+      search_type: "video",
+      cursor: "",
+      // Bilibili's APP search changes ranking when page_size is only 10 and
+      // can omit an otherwise exact title. Fetch 20, then keep maxResults.
+      page_size: "20",
+      order: "0"
     });
-    url = `${root}/api/v1/bilibili/web/fetch_general_search?${params}`;
+    url = `${root}/api/v1/bilibili/app/fetch_search_by_type?${params}`;
     request = { method: "GET", headers };
   } else if (platform === "xiaohongshu") {
     const params = new URLSearchParams({ keyword: query, page: "1" });
     url = `${root}/api/v1/xiaohongshu/web_v3/fetch_search_notes?${params}`;
     request = { method: "GET", headers };
+  } else if (platform === "wechat") {
+    url = `${root}/api/v1/wechat_search/v2/fetch_search`;
+    request = {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        keyword: query,
+        business_type: "article",
+        sort: "default",
+        publish_time: "all",
+        offset: 0,
+        raw: false
+      })
+    };
+  } else if (platform === "zhihu") {
+    return searchZhihuContent({ query, account, apiKey, root, fetchImpl, timeoutMs, maxResults });
   } else {
     // The video-only endpoint returns fewer cards and includes the same rich
     // aweme metadata needed by extraction, saving both search time and a
@@ -166,6 +201,8 @@ function detectTikHubSearchPlatforms(query) {
   if (/哔哩|bilibili|B站|巫师财经/i.test(value)) return ["bilibili"];
   if (/小红书|xiaohongshu|xhs/i.test(value)) return ["xiaohongshu"];
   if (/抖音|douyin/i.test(value)) return ["douyin"];
+  if (/公众号|微信|wechat/i.test(value)) return ["wechat"];
+  if (/知乎|zhihu/i.test(value)) return ["zhihu"];
   return ["bilibili", "douyin", "xiaohongshu"];
 }
 
@@ -176,9 +213,17 @@ function normalizeTikHubResults(platform, payload) {
 
 function findTikHubItems(platform, payload) {
   const candidates = platform === "bilibili"
-    ? [payload?.data?.result, payload?.data?.data?.result, payload?.result]
+    ? [
+        payload?.data?.data?.items,
+        payload?.data?.items,
+        payload?.data?.result,
+        payload?.data?.data?.result,
+        payload?.result
+      ]
     : platform === "xiaohongshu"
       ? [payload?.data?.data?.items, payload?.data?.items, payload?.data?.data, payload?.items]
+      : platform === "wechat"
+        ? [payload?.data?.items, payload?.data?.data?.items, payload?.items]
       : [
           payload?.data?.business_data,
           payload?.data?.data?.business_data,
@@ -192,12 +237,14 @@ function findTikHubItems(platform, payload) {
 
 function normalizeTikHubItem(platform, item) {
   if (platform === "bilibili") {
-    const data = item?.video || item;
+    const data = item?.av || item?.video || item;
     const bvid = cleanValue(data?.bvid);
+    const aid = cleanValue(item?.param || data?.aid || data?.param);
     return {
       platform,
       title: stripHtml(data?.title || data?.name),
-      url: cleanValue(data?.arcurl || data?.url) || (bvid ? `https://www.bilibili.com/video/${bvid}` : ""),
+      url: cleanValue(data?.arcurl || data?.url)
+        || (bvid ? `https://www.bilibili.com/video/${bvid}` : aid ? `https://www.bilibili.com/video/av${aid}` : ""),
       account: cleanValue(data?.author || data?.up_name),
       accountId: cleanValue(data?.mid || data?.uid),
       snippet: cleanValue(data?.description || data?.desc || data?.author || data?.up_name)
@@ -212,6 +259,16 @@ function normalizeTikHubItem(platform, item) {
       url: cleanValue(data?.url || data?.share_url || item?.url) || (id ? `https://www.xiaohongshu.com/explore/${id}` : ""),
       account: cleanValue(data?.user?.nickname || data?.user_info?.nickname),
       snippet: cleanValue(data?.desc || data?.user?.nickname || data?.user_info?.nickname)
+    };
+  }
+  if (platform === "wechat") {
+    const source = item?.source || item?.jumpInfo || {};
+    return {
+      platform,
+      title: stripHtml(item?.title || item?.name),
+      url: cleanValue(item?.doc_url || item?.url || item?.link || item?.jumpInfo?.url),
+      account: stripHtml(source?.title || source?.nickName || item?.account_name || item?.author),
+      snippet: stripHtml(item?.desc || item?.description || source?.title)
     };
   }
   const data = item?.data?.aweme_info || item?.aweme_info || item?.aweme_detail || item;
@@ -233,6 +290,107 @@ function normalizeTikHubItem(platform, item) {
     }
   }
   return normalized;
+}
+
+async function searchZhihuContent({ query, account, apiKey, root, fetchImpl, timeoutMs, maxResults }) {
+  const headers = { authorization: `Bearer ${apiKey}`, "content-type": "application/json" };
+  if (account) {
+    const userParams = new URLSearchParams({ keyword: account, offset: "0", limit: "10" });
+    const usersPayload = await requestJsonWithRetry(
+      `${root}/api/v1/zhihu/web/fetch_user_search_v3?${userParams}`,
+      { method: "GET", headers },
+      { fetchImpl, timeoutMs, attempts: 2 }
+    );
+    const users = firstArray(
+      usersPayload?.data?.data,
+      usersPayload?.data?.items,
+      usersPayload?.data?.data?.items,
+      usersPayload?.data,
+      usersPayload?.items
+    );
+    const wanted = normalizeComparableText(account);
+    const user = users
+      .map((item) => item?.object || item?.user || item)
+      .find((item) => normalizeComparableText(stripHtml(item?.name || item?.title)) === wanted)
+      || users.map((item) => item?.object || item?.user || item)
+        .find((item) => normalizeComparableText(stripHtml(item?.name || item?.title)).includes(wanted));
+    const token = cleanValue(user?.url_token || user?.token || user?.id);
+    if (token) {
+      const pinParams = new URLSearchParams({
+        user_url_token: token,
+        offset: "0",
+        limit: String(Math.min(20, Math.max(10, Number(maxResults) || 10)))
+      });
+      const pinsPayload = await requestJsonWithRetry(
+        `${root}/api/v1/zhihu/web/fetch_user_pins?${pinParams}`,
+        { method: "GET", headers },
+        { fetchImpl, timeoutMs, attempts: 2 }
+      );
+      return firstArray(
+        pinsPayload?.data?.data,
+        pinsPayload?.data?.items,
+        pinsPayload?.data?.data?.items,
+        pinsPayload?.data,
+        pinsPayload?.items
+      ).map((item) => normalizeZhihuPinSearchItem(item, account)).filter((item) => item.url);
+    }
+  }
+
+  const params = new URLSearchParams({
+    keyword: query,
+    offset: "0",
+    limit: String(Math.min(20, Math.max(10, Number(maxResults) || 10)))
+  });
+  const payload = await requestJsonWithRetry(
+    `${root}/api/v1/zhihu/web/fetch_article_search_v3?${params}`,
+    { method: "GET", headers },
+    { fetchImpl, timeoutMs, attempts: 2 }
+  );
+  return firstArray(
+    payload?.data?.data,
+    payload?.data?.items,
+    payload?.data?.data?.items,
+    payload?.data,
+    payload?.items
+  ).map(normalizeZhihuArticleSearchItem).filter((item) => item.url);
+}
+
+function normalizeZhihuPinSearchItem(item, fallbackAccount = "") {
+  const data = item?.object || item?.pin || item;
+  const id = cleanValue(data?.id || data?.pin_id);
+  const html = cleanValue(data?.content_html)
+    || (Array.isArray(data?.content)
+      ? data.content.map((part) => part?.own_text || part?.content || part?.text || "").join("<br>")
+      : cleanValue(data?.content));
+  const title = pinHeadline(data?.excerpt_title || html || data?.excerpt || data?.content);
+  return {
+    platform: "zhihu",
+    title,
+    url: id ? `https://www.zhihu.com/pin/${id}` : cleanValue(data?.url),
+    account: stripHtml(data?.author?.name || data?.author?.nickname || fallbackAccount),
+    snippet: stripHtml(data?.excerpt || html).slice(0, 500)
+  };
+}
+
+function normalizeZhihuArticleSearchItem(item) {
+  const data = item?.object || item?.article || item;
+  const id = cleanValue(data?.id || data?.article_id);
+  return {
+    platform: "zhihu",
+    title: stripHtml(data?.title || data?.name),
+    url: cleanValue(data?.url) || (id ? `https://zhuanlan.zhihu.com/p/${id}` : ""),
+    account: stripHtml(data?.author?.name || data?.author?.nickname),
+    snippet: stripHtml(data?.excerpt || data?.description || data?.content).slice(0, 500)
+  };
+}
+
+function pinHeadline(value) {
+  const firstLine = cleanValue(value).split(/<br\s*\/?\s*>|\r?\n/i).map(stripHtml).find(Boolean) || "";
+  return firstLine.slice(0, 160);
+}
+
+function firstArray(...values) {
+  return values.find(Array.isArray) || [];
 }
 
 function readSearchCache(key) {
@@ -259,25 +417,30 @@ function readPositiveInt(value, fallback) {
 
 async function fetchBilibiliCreatorVideos({ account, searchResults, apiKey, baseUrl, fetchImpl, timeoutMs }) {
   const normalizedAccount = normalizeComparableText(account);
-  const owner = searchResults.find((item) => (
+  let owner = searchResults.find((item) => (
     item.accountId && normalizeComparableText(item.account) === normalizedAccount
   ));
+  if (!owner?.accountId) {
+    owner = await resolveBilibiliCreator({ account, apiKey, baseUrl, fetchImpl, timeoutMs });
+  }
   if (!owner?.accountId) return [];
   const root = String(baseUrl || DEFAULT_TIKHUB_BASE_URL).replace(/\/+$/, "");
-  const params = new URLSearchParams({
-    user_id: owner.accountId,
-    post_filter: "archive",
-    page: "1",
-    ps: "30"
-  });
-  const payload = await requestJson(`${root}/api/v1/bilibili/app/fetch_user_videos?${params}`, {
-    headers: { authorization: `Bearer ${apiKey}` }
-  }, { fetchImpl, timeoutMs: Math.max(timeoutMs, 12_000) });
-  const items = payload?.data?.data?.item
-    || payload?.data?.data?.data?.item
-    || payload?.data?.item
-    || [];
-  return (Array.isArray(items) ? items : []).map((item) => {
+  const pages = await Promise.all([1, 2].map(async (page) => {
+    const params = new URLSearchParams({
+      user_id: owner.accountId,
+      post_filter: "archive",
+      page: String(page),
+      ps: "20"
+    });
+    const payload = await requestJson(`${root}/api/v1/bilibili/app/fetch_user_videos?${params}`, {
+      headers: { authorization: `Bearer ${apiKey}` }
+    }, { fetchImpl, timeoutMs: Math.max(timeoutMs, 12_000) });
+    return payload?.data?.data?.item
+      || payload?.data?.data?.data?.item
+      || payload?.data?.item
+      || [];
+  }));
+  return pages.flat().map((item) => {
     const aid = cleanValue(item?.param || item?.aid);
     const bvid = cleanValue(item?.bvid);
     return {
@@ -290,6 +453,28 @@ async function fetchBilibiliCreatorVideos({ account, searchResults, apiKey, base
       discovery: "creator_posts"
     };
   }).filter((item) => item.url && item.title);
+}
+
+async function resolveBilibiliCreator({ account, apiKey, baseUrl, fetchImpl, timeoutMs }) {
+  const root = String(baseUrl || DEFAULT_TIKHUB_BASE_URL).replace(/\/+$/, "");
+  const params = new URLSearchParams({
+    keyword: account,
+    search_type: "user",
+    cursor: "",
+    page_size: "10",
+    order: "0"
+  });
+  const payload = await requestJson(`${root}/api/v1/bilibili/app/fetch_search_by_type?${params}`, {
+    headers: { authorization: `Bearer ${apiKey}` }
+  }, { fetchImpl, timeoutMs });
+  const items = firstArray(payload?.data?.data?.items, payload?.data?.items);
+  const wanted = normalizeComparableText(account);
+  const item = items.find((candidate) => normalizeComparableText(candidate?.author?.title) === wanted)
+    || items.find((candidate) => normalizeComparableText(candidate?.author?.title).includes(wanted));
+  return item ? {
+    account: cleanValue(item?.author?.title),
+    accountId: cleanValue(item?.param || item?.author?.mid || item?.mid)
+  } : null;
 }
 
 function normalizeComparableText(value) {

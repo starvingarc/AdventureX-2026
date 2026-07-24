@@ -126,8 +126,13 @@ function createTikHubRequest({ platform, sourceUrl, baseUrl, preferVideo }) {
   }
   if (platform === "zhihu") {
     const target = readZhihuTarget(sourceUrl);
+    const endpoint = target.kind === "answer"
+      ? "fetch_answer_detail"
+      : target.kind === "pin"
+        ? "fetch_pin_detail"
+        : "fetch_column_article_detail";
     return getRequest(
-      `${root}/api/v1/zhihu/web/${target.kind === "answer" ? "fetch_answer_detail" : "fetch_column_article_detail"}`,
+      `${root}/api/v1/zhihu/web/${endpoint}`,
       { [`${target.kind}_id`]: target.id },
       `zhihu_${target.kind}`
     );
@@ -401,10 +406,12 @@ function normalizeWechat(payload, sourceUrl) {
 }
 
 function normalizeZhihu(payload, sourceUrl) {
-  const root = firstObject(payload?.data, payload?.answer, payload?.article, payload);
+  const root = firstObject(payload?.data, payload?.pin, payload?.answer, payload?.article, payload);
   const isAnswer = /\/answer\/\d+/.test(sourceUrl) || Boolean(root?.answer_id);
+  const isPin = /\/pin\/\d+/.test(sourceUrl) || root?.type === "pin" || Boolean(root?.pin_id);
   const contentId = stringValue(
-    root?.answer_id
+    root?.pin_id
+      || root?.answer_id
       || root?.article_id
       || root?.id
   );
@@ -414,27 +421,39 @@ function normalizeZhihu(payload, sourceUrl) {
       || root?.author_name
       || root?.nickname
   );
-  const text = cleanText(stripHtml(root?.content || root?.text || root?.excerpt || root?.description));
+  const pinParts = Array.isArray(root?.content)
+    ? root.content.map((item) => item?.own_text || item?.content || item?.text || "").filter(Boolean).join("\n\n")
+    : "";
+  const rawContent = root?.content_html || pinParts || root?.content || root?.text || root?.excerpt || root?.description;
+  const text = cleanText(stripHtml(rawContent));
   const questionTitle = cleanText(root?.question?.title);
+  const pinTitle = isPin ? firstContentLine(root?.excerpt_title || rawContent) : "";
   return {
     provider: "tikhub",
     platform: "zhihu",
     providerContentId: contentId,
-    kind: isAnswer ? "answer" : "article",
-    title: cleanText(root?.title) || questionTitle || text.slice(0, 80) || "知乎内容",
+    kind: isPin ? "pin" : isAnswer ? "answer" : "article",
+    title: cleanText(root?.title) || pinTitle || questionTitle || text.slice(0, 80) || "知乎内容",
     description: cleanText(root?.excerpt || root?.description),
     text,
     account,
     author: account,
     sourceUrl,
     publishedAt: stringValue(root?.created_time || root?.created || root?.updated_time),
-    images: [],
+    images: isPin && Array.isArray(root?.content)
+      ? uniqueUrls(root.content.map((item) => item?.url || item?.image_url || item?.original_url))
+      : [],
     mediaUrl: "",
     mediaUrls: [],
     coverUrl: "",
     durationSeconds: null,
     subtitles: [],
-    metadata: { stats: root?.voteup_count ? { voteup_count: root.voteup_count } : {} }
+    metadata: {
+      stats: {
+        ...(root?.voteup_count ? { voteup_count: root.voteup_count } : {}),
+        ...(root?.like_count ? { like_count: root.like_count } : {})
+      }
+    }
   };
 }
 
@@ -463,15 +482,25 @@ function readXiaohongshuWebParams(sourceUrl) {
 }
 
 function readZhihuTarget(sourceUrl) {
+  const pinId = sourceUrl.match(/\/pin\/(\d+)/)?.[1];
+  if (pinId) return { kind: "pin", id: pinId };
   const answerId = sourceUrl.match(/\/answer\/(\d+)/)?.[1];
   if (answerId) return { kind: "answer", id: answerId };
   const articleId = sourceUrl.match(/(?:zhuanlan\.zhihu\.com\/p\/|\/p\/)(\d+)/)?.[1];
   if (articleId) return { kind: "article", id: articleId };
   throw providerError(
     "invalid_content_url",
-    "知乎链接需要是回答或专栏文章。",
+    "知乎链接需要是想法、回答或专栏文章。",
     { retryable: false }
   );
+}
+
+function firstContentLine(value) {
+  const line = String(value || "")
+    .split(/<br\s*\/?\s*>|\r?\n|\s+\|\s+/i)
+    .map((item) => cleanText(stripHtml(item)))
+    .find(Boolean);
+  return String(line || "").slice(0, 160);
 }
 
 function findXiaohongshuRoot(payload) {

@@ -16,28 +16,37 @@ const VIDEO_OVERVIEW_SCHEMA = {
 export async function generateVideoOverview({
   title = "",
   account = "",
-  rawText = ""
+  rawText = "",
+  contentType = "video"
 } = {}, {
   modelJsonCaller = callModelJson,
   maxInputCharacters = Number(process.env.VIDEO_OVERVIEW_MAX_INPUT_CHARS) || 14_000
 } = {}) {
   const content = selectOverviewWindow(rawText, maxInputCharacters);
-  if (!content) return { summary: "未提取到可用于生成全片概览的语音内容。", highlights: [] };
+  const isArticle = contentType === "article";
+  if (!content) return {
+    summary: isArticle ? "未提取到可用于生成文章概览的正文。" : "未提取到可用于生成全片概览的语音内容。",
+    highlights: []
+  };
   const output = await modelJsonCaller({
     system: [
-      "你总结一条视频的完整转写内容。",
+      isArticle ? "你总结一篇文章的完整正文。" : "你总结一条视频的完整转写内容。",
       "只依据输入，不补充原文没有的信息。",
-      "summary 用 2-4 句概括全片脉络；highlights 输出 2-5 条短要点。",
+      `summary 用 2-4 句概括${isArticle ? "全文" : "全片"}脉络；highlights 输出 2-5 条短要点。`,
       "不要生成题目，不要使用 Markdown。"
     ].join("\n"),
-    user: [`标题：${title}`, account ? `博主：${account}` : "", `全片转写：\n${content}`].filter(Boolean).join("\n\n"),
-    schemaName: "shibei_video_overview_v1",
+    user: [
+      `标题：${title}`,
+      account ? `${isArticle ? "作者/来源" : "博主"}：${account}` : "",
+      `${isArticle ? "文章正文" : "全片转写"}：\n${content}`
+    ].filter(Boolean).join("\n\n"),
+    schemaName: isArticle ? "shibei_article_overview_v1" : "shibei_video_overview_v1",
     schema: VIDEO_OVERVIEW_SCHEMA,
-    stage: "video_overview",
+    stage: isArticle ? "article_overview" : "video_overview",
     estimatedOutputTokens: 260
   });
   return {
-    summary: String(output?.summary || "").trim() || "该视频已完成全片转写。",
+    summary: String(output?.summary || "").trim() || (isArticle ? "该文章已完成正文提取。" : "该视频已完成全片转写。"),
     highlights: Array.isArray(output?.highlights)
       ? output.highlights.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 5)
       : []

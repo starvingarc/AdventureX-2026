@@ -172,6 +172,33 @@ test("normalizes Zhihu answers without leaking HTML into the learning source", a
   assert.doesNotMatch(result.text, /<p>/);
 });
 
+test("normalizes Zhihu pins and calls the pin-detail endpoint", async () => {
+  const result = await fetchTikHubContentSource({
+    sourceUrl: "https://www.zhihu.com/pin/2063198404256257508",
+    apiKey: "key",
+    fetchImpl: async (url) => {
+      assert.match(String(url), /fetch_pin_detail/);
+      assert.match(String(url), /pin_id=2063198404256257508/);
+      return jsonResponse({
+        code: 200,
+        data: {
+          id: "2063198404256257508",
+          type: "pin",
+          author: { name: "章彦博" },
+          content_html: "从「可学习的新奇」到「智能」！ | 年初的时候，epiplexity 曾引发过热议。",
+          like_count: 49
+        }
+      });
+    }
+  });
+
+  assert.equal(result.kind, "pin");
+  assert.equal(result.title, "从「可学习的新奇」到「智能」！");
+  assert.equal(result.account, "章彦博");
+  assert.match(result.text, /epiplexity/);
+  assert.equal(result.metadata.stats.like_count, 49);
+});
+
 test("preserves explicit Xiaohongshu video fields for the existing media pipeline", () => {
   const result = normalizeTikHubContent("xiaohongshu", {
     data: [{

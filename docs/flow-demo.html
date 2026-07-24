@@ -112,8 +112,8 @@
       <section id="result" class="result" aria-live="polite">
         <div class="source"><div><h2 id="sourceTitle"></h2><p id="sourceMeta"></p></div><a id="sourceLink" target="_blank" rel="noreferrer">打开原内容 ↗</a></div>
         <div class="tabs" role="tablist"><button class="tab" role="tab" aria-selected="true" aria-controls="focusPanel" id="focusTab">截图附近</button><button class="tab" role="tab" aria-selected="false" aria-controls="overviewPanel" id="overviewTab">全片知识地图</button></div>
-        <section id="focusPanel" class="panel" role="tabpanel" aria-labelledby="focusTab"><p id="focusMeta" class="focus-meta"></p><p id="focusSummary" class="summary"></p><div id="cards" class="cards"></div><section id="cardDetail" class="card-detail" hidden><div class="card-detail-top"><div><p id="detailMeta" class="focus-meta"></p><h3 id="detailTitle"></h3></div><button id="detailClose" class="close" type="button">关闭</button></div><h4>本题答案</h4><p id="detailAnswer" class="detail-answer"></p><p id="detailExplanation" class="explanation"></p><h4>全片知识地图</h4><p id="detailOverview" class="explanation"></p><ul id="detailHighlights" class="highlights"></ul></section></section>
-        <section id="overviewPanel" class="panel" role="tabpanel" aria-labelledby="overviewTab" hidden><div class="overview"><div><h3>完整内容概览</h3><p id="overviewSummary"></p></div><div><h3>全片要点</h3><ul id="highlights" class="highlights"></ul></div></div></section>
+        <section id="focusPanel" class="panel" role="tabpanel" aria-labelledby="focusTab"><p id="focusMeta" class="focus-meta"></p><p id="focusSummary" class="summary"></p><div id="cards" class="cards"></div><section id="cardDetail" class="card-detail" hidden><div class="card-detail-top"><div><p id="detailMeta" class="focus-meta"></p><h3 id="detailTitle"></h3></div><button id="detailClose" class="close" type="button">关闭</button></div><h4>本题答案</h4><p id="detailAnswer" class="detail-answer"></p><p id="detailExplanation" class="explanation"></p><h4 id="detailOverviewTitle">完整内容知识地图</h4><p id="detailOverview" class="explanation"></p><ul id="detailHighlights" class="highlights"></ul></section></section>
+        <section id="overviewPanel" class="panel" role="tabpanel" aria-labelledby="overviewTab" hidden><div class="overview"><div><h3 id="overviewTitle">完整内容概览</h3><p id="overviewSummary"></p></div><div><h3 id="highlightsTitle">内容要点</h3><ul id="highlights" class="highlights"></ul></div></div></section>
       </section>
       <p id="notice" class="notice"></p>
     </main>
@@ -206,6 +206,7 @@
       const link = partial.link || {};
       const source = partial.source || {};
       const identity = partial.identity || {};
+      const isArticle = source.sourceType === 'article_link' || ['wechat','zhihu'].includes(source.platform || link.platform || identity.platform);
       if (!link.url && !identity.title) return;
       empty.style.display = 'none';
       result.style.display = 'block';
@@ -214,37 +215,47 @@
       const sourceLink = document.querySelector('#sourceLink');
       if (source.url || link.url) sourceLink.href = source.url || link.url;
       document.querySelector('#focusSummary').textContent = progress.stage === 'generate'
-        ? '字幕已返回，正在生成知识卡……'
-        : link.url ? '已找到来源，正在并发转写音频……' : '标题和博主已识别，正在定位原内容……';
+        ? (isArticle ? '正文已返回，正在生成知识卡……' : '字幕已返回，正在生成知识卡……')
+        : link.url ? (isArticle ? '已找到来源，正在提取文章正文……' : '已找到来源，正在并发转写音频……') : '标题和博主已识别，正在定位原内容……';
     }
 
     function render(data) {
       const source = data.source || {};
       const identity = data.ocr?.identity || {};
+      const isVideo = source.sourceType === 'video_link';
+      const contentNoun = isVideo ? '全片' : '文章';
       document.querySelector('#sourceTitle').textContent = source.title || data.link?.title || identity.title || '已保存内容';
-      document.querySelector('#sourceMeta').textContent = [source.account || identity.account, source.platform, identity.timestampSeconds != null ? `截图位置 ${formatTime(identity.timestampSeconds)}` : '已按字幕文本定位'].filter(Boolean).join(' · ');
+      document.querySelector('#sourceMeta').textContent = [source.account || identity.account, source.platform, isVideo ? (identity.timestampSeconds != null ? `截图位置 ${formatTime(identity.timestampSeconds)}` : '已按字幕文本定位') : '正文已提取'].filter(Boolean).join(' · ');
       const link = document.querySelector('#sourceLink'); link.href = source.url || data.link?.url || '#';
       const focus = source.focus || {};
-      document.querySelector('#focusMeta').textContent = focus.timestampSeconds != null ? `截图附近 · ${formatTime(focus.timestampSeconds)}${focus.startSeconds != null ? `（${formatTime(focus.startSeconds)} - ${formatTime(focus.endSeconds)}）` : ''}` : '截图附近的核心内容';
+      document.querySelector('#focusMeta').textContent = isVideo
+        ? (focus.timestampSeconds != null ? `截图附近 · ${formatTime(focus.timestampSeconds)}${focus.startSeconds != null ? `（${formatTime(focus.startSeconds)} - ${formatTime(focus.endSeconds)}）` : ''}` : '截图附近的核心内容')
+        : '文章核心内容';
       const review = data.review || {};
-      document.querySelector('#focusSummary').textContent = review.summaryCard?.text || '已提取截图附近的核心知识点。';
-      renderCards(review, focus.timestampSeconds);
-      const overview = data.videoOverview || {};
+      document.querySelector('#focusSummary').textContent = review.summaryCard?.text || `已提取${isVideo ? '截图附近' : '文章'}的核心知识点。`;
+      renderCards(review, focus.timestampSeconds, isVideo);
+      const overview = data.contentOverview || data.articleOverview || data.videoOverview || {};
       currentOverview = overview;
-      document.querySelector('#overviewSummary').textContent = overview.summary || '该来源不是视频，当前没有全片概览。';
+      document.querySelector('#overviewTab').textContent = `${contentNoun}知识地图`;
+      document.querySelector('#overviewTitle').textContent = `${contentNoun}概览`;
+      document.querySelector('#highlightsTitle').textContent = `${contentNoun}要点`;
+      document.querySelector('#detailOverviewTitle').textContent = `${contentNoun}知识地图`;
+      document.querySelector('#overviewSummary').textContent = overview.summary || `当前没有可用的${contentNoun}概览。`;
       const highlights = document.querySelector('#highlights'); highlights.innerHTML = '';
       (overview.highlights || []).forEach((item) => { const li=document.createElement('li'); li.textContent=item; highlights.append(li); });
       result.style.display = 'block';
       selectTab('focus');
     }
 
-    function renderCards(review, timestamp) {
+    function renderCards(review, timestamp, isVideo) {
       const cards = document.querySelector('#cards'); cards.innerHTML = '';
       const questions = review.units?.flatMap((unit) => unit.questions || []) || [];
       questions.forEach((question, index) => {
         const card = document.createElement('button'); card.className = 'flash'; card.type='button';
         const point = question.knowledgePoint || shortPoint(question.stem, index + 1);
-        const label = timestamp != null ? `${formatTime(timestamp)} · ${point}` : `截图附近 · ${point}`;
+        const label = isVideo
+          ? (timestamp != null ? `${formatTime(timestamp)} · ${point}` : `截图附近 · ${point}`)
+          : `文章 · ${point}`;
         const correct = question.options?.find((option) => option.id === question.correctOptionId)?.text || '';
         card.innerHTML = `<span class="card-head"><span class="time">${escapeHtml(label)}</span><span>${escapeHtml(question.displayLabel || '复习卡')}</span></span><span class="card-front"><strong>${escapeHtml(question.stem || '')}</strong><span class="flip-note">点击查看答案与全片知识地图</span></span>`;
         card.addEventListener('click', () => showCardDetail(question, label, correct));
@@ -257,7 +268,7 @@
       document.querySelector('#detailTitle').textContent = question.stem || '';
       document.querySelector('#detailAnswer').textContent = correct;
       document.querySelector('#detailExplanation').textContent = question.explanation || '';
-      document.querySelector('#detailOverview').textContent = currentOverview.summary || '该来源没有可用的全片概览。';
+      document.querySelector('#detailOverview').textContent = currentOverview.summary || '当前没有可用的完整内容概览。';
       const highlights = document.querySelector('#detailHighlights'); highlights.innerHTML = '';
       (currentOverview.highlights || []).forEach((item) => { const li=document.createElement('li'); li.textContent=item; highlights.append(li); });
       cardDetail.hidden = false;

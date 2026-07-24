@@ -29,7 +29,13 @@ video. One full transcript powers two output sections:
 
 - `review`: cards and a core summary from the timestamp window, or from OCR keywords
   matched against timestamped transcript blocks when the player time is absent.
-- `videoOverview`: a short whole-video summary and highlights from the full transcript.
+- `contentOverview`: the shared complete-content summary returned for both videos and articles.
+- `videoOverview`: backward-compatible alias for a video's whole-transcript summary.
+- `articleOverview`: article-specific alias populated from the full TikHub article body.
+
+Platform routing is explicit: Bilibili uses TikHub APP video search (plus a title/creator fallback),
+WeChat uses TikHub WeChat article search and article detail, and Zhihu pins use user search,
+user pins, then pin detail. Article screenshots never enter the ASR path.
 
 Subtitle tracks are always preferred. Bilibili uses its public subtitle metadata
 before a fallback. For videos without captions, TikHub supplies the Bilibili DASH

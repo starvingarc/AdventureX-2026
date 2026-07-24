@@ -126,7 +126,7 @@ function isWechatArticleUrl(value) {
 
 function shouldUseTikHubArticleSource(platform, { env = process.env } = {}) {
   return isTikHubArticlePlatform(platform)
-    && readBooleanFlag(env.TIKHUB_CONTENT_ENABLED, false)
+    && readBooleanFlag(env.TIKHUB_CONTENT_ENABLED, true)
     && Boolean(String(env.TIKHUB_API_KEY || "").trim());
 }
 

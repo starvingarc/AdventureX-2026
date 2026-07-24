@@ -118,6 +118,33 @@ test("keeps the account above a truncated screenshot title", () => {
   assert.equal(identity.title, "【巫师】全球股市年度排名，谁是神，谁..");
 });
 
+test("extracts a WeChat article title and account from its metadata row", () => {
+  const identity = extractScreenshotIdentity([
+    "腾讯合并大语言模型和多模态团队",
+    "界面新闻 2026年7月24日 14:34 上海",
+    "7月23日，腾讯宣布混元多模态模型部门与大语言模型部门合并。",
+    "阅读原文 阅读 8311",
+    "写留言"
+  ]);
+  assert.equal(identity.platform, "wechat");
+  assert.equal(identity.title, "腾讯合并大语言模型和多模态团队");
+  assert.equal(identity.account, "界面新闻");
+});
+
+test("extracts a Zhihu pin title and skips the follow button before the author badge", () => {
+  const identity = extractScreenshotIdentity([
+    "章彦博",
+    "＋关注",
+    "物理学话题下的优秀答主",
+    "49人赞同了该想法〉",
+    "从「可学习的新奇」到「智能」！",
+    "年初的时候，epiplexity 曾引发过热议。"
+  ]);
+  assert.equal(identity.platform, "zhihu");
+  assert.equal(identity.title, "从「可学习的新奇」到「智能」！");
+  assert.equal(identity.account, "章彦博");
+});
+
 test("rejects a search result whose title does not match the screenshot", async () => {
   const result = await runImageFlow({
     ocrText: "巫师财经\n【巫师】财经跨年：中国财经年度盘点Top10",
@@ -212,11 +239,16 @@ test("uses TikHub Bilibili search when its key is configured", async () => {
         ok: true,
         json: async () => ({
           data: {
-            result: [{
-              title: "<em class=\"keyword\">巫师财经</em>年度盘点",
-              bvid: "BV1example",
-              description: "财经年度内容"
-            }]
+            data: {
+              items: [{
+                param: "123456",
+                av: {
+                  title: "<em class=\"keyword\">巫师财经</em>年度盘点",
+                  author: "巫师财经",
+                  mid: "100"
+                }
+              }]
+            }
           }
         })
       };
@@ -224,9 +256,10 @@ test("uses TikHub Bilibili search when its key is configured", async () => {
   });
   assert.equal(result.provider, "tikhub");
   assert.deepEqual(result.platforms, ["bilibili"]);
-  assert.match(requestedUrl, /bilibili\/web\/fetch_general_search/);
+  assert.match(requestedUrl, /bilibili\/app\/fetch_search_by_type/);
+  assert.match(requestedUrl, /search_type=video/);
   assert.equal(result.results[0].title, "巫师财经 年度盘点");
-  assert.equal(result.results[0].url, "https://www.bilibili.com/video/BV1example");
+  assert.equal(result.results[0].url, "https://www.bilibili.com/video/av123456");
 });
 
 test("hydrates a title-less TikHub Bilibili result before strict matching", async () => {
@@ -235,7 +268,7 @@ test("hydrates a title-less TikHub Bilibili result before strict matching", asyn
     tikhubApiKey: "test-key",
     fetchImpl: async (url) => {
       calls += 1;
-      if (String(url).includes("fetch_general_search")) {
+      if (String(url).includes("fetch_search_by_type")) {
         return { ok: true, json: async () => ({ data: { result: [{ bvid: "BV1exact", author: "巫师财经" }] } }) };
       }
       assert.match(String(url), /x\/web-interface\/view\?bvid=BV1exact/);
@@ -245,6 +278,66 @@ test("hydrates a title-less TikHub Bilibili result before strict matching", asyn
   assert.equal(calls, 2);
   assert.equal(result.results[0].title, "【巫师】全球股市年度排名，谁是神");
   assert.equal(result.results[0].account, "巫师财经");
+});
+
+test("normalizes TikHub WeChat article search results", async () => {
+  const result = await searchLinks("界面新闻 腾讯合并大语言模型和多模态团队", {
+    platform: "wechat",
+    tikhubApiKey: "test-key",
+    fetchImpl: async (url, options) => {
+      assert.match(String(url), /wechat_search\/v2\/fetch_search/);
+      assert.equal(options.method, "POST");
+      assert.equal(JSON.parse(options.body).business_type, "article");
+      return {
+        ok: true,
+        json: async () => ({
+          data: {
+            items: [{
+              title: "<em>腾讯合并大语言模型和多模态团队</em>",
+              doc_url: "https://mp.weixin.qq.com/s/example",
+              desc: "腾讯宣布模型团队合并",
+              source: { title: "界面新闻" }
+            }]
+          }
+        })
+      };
+    }
+  });
+  assert.equal(result.results[0].title, "腾讯合并大语言模型和多模态团队");
+  assert.equal(result.results[0].account, "界面新闻");
+  assert.equal(result.results[0].url, "https://mp.weixin.qq.com/s/example");
+});
+
+test("searches a Zhihu author and normalizes the matching pin", async () => {
+  const calls = [];
+  const result = await searchLinks("章彦博 从可学习的新奇到智能", {
+    platform: "zhihu",
+    account: "章彦博",
+    tikhubApiKey: "test-key",
+    fetchImpl: async (url) => {
+      calls.push(String(url));
+      if (String(url).includes("fetch_user_search_v3")) {
+        return { ok: true, json: async () => ({ data: { data: [{ name: "<em>章彦博</em>", url_token: "excited-zyb" }] } }) };
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          data: {
+            data: [{
+              id: "2063198404256257508",
+              type: "pin",
+              author: { name: "章彦博" },
+              content_html: "从「可学习的新奇」到「智能」！<br>正文"
+            }]
+          }
+        })
+      };
+    }
+  });
+  assert.equal(calls.some((url) => url.includes("fetch_user_pins")), true);
+  assert.equal(result.results[0].title, "从「可学习的新奇」到「智能」！");
+  assert.equal(result.results[0].account, "章彦博");
+  assert.equal(result.results[0].url, "https://www.zhihu.com/pin/2063198404256257508");
 });
 
 test("normalizes TikHub Douyin video search results", async () => {

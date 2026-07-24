@@ -268,26 +268,32 @@ test("normalizes TikHub Douyin video search results", async () => {
 });
 
 test("normalizes current TikHub Douyin business_data search results", async () => {
+  let requestedUrl = "";
   const result = await searchLinks("云潮新闻 高考726分", {
     platform: "douyin",
     tikhubApiKey: "test-key",
-    fetchImpl: async () => ({
-      ok: true,
-      json: async () => ({
-        data: {
-          business_data: [{
-            data: {
-              aweme_info: {
-                aweme_id: "76570001",
-                desc: "高考726分的瑞安学霸没毕业就创业",
-                author: { nickname: "云潮新闻" }
+    fetchImpl: async (url, options) => {
+      requestedUrl = String(url);
+      assert.equal(JSON.parse(options.body).content_type, "1");
+      return {
+        ok: true,
+        json: async () => ({
+          data: {
+            business_data: [{
+              data: {
+                aweme_info: {
+                  aweme_id: "76570001",
+                  desc: "高考726分的瑞安学霸没毕业就创业",
+                  author: { nickname: "云潮新闻" }
+                }
               }
-            }
-          }]
-        }
-      })
-    })
+            }]
+          }
+        })
+      };
+    }
   });
+  assert.match(requestedUrl, /fetch_video_search_v2/);
   assert.equal(result.results[0].platform, "douyin");
   assert.equal(result.results[0].account, "云潮新闻");
   assert.equal(result.results[0].url, "https://www.douyin.com/video/76570001");

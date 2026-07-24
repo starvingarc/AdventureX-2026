@@ -1,5 +1,9 @@
+import { primeTikHubSearchSource } from "../media/tikhubSearchSourceCache.js";
+import { normalizeTikHubContent } from "../sources/tikhubContentProvider.js";
+
 const DEFAULT_TIMEOUT_MS = 8_000;
 const DEFAULT_TIKHUB_BASE_URL = "https://api.tikhub.io";
+const searchCache = new Map();
 
 export async function searchLinks(query, {
   maxResults = 10,
@@ -20,6 +24,22 @@ export async function searchLinks(query, {
 }
 
 async function callTikHub(query, options) {
+  const cacheKey = options.fetchImpl === fetch
+    ? `${normalizeTikHubPlatform(options.platform) || "all"}:${query}:${options.maxResults}`
+    : "";
+  const cached = readSearchCache(cacheKey);
+  if (cached) return cached;
+  const pending = callTikHubUncached(query, options);
+  if (cacheKey) writeSearchCache(cacheKey, pending);
+  try {
+    return await pending;
+  } catch (error) {
+    if (cacheKey) searchCache.delete(cacheKey);
+    throw error;
+  }
+}
+
+async function callTikHubUncached(query, options) {
   const requestedPlatform = normalizeTikHubPlatform(options.platform);
   const platforms = requestedPlatform ? [requestedPlatform] : detectTikHubSearchPlatforms(query);
   const settled = await Promise.allSettled(
@@ -72,7 +92,10 @@ async function callTikHubPlatform(platform, query, { apiKey, baseUrl, fetchImpl,
     url = `${root}/api/v1/xiaohongshu/web_v3/fetch_search_notes?${params}`;
     request = { method: "GET", headers };
   } else {
-    url = `${root}/api/v1/douyin/search/fetch_general_search_v2`;
+    // The video-only endpoint returns fewer cards and includes the same rich
+    // aweme metadata needed by extraction, saving both search time and a
+    // second TikHub detail request.
+    url = `${root}/api/v1/douyin/search/fetch_video_search_v2`;
     request = {
       method: "POST",
       headers,
@@ -82,7 +105,7 @@ async function callTikHubPlatform(platform, query, { apiKey, baseUrl, fetchImpl,
         sort_type: "0",
         publish_time: "0",
         filter_duration: "0",
-        content_type: "0",
+        content_type: "1",
         search_id: "",
         backtrace: ""
       })
@@ -147,7 +170,7 @@ function normalizeTikHubItem(platform, item) {
   }
   const data = item?.data?.aweme_info || item?.aweme_info || item?.aweme_detail || item;
   const id = cleanValue(data?.aweme_id || data?.id);
-  return {
+  const normalized = {
     platform,
     title: cleanValue(data?.desc || data?.caption || data?.title),
     // Prefer the stable canonical URL. Search share URLs use iesdouyin.com and
@@ -156,6 +179,36 @@ function normalizeTikHubItem(platform, item) {
     account: cleanValue(data?.author?.nickname || data?.author?.unique_id),
     snippet: cleanValue(data?.author?.nickname || data?.author?.unique_id || data?.desc)
   };
+  if (normalized.url) {
+    try {
+      primeTikHubSearchSource(normalized.url, normalizeTikHubContent("douyin", data, normalized.url));
+    } catch {
+      // Search remains useful when a result has incomplete media metadata.
+    }
+  }
+  return normalized;
+}
+
+function readSearchCache(key) {
+  if (!key) return null;
+  const item = searchCache.get(key);
+  if (!item) return null;
+  if (item.expiresAt <= Date.now()) {
+    searchCache.delete(key);
+    return null;
+  }
+  return item.value;
+}
+
+function writeSearchCache(key, value) {
+  const ttlMs = readPositiveInt(process.env.TIKHUB_SEARCH_CACHE_TTL_MS, 10 * 60 * 1000);
+  searchCache.set(key, { value, expiresAt: Date.now() + ttlMs });
+  while (searchCache.size > 128) searchCache.delete(searchCache.keys().next().value);
+}
+
+function readPositiveInt(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : fallback;
 }
 
 async function fetchBilibiliCreatorVideos({ account, searchResults, apiKey, baseUrl, fetchImpl, timeoutMs }) {

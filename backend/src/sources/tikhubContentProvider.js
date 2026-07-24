@@ -219,18 +219,14 @@ function normalizeDouyin(payload, sourceUrl) {
     payload
   );
   const bitRateStreams = Array.isArray(root?.video?.bit_rate) ? root.video.bit_rate : [];
-  const compatibleStreams = bitRateStreams
-    .filter((stream) => stream && !stream.is_h265 && !stream.is_bytevc1)
-    .sort((left, right) => {
-      const leftWidth = Number(left?.play_addr?.width || 1920);
-      const rightWidth = Number(right?.play_addr?.width || 1920);
-      return Math.abs(leftWidth - 1080) - Math.abs(rightWidth - 1080);
-    });
-  const mediaUrls = rankDouyinMediaUrls(uniqueUrls(
-    compatibleStreams.flatMap((stream) => stream?.play_addr?.url_list || []),
-    root?.video?.play_addr?.url_list,
-    root?.video?.download_addr?.url_list
-  ));
+  const audioCarrierStreams = bitRateStreams
+    .filter((stream) => Array.isArray(stream?.play_addr?.url_list) && stream.play_addr.url_list.length > 0)
+    .sort((left, right) => streamSize(left) - streamSize(right));
+  const mediaUrls = uniqueUrls(
+    audioCarrierStreams.flatMap((stream) => rankDouyinMediaUrls(stream.play_addr.url_list)),
+    rankDouyinMediaUrls(root?.video?.play_addr?.url_list || []),
+    rankDouyinMediaUrls(root?.video?.download_addr?.url_list || [])
+  );
   const contentId = stringValue(root?.aweme_id || root?.id);
   const description = cleanText(root?.desc || root?.caption);
   return {
@@ -253,6 +249,13 @@ function normalizeDouyin(payload, sourceUrl) {
     subtitles: [],
     metadata: { stats: root?.statistics || {} }
   };
+}
+
+function streamSize(stream) {
+  const bytes = Number(stream?.play_addr?.data_size);
+  if (Number.isFinite(bytes) && bytes > 0) return bytes;
+  const bitRate = Number(stream?.bit_rate);
+  return Number.isFinite(bitRate) && bitRate > 0 ? bitRate : Number.MAX_SAFE_INTEGER;
 }
 
 function rankDouyinMediaUrls(urls) {

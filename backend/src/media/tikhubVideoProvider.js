@@ -5,6 +5,7 @@ import {
   normalizeVideoSourceUrl
 } from "./videoPlatforms.js";
 import { fetchTikHubContentSource } from "../sources/tikhubContentProvider.js";
+import { readTikHubSearchSource } from "./tikhubSearchSourceCache.js";
 
 export async function fetchTikHubVideoSource({
   sourceUrl,
@@ -22,9 +23,9 @@ export async function fetchTikHubVideoSource({
       { retryable: false, provider: "tikhub" }
     );
   }
-  let content;
+  let content = readTikHubSearchSource(url.href);
   try {
-    content = await fetchTikHubContentSource({
+    content ||= await fetchTikHubContentSource({
       sourceUrl: url.href,
       apiKey,
       baseUrl,

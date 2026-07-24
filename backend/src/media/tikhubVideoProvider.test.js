@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { fetchTikHubVideoSource } from "./tikhubVideoProvider.js";
+import { clearTikHubSearchSourceCache, primeTikHubSearchSource } from "./tikhubSearchSourceCache.js";
 
 test("normalizes Douyin TikHub response", async () => {
   const calls = [];
@@ -58,6 +59,30 @@ test("keeps alternate Douyin media URLs for automatic CDN fallback", async () =>
 
   assert.equal(result.mediaUrl, "https://media.example.com/primary.mp4");
   assert.deepEqual(result.mediaAlternativeUrls, ["https://backup.example.com/secondary.mp4"]);
+});
+
+test("reuses rich Douyin search metadata without a second TikHub request", async () => {
+  clearTikHubSearchSourceCache();
+  const sourceUrl = "https://www.douyin.com/video/search-cache-1";
+  primeTikHubSearchSource(sourceUrl, {
+    providerContentId: "search-cache-1",
+    title: "搜索直接命中",
+    description: "搜索结果已包含视频详情",
+    account: "示例博主",
+    sourceUrl,
+    mediaUrl: "https://media.example.com/low.mp4",
+    mediaUrls: ["https://media.example.com/low.mp4"],
+    durationSeconds: 30,
+    subtitles: []
+  });
+  const result = await fetchTikHubVideoSource({
+    sourceUrl,
+    apiKey: "key",
+    fetchImpl: async () => { throw new Error("detail API should not be called"); }
+  });
+  assert.equal(result.mediaUrl, "https://media.example.com/low.mp4");
+  assert.equal(result.title, "搜索直接命中");
+  clearTikHubSearchSourceCache();
 });
 
 test("normalizes Xiaohongshu TikHub response", async () => {

@@ -13,6 +13,7 @@ def main():
     parser.add_argument("--language", default="auto")
     parser.add_argument("--beam-size", type=int, default=1)
     parser.add_argument("--cpu-threads", type=int, default=2)
+    parser.add_argument("--initial-prompt", default="")
     args = parser.parse_args()
 
     try:
@@ -34,6 +35,7 @@ def main():
             language=None if args.language.lower() in ("", "auto", "automatic", "detect") else args.language,
             vad_filter=True,
             beam_size=max(1, args.beam_size),
+            initial_prompt=args.initial_prompt or None,
         )
         normalized_segments = []
         text_parts = []

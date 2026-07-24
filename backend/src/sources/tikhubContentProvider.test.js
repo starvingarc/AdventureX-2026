@@ -32,6 +32,20 @@ test("prefers responsive Douyin play hosts over experimental CDN URLs", () => {
   assert.match(result.mediaUrls[1], /zjcdn\.com/);
 });
 
+test("prefers the smallest Douyin audio carrier before higher bitrate video", () => {
+  const result = normalizeTikHubContent("douyin", {
+    aweme_id: "smallest-stream",
+    video: {
+      bit_rate: [
+        { bit_rate: 1_200_000, play_addr: { data_size: 5_000_000, url_list: ["https://api-play.amemv.com/high.mp4"] } },
+        { bit_rate: 400_000, play_addr: { data_size: 1_500_000, url_list: ["https://api-play.amemv.com/low.mp4"] } }
+      ]
+    }
+  }, "https://www.douyin.com/video/smallest-stream");
+  assert.equal(result.mediaUrl, "https://api-play.amemv.com/low.mp4");
+  assert.equal(result.mediaUrls[1], "https://api-play.amemv.com/high.mp4");
+});
+
 test("uses Xiaohongshu web v3 when evidence token is present and normalizes image notes", async () => {
   const calls = [];
   const result = await fetchTikHubContentSource({

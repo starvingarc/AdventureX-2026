@@ -31,7 +31,12 @@ export async function runImageFlow({
     : await ocr(path);
   timings.ocrMs = Date.now() - ocrStartedAt;
   const identity = extractScreenshotIdentity(ocrResult.lines || ocrResult.text);
-  reportProgress(onProgress, { stage: "search", message: "截图识别完成，正在用 TikHub 核对来源", percent: 20 });
+  reportProgress(onProgress, {
+    stage: "search",
+    message: "截图识别完成，正在用 TikHub 核对来源",
+    percent: 20,
+    partial: { identity }
+  });
   const queries = buildSearchQueries(identity);
   const query = queries[0] || "";
   const searchStartedAt = Date.now();
@@ -74,7 +79,12 @@ export async function runImageFlow({
   }
 
   result.link = candidate;
-  reportProgress(onProgress, { stage: "extract", message: "已找到来源，正在并发转写代表片段；少量片段成功后立即继续", percent: 40 });
+  reportProgress(onProgress, {
+    stage: "extract",
+    message: "已找到来源，正在并发转写代表片段；少量片段成功后立即继续",
+    percent: 40,
+    partial: { identity, link: publicCandidate(candidate) }
+  });
   const sourceType = isVideoUrl(candidate.url) ? "video_link" : "article_link";
   try {
     const extractionStartedAt = Date.now();
@@ -85,6 +95,7 @@ export async function runImageFlow({
       rawText: candidate.snippet,
       timestampSeconds: identity.timestampSeconds,
       locatorTerms: identity.locatorTerms,
+      preferredLanguage: inferAsrLanguageHint(identity, candidate),
       publicMediaBaseUrl
     });
     timings.sourceExtractionMs = Date.now() - extractionStartedAt;
@@ -117,7 +128,22 @@ export async function runImageFlow({
       rawText: source.rawText,
       blocks: source.blocks
     };
-    reportProgress(onProgress, { stage: "generate", message: "内容已提取，正在生成截图知识卡和全片总结", percent: 82 });
+    reportProgress(onProgress, {
+      stage: "generate",
+      message: "内容已提取，正在生成截图知识卡和全片总结",
+      percent: 82,
+      partial: {
+        identity,
+        link: publicCandidate(candidate),
+        source: {
+          title: source.sourceTitle,
+          account: source.sourceAccount,
+          url: source.sourceUrl,
+          platform: source.platform,
+          focus: source.focus || null
+        }
+      }
+    });
     const reviewRequest = measureAsync(timings, "reviewGenerationMs", () => generate(reviewInput));
     const overviewRequest = sourceType === "video_link"
       ? measureAsync(timings, "overviewGenerationMs", () => generateOverview({ title: source.sourceTitle, account: source.sourceAccount, rawText: source.overviewText }))
@@ -137,6 +163,26 @@ export async function runImageFlow({
   }
   timings.totalMs = Date.now() - flowStartedAt;
   return result;
+}
+
+function inferAsrLanguageHint(identity, candidate) {
+  const evidence = `${identity?.title || ""} ${identity?.account || ""} ${candidate?.title || ""}`;
+  const chineseCharacters = (evidence.match(/[\u3400-\u9fff]/g) || []).length;
+  const latinLetters = (evidence.match(/[a-z]/gi) || []).length;
+  // This is a hint, not a platform-wide language lock. Non-Chinese screenshots
+  // keep automatic detection, while clearly Chinese screenshots skip Whisper's
+  // language-detection pass and improve recognition of Chinese proper nouns.
+  return chineseCharacters >= 6 && chineseCharacters >= latinLetters ? "zh" : "auto";
+}
+
+function publicCandidate(candidate) {
+  return {
+    platform: candidate?.platform || "",
+    title: candidate?.title || "",
+    account: candidate?.account || "",
+    url: candidate?.url || "",
+    matchScore: Number(candidate?.matchScore) || 0
+  };
 }
 
 function reportProgress(handler, progress) {

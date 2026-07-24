@@ -105,6 +105,8 @@ import { runImageFlow } from "./flow/index.js";
 import { createImageFlowJob, getImageFlowJob } from "./flow/imageFlowJobs.js";
 import { buildMemoizedVideoRuntimeReadiness } from "./media/videoRuntimeReadiness.js";
 import { takeTemporaryPublicMedia } from "./media/temporaryPublicMedia.js";
+import { warmLocalWhisperPool } from "./media/localWhisperTranscriptionProvider.js";
+import { resolveSpeechToTextProviderName } from "./media/speechToTextProvider.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const projectRoot = resolve(__dirname, "..", "..");
@@ -2870,6 +2872,11 @@ function startServer() {
     .then((result) => {
       server.listen(port, host, () => {
         console.log(`Recallo Demo 已启动：http://${host}:${port} (${result.storage})`);
+        if (["local_whisper", "faster_whisper"].includes(resolveSpeechToTextProviderName())) {
+          warmLocalWhisperPool().catch((error) => {
+            console.warn(`本地 ASR 预热失败：${error?.message || error}`);
+          });
+        }
       });
     })
     .catch((error) => {

@@ -33,6 +33,7 @@ export async function extractSourceContent(input, {
       rawText: input.rawText,
       sourceTitle: input.sourceTitle,
       preferredTimestampSeconds: input.timestampSeconds,
+      preferredLanguage: input.preferredLanguage,
       publicMediaBaseUrl: input.publicMediaBaseUrl
     });
     const v2Source = buildV2SourceFromLearningSource(learningSource);

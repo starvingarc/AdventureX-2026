@@ -7,7 +7,9 @@ import { VIDEO_DEFAULTS } from "./videoDefaults.js";
 export function resolveSpeechToTextProviderName(env = process.env) {
   const explicitProvider = String(env.VIDEO_ASR_PROVIDER || "").trim().toLowerCase();
   if (explicitProvider) return explicitProvider;
-  if (env.QWEN_ASR_API_KEY || env.QWEN_API || env.DASHSCOPE_API_KEY) return "qwen_filetrans";
+  // QWEN_API is also used by the OpenAI-compatible summarization endpoint and
+  // does not imply that DashScope FileTrans is available.
+  if (env.QWEN_ASR_API_KEY || env.DASHSCOPE_API_KEY) return "qwen_filetrans";
   return VIDEO_DEFAULTS.asrProvider;
 }
 

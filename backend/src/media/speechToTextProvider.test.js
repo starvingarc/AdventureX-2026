@@ -9,6 +9,8 @@ import {
 test("resolves ASR provider from explicit env, then local whisper default", () => {
   assert.equal(resolveSpeechToTextProviderName({ VIDEO_ASR_PROVIDER: "local_whisper", OPENAI_API_KEY: "key" }), "local_whisper");
   assert.equal(resolveSpeechToTextProviderName({ OPENAI_API_KEY: "key" }), "local_whisper");
+  assert.equal(resolveSpeechToTextProviderName({ QWEN_API: "summary-only-key" }), "local_whisper");
+  assert.equal(resolveSpeechToTextProviderName({ QWEN_ASR_API_KEY: "asr-key" }), "qwen_filetrans");
   assert.equal(resolveSpeechToTextProviderName({}), "local_whisper");
 });
 

@@ -15,3 +15,21 @@ test("runs image flow asynchronously and exposes progress", async () => {
   assert.equal(completed.progress.percent, 100);
   assert.equal(completed.result.review.summaryCard.text, "完成");
 });
+
+test("exposes safe partial results while a flow is still running", async () => {
+  let release;
+  const blocker = new Promise((resolve) => { release = resolve; });
+  const created = createImageFlowJob(async (update) => {
+    update({
+      stage: "extract",
+      percent: 40,
+      partial: { link: { title: "示例视频", url: "https://example.com/video" } }
+    });
+    await blocker;
+    return { status: "completed" };
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  const running = getImageFlowJob(created.jobId);
+  assert.equal(running.progress.partial.link.title, "示例视频");
+  release();
+});

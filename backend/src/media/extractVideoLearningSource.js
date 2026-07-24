@@ -1,4 +1,5 @@
 import { dirname } from "node:path";
+import { availableParallelism } from "node:os";
 
 import { splitAudioForParallelAsr } from "./asrAudioChunks.js";
 import { cleanupMediaTempFiles, downloadMediaToTempFile } from "./mediaFiles.js";
@@ -44,6 +45,7 @@ export async function extractVideoLearningSource({
   rawText = "",
   sourceTitle = "",
   preferredTimestampSeconds = null,
+  preferredLanguage = "auto",
   provider = null,
   downloadMedia = downloadMediaToTempFile,
   downloadYtDlpMedia = downloadYtDlpMediaToTempFile,
@@ -67,6 +69,7 @@ export async function extractVideoLearningSource({
   publicMediaBaseUrl = process.env.SHIBEI_PUBLIC_BASE_URL || ""
 } = {}) {
   const sourceInput = sourceUrl || rawText;
+  const asrPrompt = [sourceTitle, rawText].map((value) => String(value || "").trim()).filter(Boolean).join("；").slice(0, 300);
   const visualEnabled = readBooleanFlag(process.env.VIDEO_VISUAL_ENABLED, false)
     || createFramePack !== createVideoFramePack
     || understandVisuals !== understandVideoVisuals
@@ -216,7 +219,7 @@ export async function extractVideoLearningSource({
         && Object.keys(video.mediaRequestHeaders || {}).length === 0
       ) {
         try {
-          transcript = await speechToTextProvider.transcribeMedia({ mediaUrl: video.audioUrl });
+          transcript = await speechToTextProvider.transcribeMedia({ mediaUrl: video.audioUrl, language: preferredLanguage });
           recordMediaUsage(mediaUsageRecorder, {
             stage: "audio_extraction",
             provider: "provider_audio_url",
@@ -271,10 +274,11 @@ export async function extractVideoLearningSource({
         publicMediaBaseUrl,
         durationSeconds: video.durationSeconds,
         preferredTimestampSeconds,
+        preferredLanguage,
         splitAudio: splitAudioForAsr,
         tempFiles,
-        transcribeChunk: (chunk) => activeTranscribeAudio({ audioPath: chunk.path }),
-        fallback: () => transcribeLocalAudio({ mediaFile, extractAudio, activeTranscribeAudio, tempFiles, mediaUsageRecorder })
+        transcribeChunk: (chunk) => activeTranscribeAudio({ audioPath: chunk.path, language: preferredLanguage, initialPrompt: asrPrompt }),
+        fallback: () => transcribeLocalAudio({ mediaFile, extractAudio, activeTranscribeAudio, tempFiles, mediaUsageRecorder, preferredLanguage, initialPrompt: asrPrompt })
       });
     }
     const transcriptProvider = transcript.provider || speechToTextProvider.name || "custom";
@@ -657,7 +661,7 @@ function isAudioMediaFile(mediaFile) {
   return /\.(m4a|mp3|opus|ogg|wav)(?:$|\?)/i.test(String(mediaFile?.path || ""));
 }
 
-async function transcribeLocalAudio({ mediaFile, extractAudio, activeTranscribeAudio, tempFiles, mediaUsageRecorder }) {
+async function transcribeLocalAudio({ mediaFile, extractAudio, activeTranscribeAudio, tempFiles, mediaUsageRecorder, preferredLanguage, initialPrompt }) {
   const sourceIsAudio = isAudioMediaFile(mediaFile);
   const audio = sourceIsAudio
     ? { ...mediaFile, format: "source_audio", sampleRate: null }
@@ -669,7 +673,7 @@ async function transcribeLocalAudio({ mediaFile, extractAudio, activeTranscribeA
     metadata: { format: audio.format || "", sampleRate: audio.sampleRate || null, fastPath: sourceIsAudio }
   });
   if (!sourceIsAudio) tempFiles.push(audio);
-  return activeTranscribeAudio({ audioPath: audio.path });
+  return activeTranscribeAudio({ audioPath: audio.path, language: preferredLanguage, initialPrompt });
 }
 
 async function transcribeWithTemporaryPublicMedia({
@@ -678,18 +682,27 @@ async function transcribeWithTemporaryPublicMedia({
   publicMediaBaseUrl,
   durationSeconds,
   preferredTimestampSeconds,
+  preferredLanguage,
   splitAudio,
   tempFiles,
   transcribeChunk,
   fallback
 }) {
-  const parallelThresholdSeconds = readPositiveInt(process.env.QWEN_ASR_PARALLEL_THRESHOLD_SECONDS, 900);
+  const localAsr = typeof speechToTextProvider?.transcribeMedia !== "function";
+  const parallelThresholdSeconds = localAsr
+    ? readPositiveInt(process.env.LOCAL_ASR_PARALLEL_THRESHOLD_SECONDS, 30)
+    : readPositiveInt(process.env.QWEN_ASR_PARALLEL_THRESHOLD_SECONDS, 900);
   if (Number(durationSeconds) >= parallelThresholdSeconds) {
     try {
-      const chunked = await splitAudio({ inputPath: mediaFile.path });
+      const chunked = await splitAudio({
+        inputPath: mediaFile.path,
+        ...(localAsr ? { chunkSeconds: readPositiveInt(process.env.LOCAL_ASR_CHUNK_SECONDS, 10) } : {})
+      });
       tempFiles.push({ dir: chunked.dir });
       const chunks = selectRepresentativeChunks(chunked.chunks, {
-        maxChunks: readPositiveInt(process.env.QWEN_ASR_MAX_CHUNKS, 8),
+        maxChunks: localAsr
+          ? readPositiveInt(process.env.LOCAL_ASR_MAX_CHUNKS, 12)
+          : readPositiveInt(process.env.QWEN_ASR_MAX_CHUNKS, 8),
         preferredTimestampSeconds
       });
       if (typeof speechToTextProvider?.transcribeMedia === "function" && normalizePublicMediaBase(publicMediaBaseUrl)) {
@@ -706,7 +719,7 @@ async function transcribeWithTemporaryPublicMedia({
             });
             if (!lease) throw new Error("public media URL is unavailable");
             try {
-              return await speechToTextProvider.transcribeMedia({ mediaUrl: lease.url });
+              return await speechToTextProvider.transcribeMedia({ mediaUrl: lease.url, language: preferredLanguage });
             } finally {
               lease.release();
             }
@@ -717,8 +730,12 @@ async function transcribeWithTemporaryPublicMedia({
         return await transcribeChunksWithQuorum({
           chunks,
           providerName: "local_whisper:sampled",
-          concurrency: readPositiveInt(process.env.LOCAL_ASR_CHUNK_CONCURRENCY, 2),
-          quorum: readPositiveInt(process.env.LOCAL_ASR_SUCCESS_QUORUM, 2),
+          concurrency: localAsrConcurrency(),
+          // Short videos need every chunk for a complete summary. Long videos
+          // can return after a small representative quorum and refine later.
+          quorum: Number(durationSeconds) <= 300
+            ? chunks.length
+            : readPositiveInt(process.env.LOCAL_ASR_SUCCESS_QUORUM, 3),
           transcribe: transcribeChunk
         });
       }
@@ -734,7 +751,7 @@ async function transcribeWithTemporaryPublicMedia({
   });
   if (!lease) return fallback();
   try {
-    return await speechToTextProvider.transcribeMedia({ mediaUrl: lease.url });
+    return await speechToTextProvider.transcribeMedia({ mediaUrl: lease.url, language: preferredLanguage });
   } catch (error) {
     // A temporary URL can fail when the deployment is not publicly reachable.
     // Preserve local Whisper as the development fallback.
@@ -742,6 +759,16 @@ async function transcribeWithTemporaryPublicMedia({
   } finally {
     lease.release();
   }
+}
+
+function localAsrConcurrency() {
+  const explicit = Number(process.env.LOCAL_ASR_CHUNK_CONCURRENCY);
+  if (Number.isFinite(explicit) && explicit > 0) return Math.floor(explicit);
+  const threadsPerWorker = readPositiveInt(process.env.LOCAL_WHISPER_CPU_THREADS, 2);
+  // Bound total CTranslate2 threads to the available logical CPU budget. More
+  // processes than this reduce throughput because every worker performs dense
+  // matrix operations at the same time.
+  return Math.max(1, Math.min(8, Math.floor(availableParallelism() / threadsPerWorker)));
 }
 
 async function transcribeChunksWithQuorum({ chunks, transcribe, providerName, concurrency, quorum }) {

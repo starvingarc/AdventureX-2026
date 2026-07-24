@@ -180,6 +180,7 @@
           if (!response.ok) throw new Error(job.message || '无法读取任务状态。');
           networkFailures = 0;
           setFlowProgress(job.progress || {}, Date.now() - startedAt);
+          renderPartialProgress(job.progress || {});
           if (job.status === 'succeeded') return job.result || {};
           if (job.status === 'failed') throw new Error(job.result?.error?.message || job.progress?.message || '内容处理失败。');
         } catch (error) {
@@ -198,6 +199,23 @@
       status.textContent = `${progress.message || '正在处理'}${elapsed ? ` · ${elapsed}` : ''}`;
       status.className = 'status working';
       steps.forEach((step, index) => { step.className = index < activeIndex ? 'done' : index === activeIndex ? 'active' : ''; });
+    }
+
+    function renderPartialProgress(progress) {
+      const partial = progress.partial || {};
+      const link = partial.link || {};
+      const source = partial.source || {};
+      const identity = partial.identity || {};
+      if (!link.url && !identity.title) return;
+      empty.style.display = 'none';
+      result.style.display = 'block';
+      document.querySelector('#sourceTitle').textContent = source.title || link.title || identity.title || '已定位来源';
+      document.querySelector('#sourceMeta').textContent = [source.account || link.account || identity.account, source.platform || link.platform].filter(Boolean).join(' · ');
+      const sourceLink = document.querySelector('#sourceLink');
+      if (source.url || link.url) sourceLink.href = source.url || link.url;
+      document.querySelector('#focusSummary').textContent = progress.stage === 'generate'
+        ? '字幕已返回，正在生成知识卡……'
+        : link.url ? '已找到来源，正在并发转写音频……' : '标题和博主已识别，正在定位原内容……';
     }
 
     function render(data) {

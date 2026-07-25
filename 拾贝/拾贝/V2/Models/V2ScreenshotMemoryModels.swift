@@ -98,11 +98,11 @@ struct V2CapturedMemoryCard: Identifiable, Equatable {
         }
         switch pool {
         case .due:
-            schedule?.isDue(at: now) ?? (lastAssessment == nil)
+            return schedule?.isDue(at: now) ?? (lastAssessment == nil)
         case .timeCapsule:
-            capturedAt <= now.addingTimeInterval(-30 * 24 * 60 * 60)
+            return capturedAt <= now.addingTimeInterval(-30 * 24 * 60 * 60)
         case .fading:
-            lastAssessment == .fuzzy || lastAssessment == .forgot
+            return lastAssessment == .fuzzy || lastAssessment == .forgot
         }
     }
 }

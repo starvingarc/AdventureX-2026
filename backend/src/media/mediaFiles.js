@@ -15,13 +15,9 @@ export async function downloadMediaToTempFile({
   fetchImpl = fetch,
   maxBytes = DEFAULT_MAX_BYTES,
   timeoutMs = DEFAULT_TIMEOUT_MS,
-  requestHeaders = {},
-  signal = null
+  requestHeaders = {}
 } = {}) {
   const controller = new AbortController();
-  const abortFromCaller = () => controller.abort();
-  if (signal?.aborted) controller.abort();
-  else signal?.addEventListener?.("abort", abortFromCaller, { once: true });
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   let dir = null;
   try {
@@ -74,7 +70,6 @@ export async function downloadMediaToTempFile({
     });
   } finally {
     clearTimeout(timeout);
-    signal?.removeEventListener?.("abort", abortFromCaller);
   }
 }
 

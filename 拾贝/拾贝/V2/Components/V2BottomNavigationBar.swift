@@ -4,29 +4,19 @@ struct V2BottomNavigationBar: View {
     @Binding var selectedTab: V2HomeTab
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
+        ZStack {
             RoundedRectangle(cornerRadius: V2BottomNavMetrics.capsuleRadius, style: .continuous)
                 .fill(V2Color.surfaceNav)
                 .frame(width: V2BottomNavMetrics.capsuleSize.width, height: V2BottomNavMetrics.capsuleSize.height)
-                .position(V2BottomNavMetrics.capsuleCenter)
                 .v2Shadow()
 
-            navItem(.learning)
-                .position(V2BottomNavMetrics.center(for: .learning))
-
-            navItem(.materials)
-                .position(V2BottomNavMetrics.center(for: .materials))
-
-            V2UploadTabButton {
-                selectedTab = .upload
+            HStack(spacing: 0) {
+                ForEach(V2HomeTab.visibleTabs) { tab in
+                    navItem(tab)
+                        .frame(maxWidth: .infinity)
+                }
             }
-            .position(V2BottomNavMetrics.center(for: .upload))
-
-            navItem(.discover)
-                .position(V2BottomNavMetrics.center(for: .discover))
-
-            navItem(.notes)
-                .position(V2BottomNavMetrics.center(for: .notes))
+            .frame(width: V2BottomNavMetrics.capsuleSize.width - 22)
         }
         .frame(width: V2BottomNavMetrics.designSize.width, height: V2BottomNavMetrics.designSize.height)
     }
@@ -49,27 +39,6 @@ private enum V2BottomNavMetrics {
     static let designSize = CGSize(width: 357, height: 94)
     static let capsuleSize = CGSize(width: 349, height: 86)
     static let capsuleRadius: CGFloat = 29
-    static let capsuleCenter = CGPoint(x: designSize.width / 2, y: capsuleSize.height / 2)
-
-    // Component anchors from the confirmed nav spec. The icons themselves are
-    // independent 32x32 assets, not crops from the full navigation SVG.
-    static func center(for tab: V2HomeTab) -> CGPoint {
-        switch tab {
-        case .learning:
-            CGPoint(x: 40, y: 45)
-        case .materials:
-            CGPoint(x: 107, y: 45)
-        case .upload:
-            // The upload SVG is a 60x60 canvas whose visible circle is centered
-            // at y=26. In the Figma nav the canvas starts at y=10, so the
-            // SwiftUI frame center must be y=40 to keep the circle at y=36.
-            CGPoint(x: 175, y: 40)
-        case .discover:
-            CGPoint(x: 245, y: 45)
-        case .notes:
-            CGPoint(x: 313, y: 45)
-        }
-    }
 }
 
 struct V2BottomNavItem: View {
@@ -97,6 +66,8 @@ struct V2BottomNavItem: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(tab.title)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityIdentifier("v2.tab.\(tab.id)")
     }
 }
 

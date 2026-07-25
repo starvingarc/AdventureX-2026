@@ -9,41 +9,11 @@ import {
 
 test("detects supported TikHub content platforms without treating arbitrary sites as supported", () => {
   assert.equal(detectTikHubContentPlatform("https://v.douyin.com/demo/"), "douyin");
+  assert.equal(detectTikHubContentPlatform("https://www.iesdouyin.com/share/video/123"), "douyin");
   assert.equal(detectTikHubContentPlatform("https://www.xiaohongshu.com/explore/abc"), "xiaohongshu");
   assert.equal(detectTikHubContentPlatform("https://mp.weixin.qq.com/s/demo"), "wechat");
   assert.equal(detectTikHubContentPlatform("https://www.zhihu.com/question/1/answer/2"), "zhihu");
   assert.equal(detectTikHubContentPlatform("https://example.com/article"), "unknown");
-});
-
-test("prefers responsive Douyin play hosts over experimental CDN URLs", () => {
-  const result = normalizeTikHubContent("douyin", {
-    aweme_id: "douyin-fast-cdn",
-    video: {
-      play_addr: {
-        url_list: [
-          "https://v5-dy-ov-experiment.zjcdn.com/video.mp4",
-          "https://api-play-hl.amemv.com/aweme/v1/play/?video_id=demo"
-        ]
-      }
-    }
-  }, "https://www.douyin.com/video/douyin-fast-cdn");
-
-  assert.match(result.mediaUrl, /amemv\.com/);
-  assert.match(result.mediaUrls[1], /zjcdn\.com/);
-});
-
-test("prefers the smallest Douyin audio carrier before higher bitrate video", () => {
-  const result = normalizeTikHubContent("douyin", {
-    aweme_id: "smallest-stream",
-    video: {
-      bit_rate: [
-        { bit_rate: 1_200_000, play_addr: { data_size: 5_000_000, url_list: ["https://api-play.amemv.com/high.mp4"] } },
-        { bit_rate: 400_000, play_addr: { data_size: 1_500_000, url_list: ["https://api-play.amemv.com/low.mp4"] } }
-      ]
-    }
-  }, "https://www.douyin.com/video/smallest-stream");
-  assert.equal(result.mediaUrl, "https://api-play.amemv.com/low.mp4");
-  assert.equal(result.mediaUrls[1], "https://api-play.amemv.com/high.mp4");
 });
 
 test("uses Xiaohongshu web v3 when evidence token is present and normalizes image notes", async () => {
@@ -170,33 +140,6 @@ test("normalizes Zhihu answers without leaking HTML into the learning source", a
   assert.equal(result.account, "记忆研究员");
   assert.equal(result.text, "间隔练习可以降低短期熟悉感带来的错觉。");
   assert.doesNotMatch(result.text, /<p>/);
-});
-
-test("normalizes Zhihu pins and calls the pin-detail endpoint", async () => {
-  const result = await fetchTikHubContentSource({
-    sourceUrl: "https://www.zhihu.com/pin/2063198404256257508",
-    apiKey: "key",
-    fetchImpl: async (url) => {
-      assert.match(String(url), /fetch_pin_detail/);
-      assert.match(String(url), /pin_id=2063198404256257508/);
-      return jsonResponse({
-        code: 200,
-        data: {
-          id: "2063198404256257508",
-          type: "pin",
-          author: { name: "章彦博" },
-          content_html: "从「可学习的新奇」到「智能」！ | 年初的时候，epiplexity 曾引发过热议。",
-          like_count: 49
-        }
-      });
-    }
-  });
-
-  assert.equal(result.kind, "pin");
-  assert.equal(result.title, "从「可学习的新奇」到「智能」！");
-  assert.equal(result.account, "章彦博");
-  assert.match(result.text, /epiplexity/);
-  assert.equal(result.metadata.stats.like_count, 49);
 });
 
 test("preserves explicit Xiaohongshu video fields for the existing media pipeline", () => {

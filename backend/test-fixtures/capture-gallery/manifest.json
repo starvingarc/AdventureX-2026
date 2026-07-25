@@ -1,0 +1,45 @@
+{
+  "schemaVersion": "capture_fixture_gallery_1",
+  "purpose": "Deterministic screenshot inputs for Recallo platform-flow tests.",
+  "generation": {
+    "command": "npm --prefix backend run fixtures:capture-gallery",
+    "script": "generate.mjs",
+    "engine": "playwright-chromium",
+    "engineVersion": "148.0.7778.96",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "deviceScaleFactor": 1
+  },
+  "fixtures": [
+    {
+      "id": "synthetic-bilibili-recall",
+      "expectedPlatform": "bilibili",
+      "source": "sources/bilibili-recall.html",
+      "file": "bilibili-recall.png",
+      "width": 390,
+      "height": 844,
+      "mimeType": "image/png",
+      "bytes": 114655,
+      "sha256": "05180f37fad9b184d54838304236bac57fbb032448cebc556542a87431dc4ede",
+      "sourceSha256": "09d4c39a9c85ffbb8aad13c3c99f3e2914439a577f6ec6af887d49d5e4c18e96",
+      "provenance": "Repository-authored synthetic HTML; no external visual assets.",
+      "personalInformation": false
+    },
+    {
+      "id": "synthetic-douyin-spacing",
+      "expectedPlatform": "douyin",
+      "source": "sources/douyin-spacing.html",
+      "file": "douyin-spacing.png",
+      "width": 390,
+      "height": 844,
+      "mimeType": "image/png",
+      "bytes": 143203,
+      "sha256": "cfb511594c0cf813e221e8d75ff426b6ba0dd188e6f4658467e3bd65a3805449",
+      "sourceSha256": "ee7e18601d7b59ad564f61e0ce4414741994bde55fde7c5a5f62c084d679b9cd",
+      "provenance": "Repository-authored synthetic HTML; no external visual assets.",
+      "personalInformation": false
+    }
+  ]
+}

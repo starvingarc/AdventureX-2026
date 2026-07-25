@@ -11,7 +11,7 @@ export async function transcribeMediaWithQwen({
   apiKey = process.env.QWEN_ASR_API_KEY || process.env.QWEN_API || process.env.DASHSCOPE_API_KEY || "",
   baseUrl = process.env.QWEN_ASR_BASE_URL || process.env.BASE_URL || "https://dashscope.aliyuncs.com",
   model = process.env.QWEN_ASR_MODEL || "qwen3-asr-flash-filetrans",
-  language = process.env.QWEN_ASR_LANGUAGE || process.env.LOCAL_WHISPER_LANGUAGE || "auto",
+  language = process.env.QWEN_ASR_LANGUAGE || "auto",
   fetchImpl = fetch,
   timeoutMs = DEFAULT_TIMEOUT_MS,
   pollMs = DEFAULT_POLL_MS

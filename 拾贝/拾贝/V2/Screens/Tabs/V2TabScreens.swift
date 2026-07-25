@@ -1,6 +1,5 @@
-import PhotosUI
 import SwiftUI
-import UIKit
+import PhotosUI
 
 struct V2TabScaffold<Content: View>: View {
     @Binding var selectedTab: V2HomeTab
@@ -57,12 +56,44 @@ struct V2MaterialsView: View {
     let generatingChapterStatus: V2ChapterReviewStatus
     let generatingProgressText: String
     let generatedChapter: V2ReviewChapterData?
+    let screenshotCards: [V2CapturedMemoryCard]
     let openGeneratingChapter: (String?) -> Void
     let openChapter: (String) -> Void
+    let deleteMemoryCard: (String) async throws -> Void
+
+    @State private var pendingMemoryCardDeletion: V2CapturedMemoryCard?
+    @State private var deletingMemoryCardID: String?
+    @State private var memoryCardDeletionError = ""
 
     var body: some View {
-        V2TabScaffold(selectedTab: $selectedTab, title: "全部章节") {
+        V2TabScaffold(selectedTab: $selectedTab, title: "知识库") {
             VStack(spacing: 16) {
+                if !memoryCardDeletionError.isEmpty {
+                    Text(memoryCardDeletionError)
+                        .font(V2Typography.caption)
+                        .foregroundStyle(V2Color.textSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityIdentifier("v2.library.delete-error")
+                }
+
+                if !screenshotCards.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("我的记忆卡")
+                            .font(V2Typography.sectionTitle)
+                            .foregroundStyle(V2Color.textPrimary)
+
+                        ForEach(screenshotCards) { captured in
+                            V2MemoryLibraryCard(
+                                captured: captured,
+                                isDeleting: deletingMemoryCardID == captured.id,
+                                onDelete: { pendingMemoryCardDeletion = captured }
+                            )
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.bottom, 12)
+                }
+
                 ZStack(alignment: .topTrailing) {
                     V2GeneratedChaptersSummaryCard(count: generatedChapterCount)
                         .padding(.top, 54)
@@ -121,52 +152,124 @@ struct V2MaterialsView: View {
                     .buttonStyle(.plain)
                 }
 
-                if usesMockData {
-                    Button {
-                        openChapter("v2-fixture")
-                    } label: {
-                        V2ChapterCard(
-                            title: V2ReviewFixture.chapter.title,
-                            status: .reviewing,
-                            source: "网页文章",
-                            knowledgeCount: V2ReviewFixture.chapter.units.count,
-                            questionCount: V2ReviewFixture.chapter.units.reduce(0) { $0 + $1.questions.count }
-                        )
-                    }
-                    .buttonStyle(.plain)
-
-                    Button {
-                        openChapter("v2-fixture")
-                    } label: {
-                        V2ChapterCard(
-                            title: "Claude Code hooks：把自动化放进工作流",
-                            status: .notStarted,
-                            source: "网页文章",
-                            knowledgeCount: 7,
-                            questionCount: 21
-                        )
-                    }
-                    .buttonStyle(.plain)
-
-                    Button {
-                        openChapter("v2-fixture")
-                    } label: {
-                        V2ChapterCard(
-                            title: "游戏化设计如何改善学习体验",
-                            status: .completed,
-                            source: "网页文章",
-                            knowledgeCount: 6,
-                            questionCount: 18
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
             }
+        }
+        .alert(item: $pendingMemoryCardDeletion) { captured in
+            Alert(
+                title: Text("删除这条记忆？"),
+                message: Text("删除后，这张卡或碎片会从知识库移除，且无法撤销。"),
+                primaryButton: .destructive(Text("删除")) {
+                    Task { @MainActor in
+                        deletingMemoryCardID = captured.id
+                        memoryCardDeletionError = ""
+                        do {
+                            try await deleteMemoryCard(captured.id)
+                        } catch is CancellationError {
+                            // The view is going away; keep the server as the source of truth.
+                        } catch {
+                            memoryCardDeletionError = error.localizedDescription
+                        }
+                        deletingMemoryCardID = nil
+                    }
+                },
+                secondaryButton: .cancel(Text("取消"))
+            )
         }
     }
 
     private func listStatus(for chapter: V2BackendChapter) -> V2ChapterReviewStatus {
         chapter.v2ListStatus(hasCompletedReviewOnce: completedChapterIDs.contains(chapter.id) || chapter.hasCompletedV2ReviewOnce)
+    }
+}
+
+private struct V2MemoryLibraryCard: View {
+    let captured: V2CapturedMemoryCard
+    let isDeleting: Bool
+    let onDelete: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(libraryStatusTitle)
+                    .font(V2Typography.captionEmphasis)
+                    .foregroundStyle(V2Color.primary)
+                Spacer()
+                if isFormalReviewCard {
+                    Text(captured.masteryStage.title)
+                        .font(V2Typography.caption)
+                        .foregroundStyle(V2Color.textMuted)
+                }
+                Button(action: onDelete) {
+                    Image(systemName: isDeleting ? "hourglass" : "trash")
+                        .frame(width: 32, height: 32)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(V2Color.textMuted)
+                .disabled(isDeleting)
+                .accessibilityLabel("删除这条记忆")
+            }
+
+            Text(captured.card.coreKnowledge)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(V2Color.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 5) {
+                Image(systemName: sourceSymbol)
+                Text(sourceTitle)
+                    .lineLimit(1)
+                Spacer()
+                if isFormalReviewCard, let schedule = captured.schedule {
+                    Text(schedule.displayText)
+                        .lineLimit(1)
+                }
+            }
+            .font(V2Typography.caption)
+            .foregroundStyle(V2Color.textMuted)
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 17, style: .continuous)
+                .fill(V2Color.surfaceCream)
+                .v2Shadow()
+        )
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(captured.card.coreKnowledge)，\(sourceTitle)")
+        .accessibilityIdentifier("v2.library.card.\(captured.id)")
+    }
+
+    private var isFormalReviewCard: Bool {
+        captured.card.state == .formal && captured.disposition == .createCard
+    }
+
+    private var libraryStatusTitle: String {
+        switch captured.disposition {
+        case .archiveOnly:
+            "已保存碎片"
+        case .needsConfirmation:
+            "待确认"
+        case .createCard:
+            captured.card.rarity?.rawValue ?? "记忆卡"
+        }
+    }
+
+    private var sourceTitle: String {
+        switch captured.card.sourceStatus {
+        case .verified:
+            captured.card.sourceTitle ?? "来源已核对"
+        case .partial:
+            "部分来源已核对"
+        case .unconfirmed:
+            "来源尚未确认"
+        }
+    }
+
+    private var sourceSymbol: String {
+        switch captured.card.sourceStatus {
+        case .verified: "checkmark.seal.fill"
+        case .partial: "checkmark.seal"
+        case .unconfirmed: "questionmark.circle"
+        }
     }
 }
 
@@ -275,16 +378,14 @@ struct V2UploadView: View {
     let preflightSource: (String) async throws -> SourcePreflightResponse
     let preflightSourceWithMetadata: (String) async throws -> SourcePreflightResponse
     let onGenerate: (String) -> Void
-    let onScreenshotFlow: (UIImage, (ImageFlowProgress) -> Void) async throws -> ImageFlowResponse
-    let onScreenshotCompleted: (ImageFlowResponse) -> Void
+    let screenshotAnalysisState: V2ScreenshotAnalysisState
+    let onAnalyzeScreenshot: (Data) -> Void
     @State private var sourceText = ""
     @State private var validationMessage = ""
+    @State private var screenshotLoadMessage = ""
+    @State private var selectedScreenshotItem: PhotosPickerItem?
     @State private var preflightState = V2UploadPreflightState.idle
     @State private var preflightTask: Task<Void, Never>?
-    @State private var selectedScreenshotItem: PhotosPickerItem?
-    @State private var selectedScreenshot: UIImage?
-    @State private var isScreenshotProcessing = false
-    @State private var screenshotStatusText = ""
 
     private var trimmedSourceText: String {
         sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -299,7 +400,7 @@ struct V2UploadView: View {
     }
 
     private var canStartGeneration: Bool {
-        guard !isSubmittingGeneration, !isScreenshotProcessing, !trimmedSourceText.isEmpty else {
+        guard !isSubmittingGeneration, !trimmedSourceText.isEmpty else {
             return false
         }
         let parsed = parsedSourceInput
@@ -325,14 +426,57 @@ struct V2UploadView: View {
                     }
 
                 VStack(spacing: V2UploadPageMetrics.verticalSpacing) {
-                    screenshotUploadCard
-
                     V2UploadMascotInputGroup(
                         urlText: $sourceText,
                         preflightState: preflightState,
                         input: preflightInputKey
                     )
                         .padding(.top, V2UploadPageMetrics.groupTopPadding)
+
+                    PhotosPicker(
+                        selection: $selectedScreenshotItem,
+                        matching: .images,
+                        photoLibrary: .shared()
+                    ) {
+                        HStack(spacing: 10) {
+                            Image(systemName: "photo.badge.plus")
+                            Text(screenshotButtonTitle)
+                        }
+                        .font(V2Typography.bodyEmphasis)
+                        .foregroundStyle(V2Color.textPrimary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 53)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(V2Color.surfaceCream)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                        .stroke(V2Color.borderSoftGreen, lineWidth: 1)
+                                )
+                        )
+                    }
+                    .disabled(screenshotAnalysisState.isBusy)
+                    .accessibilityHint("选择 B站或抖音截图，交给 AI 生成一张记忆卡")
+
+                    if let screenshotStatusText {
+                        Text(screenshotStatusText)
+                            .font(V2Typography.label)
+                            .foregroundStyle(screenshotStatusIsError ? V2Color.feedbackWrongBorder : V2Color.textSecondary)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .multilineTextAlignment(.center)
+                    }
+
+                    HStack(spacing: 8) {
+                        Rectangle()
+                            .fill(V2Color.borderSoftGreen)
+                            .frame(height: 1)
+                        Text("或粘贴链接 / 正文")
+                            .font(V2Typography.caption)
+                            .foregroundStyle(V2Color.textMuted)
+                        Rectangle()
+                            .fill(V2Color.borderSoftGreen)
+                            .frame(height: 1)
+                    }
 
                     V2PrimaryActionButton(
                         title: primaryActionTitle,
@@ -365,138 +509,24 @@ struct V2UploadView: View {
             .onChange(of: sourceText) { newValue in
                 schedulePreflight(for: newValue)
             }
+            .onChange(of: selectedScreenshotItem) { item in
+                guard let item else { return }
+                screenshotLoadMessage = ""
+                Task {
+                    do {
+                        guard let data = try await item.loadTransferable(type: Data.self) else {
+                            screenshotLoadMessage = "没有读取到图片，请重新选择。"
+                            return
+                        }
+                        onAnalyzeScreenshot(data)
+                    } catch {
+                        screenshotLoadMessage = "读取图片失败，请重新选择。"
+                    }
+                    selectedScreenshotItem = nil
+                }
+            }
             .onDisappear {
                 preflightTask?.cancel()
-            }
-        }
-    }
-
-    private var screenshotUploadCard: some View {
-        V2InfoCard {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(spacing: 10) {
-                    Image(systemName: "viewfinder")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(V2Color.primaryAction)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("截图生成复习卡")
-                            .font(V2Typography.bodyEmphasis)
-                            .foregroundStyle(V2Color.textPrimary)
-                        Text("支持抖音、小红书、B站等内容页截图")
-                            .font(V2Typography.caption)
-                            .foregroundStyle(V2Color.textMuted)
-                    }
-                }
-
-                if let selectedScreenshot {
-                    Image(uiImage: selectedScreenshot)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(maxWidth: .infinity, maxHeight: 190)
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                }
-
-                PhotosPicker(selection: $selectedScreenshotItem, matching: .images) {
-                    Label(selectedScreenshot == nil ? "选择截图" : "更换截图", systemImage: "photo.on.rectangle")
-                        .font(V2Typography.bodySmallEmphasis)
-                        .foregroundStyle(V2Color.textPrimary)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 44)
-                        .background(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(V2Color.pageGreenBackground.opacity(0.72))
-                        )
-                }
-                .buttonStyle(.plain)
-                .disabled(isScreenshotProcessing)
-                .onChange(of: selectedScreenshotItem) { item in
-                    loadScreenshot(item)
-                }
-
-                if selectedScreenshot != nil {
-                    V2PrimaryActionButton(
-                        title: isScreenshotProcessing ? "正在整理" : "开始整理截图",
-                        tone: isScreenshotProcessing ? .disabled : .normal,
-                        height: 46
-                    ) {
-                        startScreenshotFlow()
-                    }
-                }
-
-                if !screenshotStatusText.isEmpty {
-                    HStack(spacing: 8) {
-                        if isScreenshotProcessing {
-                            ProgressView()
-                                .controlSize(.small)
-                                .tint(V2Color.primaryAction)
-                        }
-                        Text(screenshotStatusText)
-                            .font(V2Typography.label)
-                            .foregroundStyle(isScreenshotProcessing ? V2Color.textSecondary : V2Color.feedbackWrongBorder)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-            }
-        }
-    }
-
-    private func loadScreenshot(_ item: PhotosPickerItem?) {
-        screenshotStatusText = ""
-        guard let item else {
-            selectedScreenshot = nil
-            return
-        }
-        Task {
-            do {
-                guard let data = try await item.loadTransferable(type: Data.self),
-                      let image = UIImage(data: data) else {
-                    throw ImageOCRError.invalidImage
-                }
-                await MainActor.run {
-                    selectedScreenshot = image
-                }
-            } catch {
-                await MainActor.run {
-                    selectedScreenshot = nil
-                    screenshotStatusText = "无法读取这张图片，请重新选择。"
-                }
-            }
-        }
-    }
-
-    private func startScreenshotFlow() {
-        guard let selectedScreenshot, !isScreenshotProcessing else {
-            return
-        }
-        isScreenshotProcessing = true
-        screenshotStatusText = "正在识别截图"
-        validationMessage = ""
-
-        Task {
-            do {
-                let response = try await onScreenshotFlow(selectedScreenshot) { progress in
-                    Task { @MainActor in
-                        screenshotStatusText = progress.message ?? "正在整理截图"
-                    }
-                }
-                await MainActor.run {
-                    isScreenshotProcessing = false
-                    guard response.status == "completed", response.review?.units?.isEmpty == false else {
-                        screenshotStatusText = response.error?.message
-                            ?? response.message
-                            ?? "没有生成可用的复习卡，请换一张更清晰的截图。"
-                        return
-                    }
-                    screenshotStatusText = "复习卡已生成"
-                    onScreenshotCompleted(response)
-                }
-            } catch {
-                await MainActor.run {
-                    isScreenshotProcessing = false
-                    screenshotStatusText = error.localizedDescription.isEmpty
-                        ? "截图处理失败，请稍后重试。"
-                        : error.localizedDescription
-                }
             }
         }
     }
@@ -509,6 +539,39 @@ struct V2UploadView: View {
             return "正在确认"
         }
         return "开始生成"
+    }
+
+    private var screenshotButtonTitle: String {
+        switch screenshotAnalysisState {
+        case .preparing:
+            "正在压缩截图"
+        case .analyzing:
+            "正在整理记忆卡"
+        default:
+            "从截图生成记忆卡"
+        }
+    }
+
+    private var screenshotStatusText: String? {
+        if !screenshotLoadMessage.isEmpty {
+            return screenshotLoadMessage
+        }
+        switch screenshotAnalysisState {
+        case .idle:
+            return "MVP 现场主测 B站与抖音截图"
+        case .preparing:
+            return "正在为上传准备图片…"
+        case .analyzing:
+            return "AI 正在识别标题、核对来源并生成卡片…"
+        case .generated(let message), .failed(let message):
+            return message
+        }
+    }
+
+    private var screenshotStatusIsError: Bool {
+        if !screenshotLoadMessage.isEmpty { return true }
+        if case .failed = screenshotAnalysisState { return true }
+        return false
     }
 
     private func schedulePreflight(for value: String) {
@@ -1637,6 +1700,52 @@ struct V2ProfileView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+}
+
+struct V2ProfileTabView: View {
+    @AppStorage("v2.profileAvatarImageData")
+    private var profileAvatarImageData = Data()
+    @AppStorage("v2.profilePresetAvatarName")
+    private var profilePresetAvatarName = ""
+    @AppStorage("v2.profileDisplayName")
+    private var profileDisplayName = "Cappy"
+
+    @Binding var selectedTab: V2HomeTab
+    @Binding var usesMockData: Bool
+    let allowsMockDataToggle: Bool
+    let reviewedCount: String
+    let streakDays: String
+    let account: AccountSnapshot?
+    let isAccountLoading: Bool
+    let accountMessage: String
+    let onSignInWithApple: (Data?, Data?) async -> Void
+    let onDeleteAccount: () async -> Void
+
+    var body: some View {
+        V2TabScaffold(selectedTab: $selectedTab, title: "我的") {
+            VStack(spacing: 20) {
+                V2ProfileHeaderCard(
+                    name: $profileDisplayName,
+                    reviewedCount: reviewedCount,
+                    streakDays: streakDays,
+                    avatarImageData: $profileAvatarImageData,
+                    selectedPresetAvatarName: $profilePresetAvatarName
+                )
+
+                V2ProfileSettingsCard(
+                    account: account,
+                    isAccountLoading: isAccountLoading,
+                    accountMessage: accountMessage,
+                    onSignInWithApple: onSignInWithApple,
+                    onDeleteAccount: onDeleteAccount
+                )
+
+                if allowsMockDataToggle {
+                    V2RuntimeModeCard(usesMockData: $usesMockData)
+                }
+            }
         }
     }
 }

@@ -18,22 +18,19 @@
 
 这是当前截图输入的唯一编排目录，入口是 `index.js`：
 
-- `index.js` / `runImageFlow(options)`：图片 -> OCR -> 搜索候选 -> 文章/视频取源 -> 快速摘要和 3 道练习；取源失败时保留链接和 OCR 文本，降级生成，不丢收藏。
-- `index.js` / `buildSearchQuery(input)`：从 OCR 行中过滤时间、评论、广告和纯数字 UI，只保留账号、标题、平台和主题词。
-- `ocr.js` / `recognizeImage(imagePath)`：调用 `ocr.py` 子进程，默认 PP-OCRv5 mobile；`OCR_PROVIDER=tesseract` 可切换到 1-2 秒低延迟模式，Paddle 失败自动降级。
-- `ocr.py` / `paddle(path)`：关闭方向分类、矫正和文本行方向模型，裁剪截图上 62% 并缩放到 960px，专注识别标题和账号。
-- `ocr.py` / `tesseract(path)`：无 Paddle 或低延迟模式的本地兜底。
-- `拾贝/拾贝/Services/ImageOCR.swift` / `ImageOCR.recognize(_:)`：iOS 首选 OCR，使用 Vision accurate 模式和上部 ROI，返回 `creator`、`title`、`keyText`；识别后客户端把关键文字传给后端，目标延迟低于 2 秒。
-- `search.js` / `searchLinks(query)`：默认使用 `TIKHUB_API_KEY` 搜索 B站、抖音和小红书并统一返回标题、URL、摘要；通用 `SEARCH_API_URL`、Tavily、Serper 仅作为可选扩展，没有可用 provider 时返回 `search_provider_missing`。
+- `index.js` / `runImageFlow(options)`：原图 -> Qwen 视觉理解 -> B站/抖音/小红书候选搜索 -> 图文或视频取源 -> 快速摘要和 3 道练习；候选不可信或跨平台歧义时停止。
+- `vision.js` / `analyzeScreenshotImage(options)`：把 JPEG、PNG 或 WebP 原图直接发送给 `qwen3.7-plus-2026-05-26`，只返回平台、内容类型、标题、作者、播放器时间和定位词。
+- `index.js` / `buildSearchQuery(input)`：把视觉模型返回的标题和 UP主压缩成单个高信号查询。
+- `search.js` / `searchLinks(query, options)`：通过 TikHub 搜索 B站、抖音或小红书并统一返回平台、内容类型、标题、URL、作者和摘要。
+- `imageFlowJobs.js`：保存短期异步进度，任务必须绑定提交截图的 `deviceId`，其他设备即使得到 UUID 也不能读取结果。
 
 本地验证：
 
 ```bash
-OCR_PROVIDER=paddle YT_DLP_PYTHON=.runtime/paddle-ocr/bin/python \
-  npm --prefix backend run image-flow -- image.jpg
+CAPTURE_PLATFORMS=bilibili,douyin,xiaohongshu npm --prefix backend run image-flow -- image.jpg
 ```
 
-HTTP 客户端使用 `POST /api/sources/image-flow`。iOS 优先用 `ImageOCR.recognize(_:)` 传 `ocrText`/`ocrLines`，后端不再重复 OCR；没有本地 OCR 时才传 `imageBase64` 走 Paddle。生产环境不要传服务器本地路径。
+HTTP 客户端使用 `POST /api/sources/image-flow`，传 `imageBase64` 和 `mimeType`。iOS 不执行 Apple Vision OCR；生产环境也不接受服务器本地图片路径。`ocrText`/`ocrLines` 只保留给单元测试和开发诊断。
 
 ### `backend/src/env.js`
 
@@ -82,7 +79,7 @@ HTTP 客户端使用 `POST /api/sources/image-flow`。iOS 优先用 `ImageOCR.re
 
 - `callModelJson(request)`：按配置分发到 Qwen/OpenAI-compatible、DeepSeek 或 OpenAI。
 - `resolveModelJsonProvider(env)`：显式配置优先，再按存在的 API key 推断供应商。
-- `callOpenAICompatibleJson(...)`：Qwen 与兼容接口；关闭 thinking、低温度、JSON object。
+- `callOpenAICompatibleJson(...)`：Qwen 与兼容接口；支持纯文本或 Base64 截图输入，关闭 thinking、低温度、JSON object。
 - `callDeepSeekJson(...)`：DeepSeek chat completions JSON 路径。
 - `callOpenAIResponsesJson(...)`：OpenAI Responses 严格 JSON schema 路径。
 - `parseModelJson(text)`：解析并修复常见 JSON 格式问题。

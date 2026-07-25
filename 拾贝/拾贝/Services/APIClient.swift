@@ -1,11 +1,10 @@
 import Foundation
-import UIKit
 
 struct APIClient {
     #if DEBUG
     static let localBaseURL = URL(string: "http://127.0.0.1:5173")!
     static var defaultBaseURL: URL {
-        launchArgumentBaseURL ?? localBaseURL
+        launchArgumentBaseURL ?? productionBaseURL
     }
     #else
     static let defaultBaseURL = APIClient.productionBaseURL
@@ -119,58 +118,53 @@ struct APIClient {
         return try await send("/api/sources/preflight", method: "POST", body: request, acceptsFailureBody: true)
     }
 
-    func analyzeImage(
-        ocr: ImageOCRResult,
-        sourceUrl: String? = nil,
-        imageBase64: String? = nil,
-        progress: (ImageFlowProgress) -> Void = { _ in }
+    func analyzeScreenshot(
+        imageData: Data,
+        mimeType: String = "image/jpeg",
+        sourceUrl: String? = nil
     ) async throws -> ImageFlowResponse {
         let request = ImageFlowRequest(
-            ocrText: ocr.keyText,
-            ocrLines: ocr.lines,
-            sourceUrl: sourceUrl,
-            imageBase64: imageBase64,
-            asynchronous: true,
-            includeDetails: true
+            imageBase64: imageData.base64EncodedString(),
+            mimeType: mimeType,
+            sourceUrl: sourceUrl
         )
-        let initial: ImageFlowJobResponse = try await send(
+        return try await send(
             "/api/sources/image-flow",
+            method: "POST",
+            body: request,
+            acceptsFailureBody: true,
+            timeoutInterval: 300
+        )
+    }
+
+    func fetchCaptureMemoryCards() async throws -> [CaptureMemoryCardRecord] {
+        let response: CaptureMemoryCardsResponse = try await get("/api/memory-cards")
+        return response.cards
+    }
+
+    func assessCaptureMemoryCard(
+        id: String,
+        assessment: String,
+        attemptId: String
+    ) async throws -> CaptureMemoryCardAssessmentResponse {
+        let request = CaptureMemoryCardAssessmentRequest(
+            assessment: assessment,
+            attemptId: attemptId
+        )
+        return try await send(
+            "/api/memory-cards/\(encodedPathComponent(id))/assessments",
             method: "POST",
             body: request,
             acceptsFailureBody: false
         )
-        guard !initial.jobId.isEmpty else {
-            throw APIClientError.serverMessage("截图任务没有返回有效 ID。")
-        }
-
-        var job = initial
-        for _ in 0..<1_200 {
-            progress(job.progress)
-            if let result = job.result {
-                return result
-            }
-            if job.status == "failed" {
-                throw APIClientError.serverMessage(job.progress.message ?? "截图处理失败，请稍后重试。")
-            }
-            try await Task.sleep(nanoseconds: 1_000_000_000)
-            job = try await get("/api/sources/image-flow/jobs/\(encodedPathComponent(initial.jobId))")
-        }
-        throw APIClientError.serverMessage("截图处理时间过长，请稍后到材料页查看。")
     }
 
-    func analyzeImage(
-        image: UIImage,
-        sourceUrl: String? = nil,
-        progress: (ImageFlowProgress) -> Void = { _ in }
-    ) async throws -> ImageFlowResponse {
-        let ocr = try await ImageOCR.recognize(image)
-        let imageBase64 = image.jpegData(compressionQuality: 0.82)
-            .map { "data:image/jpeg;base64,\($0.base64EncodedString())" }
-        return try await analyzeImage(
-            ocr: ocr,
-            sourceUrl: sourceUrl,
-            imageBase64: imageBase64,
-            progress: progress
+    func deleteCaptureMemoryCard(id: String) async throws -> CaptureMemoryCardDeletionResponse {
+        try await send(
+            "/api/memory-cards/\(encodedPathComponent(id))",
+            method: "DELETE",
+            body: EmptyRequest(),
+            acceptsFailureBody: false
         )
     }
 
@@ -403,11 +397,15 @@ struct APIClient {
         _ path: String,
         method: String,
         body: Request,
-        acceptsFailureBody: Bool
+        acceptsFailureBody: Bool,
+        timeoutInterval: TimeInterval? = nil
     ) async throws -> Response {
         let url = baseURL.appending(path: path)
         var request = URLRequest(url: url)
         request.httpMethod = method
+        if let timeoutInterval {
+            request.timeoutInterval = timeoutInterval
+        }
         request.setValue("application/json", forHTTPHeaderField: "accept")
         request.setValue(deviceId, forHTTPHeaderField: "X-Device-Id")
         #if DEBUG
@@ -615,162 +613,329 @@ struct ChapterCreateRequest: Codable {
 }
 
 struct ImageFlowRequest: Codable {
-    var ocrText: String
-    var ocrLines: [String]
+    var imageBase64: String
+    var mimeType: String
     var sourceUrl: String?
-    var imageBase64: String?
+}
 
-    var asynchronous: Bool
-    var includeDetails: Bool
+struct ImageFlowResponse: Decodable {
+    struct Link: Codable {
+        var title: String
+        var url: String
+        var snippet: String
+    }
 
-    enum CodingKeys: String, CodingKey {
-        case ocrText
-        case ocrLines
+    var status: String
+    var message: String?
+    var query: String?
+    var link: Link?
+    var sourceFallback: Bool?
+    var memoryCard: ImageFlowMemoryCard?
+    var schemaVersion: String?
+    var disposition: CaptureAnalysisDisposition?
+    var schedule: ImageFlowReviewSchedule?
+    var captureAnalysis: CaptureAnalysisV2?
+}
+
+struct ImageFlowMemoryCard: Decodable, Equatable, Identifiable {
+    enum State: String, Codable {
+        case formal
+        case fragment
+    }
+
+    enum Rarity: String, Codable {
+        case r = "R"
+        case sr = "SR"
+        case ssr = "SSR"
+    }
+
+    enum SourceStatus: String, Codable {
+        case verified
+        case partial
+        case unconfirmed
+    }
+
+    var id: String
+    var captureId: String? = nil
+    var version: Int? = nil
+    var state: State
+    var coreKnowledge: String
+    var recallCue: String
+    var hiddenSemantic: String?
+    var explanation: String
+    var sourceEvidenceIds: [String]? = nil
+    var recallVariants: [ImageFlowRecallVariant]? = nil
+    var rarity: Rarity?
+    var rarityReason: String?
+    var rarityReasons: [String]? = nil
+    var rarityConfidence: Double? = nil
+    var rarityRuleVersion: String? = nil
+    var sourceTitle: String?
+    var sourceUrl: String?
+    var sourceStatus: SourceStatus
+    var createdAt: String? = nil
+    var updatedAt: String? = nil
+}
+
+extension ImageFlowMemoryCard {
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case captureId
+        case version
+        case state
+        case coreKnowledge
+        case recallCue
+        case hiddenSemantic
+        case explanation
+        case sourceEvidenceIds
+        case recallVariants
+        case rarity
+        case rarityReason
+        case rarityReasons
+        case rarityConfidence
+        case rarityRuleVersion
+        case sourceTitle
         case sourceUrl
-        case imageBase64
-        case asynchronous = "async"
-        case includeDetails
+        case sourceStatus
+        case createdAt
+        case updatedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        captureId = try container.decodeIfPresent(String.self, forKey: .captureId)
+        version = try container.decodeIfPresent(Int.self, forKey: .version)
+        state = try container.decodeIfPresent(State.self, forKey: .state) ?? .formal
+        coreKnowledge = try container.decode(String.self, forKey: .coreKnowledge)
+        recallCue = try container.decode(String.self, forKey: .recallCue)
+        hiddenSemantic = try container.decodeIfPresent(String.self, forKey: .hiddenSemantic)
+        explanation = try container.decode(String.self, forKey: .explanation)
+        sourceEvidenceIds = try container.decodeIfPresent([String].self, forKey: .sourceEvidenceIds)
+        recallVariants = try container.decodeIfPresent([ImageFlowRecallVariant].self, forKey: .recallVariants)
+        rarity = try container.decodeIfPresent(Rarity.self, forKey: .rarity)
+        rarityReason = try container.decodeIfPresent(String.self, forKey: .rarityReason)
+        rarityReasons = try container.decodeIfPresent([String].self, forKey: .rarityReasons)
+        rarityConfidence = try container.decodeIfPresent(Double.self, forKey: .rarityConfidence)
+        rarityRuleVersion = try container.decodeIfPresent(String.self, forKey: .rarityRuleVersion)
+        sourceTitle = try container.decodeIfPresent(String.self, forKey: .sourceTitle)
+        sourceUrl = try container.decodeIfPresent(String.self, forKey: .sourceUrl)
+        sourceStatus = try container.decodeIfPresent(SourceStatus.self, forKey: .sourceStatus) ?? .unconfirmed
+        createdAt = try container.decodeIfPresent(String.self, forKey: .createdAt)
+        updatedAt = try container.decodeIfPresent(String.self, forKey: .updatedAt)
+    }
+}
+
+enum CaptureAnalysisDisposition: String, Codable, Equatable {
+    case createCard = "create_card"
+    case archiveOnly = "archive_only"
+    case needsConfirmation = "needs_confirmation"
+}
+
+struct ImageFlowRecallVariant: Codable, Equatable, Identifiable {
+    enum Kind: String, Codable, Equatable {
+        case semanticCloze = "semantic_cloze"
+        case trueFalse = "true_false"
+        case multipleChoice = "multiple_choice"
+    }
+
+    var id: String
+    var type: Kind
+    var prompt: String
+    var answer: String?
+    var options: [ImageFlowRecallOption]
+    var correctOptionId: String?
+    var correctBoolean: Bool?
+    var explanation: String
+    var sourceEvidenceIds: [String]
+}
+
+struct ImageFlowRecallOption: Codable, Equatable, Identifiable {
+    var id: String
+    var text: String
+}
+
+struct ImageFlowReviewSchedule: Decodable, Equatable {
+    var nextReviewAt: String
+    var intervalDays: Int
+    var state: String
+    var status: String?
+
+    init(
+        nextReviewAt: String,
+        intervalDays: Int,
+        state: String,
+        status: String? = nil
+    ) {
+        self.nextReviewAt = nextReviewAt
+        self.intervalDays = intervalDays
+        self.state = state
+        self.status = status
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case nextReviewAt
+        case intervalDays
+        case state
+        case status
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        nextReviewAt = try container.decode(String.self, forKey: .nextReviewAt)
+        intervalDays = try container.decode(Int.self, forKey: .intervalDays)
+        status = try container.decodeIfPresent(String.self, forKey: .status)
+        state = try container.decodeIfPresent(String.self, forKey: .state)
+            ?? status
+            ?? "scheduled"
+    }
+
+    var nextReviewDate: Date? {
+        Self.parseISO8601(nextReviewAt)
+    }
+
+    func isDue(at now: Date = Date()) -> Bool {
+        guard let nextReviewDate else { return false }
+        return nextReviewDate <= now
+    }
+
+    var displayText: String {
+        guard let nextReviewDate else { return "下次复习时间待同步" }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.timeZone = .current
+        formatter.dateFormat = "M月d日 HH:mm"
+        return "\(formatter.string(from: nextReviewDate)) 再次召回"
+    }
+
+    private static func parseISO8601(_ value: String) -> Date? {
+        let fractionalFormatter = ISO8601DateFormatter()
+        fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return fractionalFormatter.date(from: value)
+            ?? ISO8601DateFormatter().date(from: value)
+    }
+}
+
+struct CaptureAnalysisV2: Decodable, Equatable {
+    var schemaVersion: String
+    var disposition: CaptureAnalysisDisposition
+    var sourceStatus: ImageFlowMemoryCard.SourceStatus
+    var memoryCard: ImageFlowMemoryCard?
+    var schedule: ImageFlowReviewSchedule?
+}
+
+struct CaptureMemoryCardsResponse: Decodable, Equatable {
+    var cards: [CaptureMemoryCardRecord]
+
+    private enum CodingKeys: String, CodingKey {
+        case cards
+        case items
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        cards = try container.decodeIfPresent([CaptureMemoryCardRecord].self, forKey: .cards)
+            ?? container.decodeIfPresent([CaptureMemoryCardRecord].self, forKey: .items)
+            ?? []
+    }
+}
+
+struct CaptureMemoryCardRecord: Decodable, Equatable {
+    var memoryCard: ImageFlowMemoryCard
+    var disposition: CaptureAnalysisDisposition
+    var schedule: ImageFlowReviewSchedule?
+    var masteryStage: String?
+    var successfulRecallCount: Int?
+    var reviewCount: Int?
+    var lastAssessment: String?
+    var capturedAt: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case memoryCard
+        case card
+        case disposition
+        case schedule
+        case masteryStage
+        case successfulRecallCount
+        case reviewCount
+        case lastAssessment
+        case capturedAt
     }
 
     init(
-        ocrText: String,
-        ocrLines: [String],
-        sourceUrl: String? = nil,
-        imageBase64: String? = nil,
-        asynchronous: Bool = true,
-        includeDetails: Bool = true
+        memoryCard: ImageFlowMemoryCard,
+        disposition: CaptureAnalysisDisposition? = nil,
+        schedule: ImageFlowReviewSchedule?,
+        masteryStage: String?,
+        successfulRecallCount: Int?,
+        reviewCount: Int? = nil,
+        lastAssessment: String?,
+        capturedAt: String?
     ) {
-        self.ocrText = ocrText
-        self.ocrLines = ocrLines
-        self.sourceUrl = sourceUrl
-        self.imageBase64 = imageBase64
-        self.asynchronous = asynchronous
-        self.includeDetails = includeDetails
+        self.memoryCard = memoryCard
+        self.disposition = disposition
+            ?? (memoryCard.state == .formal ? .createCard : .archiveOnly)
+        self.schedule = schedule
+        self.masteryStage = masteryStage
+        self.successfulRecallCount = successfulRecallCount
+        self.reviewCount = reviewCount
+        self.lastAssessment = lastAssessment
+        self.capturedAt = capturedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        if let nestedCard = try container.decodeIfPresent(ImageFlowMemoryCard.self, forKey: .memoryCard)
+            ?? container.decodeIfPresent(ImageFlowMemoryCard.self, forKey: .card) {
+            memoryCard = nestedCard
+        } else {
+            memoryCard = try ImageFlowMemoryCard(from: decoder)
+        }
+        disposition = try container.decodeIfPresent(CaptureAnalysisDisposition.self, forKey: .disposition)
+            ?? (memoryCard.state == .formal ? .createCard : .archiveOnly)
+        schedule = try container.decodeIfPresent(ImageFlowReviewSchedule.self, forKey: .schedule)
+        masteryStage = try container.decodeIfPresent(String.self, forKey: .masteryStage)
+        successfulRecallCount = try container.decodeIfPresent(Int.self, forKey: .successfulRecallCount)
+        reviewCount = try container.decodeIfPresent(Int.self, forKey: .reviewCount)
+        lastAssessment = try container.decodeIfPresent(String.self, forKey: .lastAssessment)
+        capturedAt = try container.decodeIfPresent(String.self, forKey: .capturedAt)
+            ?? memoryCard.createdAt
     }
 }
 
-struct ImageFlowResponse: Codable {
-    struct Link: Codable {
-        var platform: String?
-        var title: String?
-        var account: String?
-        var url: String?
-        var snippet: String?
-        var matchScore: Double?
-    }
-
-    struct OCR: Codable {
-        var provider: String?
-        var latencyMs: Int?
-        var fallback: String?
-        var identity: Identity?
-    }
-
-    struct Identity: Codable {
-        var title: String?
-        var account: String?
-        var timestampSeconds: Double?
-        var platform: String?
-        var locatorTerms: [String]?
-    }
-
-    struct Source: Codable {
-        var sourceType: String?
-        var sourceStatus: String?
-        var title: String?
-        var url: String?
-        var account: String?
-        var platform: String?
-        var focus: Focus?
-        var provenance: Provenance?
-    }
-
-    struct Provenance: Codable {
-        var status: String?
-        var provider: String?
-        var sourceStatus: String?
-        var label: String?
-        var fallbackProvider: String?
-        var fallbackModel: String?
-    }
-
-    struct Focus: Codable {
-        var status: String?
-        var timestampSeconds: Double?
-        var startSeconds: Double?
-        var endSeconds: Double?
-    }
-
-    struct Review: Codable {
-        var title: String?
-        var tags: [String]?
-        var summaryCard: SummaryCard?
-        var units: [Unit]?
-    }
-
-    struct SummaryCard: Codable {
-        var text: String?
-    }
-
-    struct Unit: Codable, Identifiable {
-        var id: String
-        var title: String?
-        var shortSummary: String?
-        var questions: [Question]?
-    }
-
-    struct Question: Codable, Identifiable {
-        var id: String
-        var knowledgePoint: String?
-        var type: String?
-        var stem: String?
-        var options: [Option]?
-        var correctOptionId: String?
-        var explanation: String?
-    }
-
-    struct Option: Codable, Identifiable {
-        var id: String
-        var text: String
-    }
-
-    struct VideoOverview: Codable {
-        var summary: String?
-        var highlights: [String]?
-    }
-
-    struct ErrorInfo: Codable {
-        var code: String?
-        var message: String?
-        var provider: String?
-    }
-
-    var status: String
-    var message: String?
-    var errorCode: String?
-    var error: ErrorInfo?
-    var query: String?
-    var ocr: OCR?
-    var link: Link?
-    var source: Source?
-    var review: Review?
-    var videoOverview: VideoOverview?
-    var sourceFallback: Bool?
-    var sourceStatus: String?
-    var provenance: Provenance?
+struct CaptureMemoryCardAssessmentRequest: Encodable {
+    var assessment: String
+    var attemptId: String
 }
 
-struct ImageFlowProgress: Codable, Equatable {
-    var stage: String
-    var message: String?
-    var percent: Double?
+struct CaptureMemoryCardAssessmentResponse: Decodable, Equatable {
+    struct Assessment: Decodable, Equatable {
+        var attemptId: String
+        var assessment: String
+        var assessedAt: String
+        var repeated: Bool
+    }
+
+    struct Mastery: Decodable, Equatable {
+        var before: String
+        var after: String
+        var successfulRecallCount: Int
+        var reviewCount: Int
+    }
+
+    var schemaVersion: String
+    var cardId: String
+    var assessment: Assessment
+    var mastery: Mastery?
+    var schedule: ImageFlowReviewSchedule
 }
 
-struct ImageFlowJobResponse: Codable {
-    var jobId: String
-    var status: String
-    var progress: ImageFlowProgress
-    var result: ImageFlowResponse?
+struct CaptureMemoryCardDeletionResponse: Decodable, Equatable {
+    var schemaVersion: String
+    var deleted: Bool
+    var cardId: String
+    var captureId: String
+    var deletedAt: String
 }
 
 struct AttemptRequest: Codable {

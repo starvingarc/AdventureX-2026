@@ -3,7 +3,10 @@ const DEEPSEEK_CHAT_URL = "https://api.deepseek.com/chat/completions";
 const MODEL_REQUEST_TIMEOUT_MS = readPositiveInt(process.env.MODEL_REQUEST_TIMEOUT_MS, 90_000);
 
 export async function callModelJson(request) {
-  const provider = resolveModelJsonProvider();
+  const provider = String(request?.provider || resolveModelJsonProvider()).trim().toLowerCase();
+  if (request?.imageDataUrl && provider === "deepseek") {
+    throw new Error("当前 DeepSeek 配置不支持截图视觉输入，请使用 Qwen 视觉模型。");
+  }
   if (provider === "deepseek") return callDeepSeekJson(request);
   if (provider === "openai") return callOpenAIResponsesJson(request);
   if (["qwen", "openai_compatible", "compatible"].includes(provider)) {
@@ -31,23 +34,30 @@ async function callOpenAICompatibleJson(request, { provider }) {
     schema,
     stage,
     modelUsageRecorder,
-    estimatedOutputTokens
+    estimatedOutputTokens,
+    imageDataUrl
   } = request;
-  const apiKey = process.env.QWEN_API
-    || process.env.QWEN_API_KEY
-    || process.env.DASHSCOPE_API_KEY
-    || process.env.OPENAI_API_KEY;
+  const apiKey = provider === "qwen"
+    ? process.env.QWEN_API || process.env.QWEN_API_KEY || process.env.DASHSCOPE_API_KEY
+    : process.env.QWEN_API
+      || process.env.QWEN_API_KEY
+      || process.env.DASHSCOPE_API_KEY
+      || process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error("缺少 OpenAI-compatible 模型 API Key。");
   }
 
-  const model = process.env.AI_MODEL
+  const model = request.model
+    || process.env.AI_MODEL
     || process.env.QWEN_MODEL
     || process.env.MODEL
-    || "qwen-flash";
+    || "qwen3.7-plus-2026-05-26";
   const url = resolveCompatibleChatUrl(process.env.BASE_URL || process.env.AI_BASE_URL);
-  const systemMessage = `${system}\n\n只输出 JSON 对象，不要输出 Markdown。必须符合 ${schemaName}：\n${JSON.stringify(schema)}`;
-  const requestText = [systemMessage, user].join("\n\n");
+  const systemMessage = buildCompatibleSystemMessage({ system, schemaName, schema });
+  const requestText = [systemMessage, user, imageDataUrl ? "[screenshot image omitted]" : ""]
+    .filter(Boolean)
+    .join("\n\n");
+  const userContent = buildCompatibleUserContent(user, imageDataUrl);
   const response = await fetchWithTimeout(url, {
     method: "POST",
     headers: {
@@ -58,7 +68,7 @@ async function callOpenAICompatibleJson(request, { provider }) {
       model,
       messages: [
         { role: "system", content: systemMessage },
-        { role: "user", content: user }
+        { role: "user", content: userContent }
       ],
       response_format: { type: "json_object" },
       stream: false,
@@ -105,7 +115,8 @@ async function callOpenAIResponsesJson({
   schema,
   stage,
   modelUsageRecorder,
-  estimatedOutputTokens
+  estimatedOutputTokens,
+  imageDataUrl
 }) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -117,8 +128,13 @@ async function callOpenAIResponsesJson({
     system,
     user,
     schemaName,
-    JSON.stringify(schema)
+    JSON.stringify(schema),
+    imageDataUrl ? "[screenshot image omitted]" : ""
   ].join("\n\n");
+  const userContent = [
+    { type: "input_text", text: user },
+    ...(imageDataUrl ? [{ type: "input_image", image_url: normalizeImageDataUrl(imageDataUrl) }] : [])
+  ];
   const response = await fetchWithTimeout(OPENAI_RESPONSES_URL, {
     method: "POST",
     headers: {
@@ -129,7 +145,7 @@ async function callOpenAIResponsesJson({
       model,
       input: [
         { role: "system", content: system },
-        { role: "user", content: user }
+        { role: "user", content: userContent }
       ],
       text: {
         format: {
@@ -289,6 +305,35 @@ function normalizeMaxTokens(value) {
 function normalizeDeepSeekThinking(value) {
   const normalized = String(value || "disabled").trim().toLowerCase();
   return normalized === "enabled" ? "enabled" : "disabled";
+}
+
+export function buildCompatibleUserContent(user, imageDataUrl = "") {
+  if (!imageDataUrl) return user;
+  return [
+    { type: "text", text: String(user || "") },
+    {
+      type: "image_url",
+      image_url: { url: normalizeImageDataUrl(imageDataUrl) }
+    }
+  ];
+}
+
+export function buildCompatibleSystemMessage({ system = "", schemaName = "output", schema = {} } = {}) {
+  return [
+    system,
+    "只输出最终数据的 JSON 对象，不要输出 Markdown。",
+    `以下 ${schemaName} JSON Schema 仅用于约束输出字段，不是需要复述的数据。`,
+    "严禁在结果中输出 type、properties、required、additionalProperties 等 Schema 元数据；直接从业务字段开始。",
+    JSON.stringify(schema)
+  ].filter(Boolean).join("\n\n");
+}
+
+function normalizeImageDataUrl(value) {
+  const dataUrl = String(value || "").trim();
+  if (!/^data:image\/(?:jpeg|jpg|png|webp);base64,[A-Za-z0-9+/=\s]+$/i.test(dataUrl)) {
+    throw new Error("截图必须是 JPEG、PNG 或 WebP 的 Base64 Data URL。");
+  }
+  return dataUrl.replace(/\s+/g, "");
 }
 
 function stripCodeFence(text) {

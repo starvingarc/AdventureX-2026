@@ -10,8 +10,7 @@ test("reports video runtime ready with configured production defaults", async ()
   const commands = [];
   const readiness = await buildVideoRuntimeReadiness({
     env: {
-      TIKHUB_API_KEY: "secret-tikhub",
-      QWEN_API_KEY: "secret-qwen"
+      TIKHUB_API_KEY: "secret-tikhub"
     },
     runCommand: async (input) => {
       commands.push(input.name);
@@ -22,14 +21,13 @@ test("reports video runtime ready with configured production defaults", async ()
   assert.equal(readiness.ok, true);
   assert.equal(readiness.resolved.maxDurationSeconds, 900);
   assert.equal(readiness.resolved.asrProvider, "local_whisper");
-  assert.equal(readiness.resolved.frameProvider, "crv_style_ffmpeg");
-  assert.equal(readiness.resolved.visualProvider, "qwen-vl");
-  assert.deepEqual(commands.sort(), ["faster-whisper", "ffmpeg", "ffprobe", "python", "yt-dlp"].sort());
+  assert.equal(readiness.resolved.frameProvider, "none");
+  assert.equal(readiness.resolved.visualProvider, "none");
+  assert.deepEqual(commands.sort(), ["faster-whisper", "ffmpeg", "python", "yt-dlp"].sort());
   assert.equal(JSON.stringify(readiness).includes("secret-tikhub"), false);
-  assert.equal(JSON.stringify(readiness).includes("secret-qwen"), false);
 });
 
-test("fails readiness when required video secrets are missing", async () => {
+test("fails readiness when required TikHub secret is missing", async () => {
   const readiness = await buildVideoRuntimeReadiness({
     env: {},
     runCommand: async (input) => ({ ok: true, skipped: false, detail: `${input.name} ok` })
@@ -37,6 +35,20 @@ test("fails readiness when required video secrets are missing", async () => {
 
   assert.equal(readiness.ok, false);
   assert.equal(readiness.checks.tikhubApiKey.ok, false);
+  assert.equal(readiness.checks.qwenApiKey.ok, true);
+  assert.equal(readiness.checks.qwenApiKey.skipped, false);
+});
+
+test("requires Qwen secret when video visual understanding is enabled", async () => {
+  const readiness = await buildVideoRuntimeReadiness({
+    env: {
+      TIKHUB_API_KEY: "secret-tikhub",
+      VIDEO_VISUAL_PROVIDER: "qwen-vl"
+    },
+    runCommand: async (input) => ({ ok: true, skipped: false, detail: `${input.name} ok` })
+  });
+
+  assert.equal(readiness.ok, false);
   assert.equal(readiness.checks.qwenApiKey.ok, false);
 });
 
@@ -74,7 +86,7 @@ test("flags duration override that drifts from product limit", async () => {
 test("memoized readiness avoids repeated command checks within ttl", async () => {
   let commandCount = 0;
   const first = await buildMemoizedVideoRuntimeReadiness({
-    env: { TIKHUB_API_KEY: "secret-tikhub", QWEN_API_KEY: "secret-qwen" },
+    env: { TIKHUB_API_KEY: "secret-tikhub" },
     nowMs: 1000,
     ttlMs: 60_000,
     runCommand: async () => {
@@ -83,7 +95,7 @@ test("memoized readiness avoids repeated command checks within ttl", async () =>
     }
   });
   const second = await buildMemoizedVideoRuntimeReadiness({
-    env: { TIKHUB_API_KEY: "secret-tikhub", QWEN_API_KEY: "secret-qwen" },
+    env: { TIKHUB_API_KEY: "secret-tikhub" },
     nowMs: 2000,
     ttlMs: 60_000,
     runCommand: async () => {
@@ -94,5 +106,5 @@ test("memoized readiness avoids repeated command checks within ttl", async () =>
 
   assert.equal(first.cached, false);
   assert.equal(second.cached, true);
-  assert.equal(commandCount, 5);
+  assert.equal(commandCount, 4);
 });

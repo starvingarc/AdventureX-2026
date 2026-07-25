@@ -99,7 +99,7 @@ test("classifies generation and mutation routes for limits", () => {
   assert.equal(rateLimitGroupForRequest(mockRequest({ method: "POST", url: "/api/notifications/n1/read" })), "mutation");
   assert.equal(rateLimitGroupForRequest(mockRequest({ method: "GET", url: "/api/health" })), "none");
   assert.equal(rateLimitGroupForRequest(mockRequest({ method: "GET", url: "/api/version" })), "none");
-  assert.equal(rateLimitGroupForRequest(mockRequest({ method: "GET", url: "/api/sources/image-flow/jobs/11111111-1111-1111-1111-111111111111" })), "none");
+  assert.equal(rateLimitGroupForRequest(mockRequest({ method: "GET", url: "/api/sources/image-flow/jobs/11111111-1111-1111-1111-111111111111" })), "normal-api");
 });
 
 test("allows screenshots larger than the generic JSON limit only on the image flow", () => {

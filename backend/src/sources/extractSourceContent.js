@@ -33,10 +33,7 @@ export async function extractSourceContent(input, {
       rawText: input.rawText,
       sourceTitle: input.sourceTitle,
       preferredTimestampSeconds: input.timestampSeconds,
-      preferredLanguage: input.preferredLanguage,
-      asrMode: input.asrMode,
-      publicMediaBaseUrl: input.publicMediaBaseUrl,
-      onProgress: input.onProgress
+      publicMediaBaseUrl: input.publicMediaBaseUrl
     });
     const v2Source = buildV2SourceFromLearningSource(learningSource);
     return {
@@ -59,49 +56,39 @@ export async function extractSourceContent(input, {
   const sourceUrl = normalizeUrl(input.sourceUrl || input.rawText);
   const platform = detectTikHubContentPlatform(sourceUrl);
   let tikhubError = null;
-  if (shouldUseTikHubArticleSource(platform, { env })) {
+  if (shouldUseTikHubArticleSource(platform, {
+    env,
+    force: input?.forceTikHubContent === true
+  })) {
     try {
-      const content = await measureSourceStage(input?.onProgress, {
-        event: "article_source_fetch_completed",
-        message: "平台图文正文获取完成",
-        details: { provider: "tikhub", platform }
-      }, () => fetchTikHubContentSource({ sourceUrl }));
-      return buildTikHubArticleSource(content, sourceUrl);
+      const content = await fetchTikHubContentSource({ sourceUrl });
+      const screenshotText = input?.forceTikHubContent
+        ? cleanExtractedText(input?.screenshotText)
+        : "";
+      const enrichedContent = screenshotText
+        ? {
+            ...content,
+            text: [content?.text, screenshotText]
+              .map((value) => cleanExtractedText(value))
+              .filter((value, index, values) => value && values.indexOf(value) === index)
+              .join("\n\n")
+          }
+        : content;
+      return buildTikHubArticleSource(enrichedContent, sourceUrl);
     } catch (error) {
       tikhubError = error;
     }
   }
   if (isWechatArticleUrl(sourceUrl)) {
-    return measureSourceStage(input?.onProgress, {
-      event: "article_source_fetch_completed",
-      message: "微信文章正文获取完成",
-      details: { provider: "wechat", platform: "wechat" }
-    }, () => extractWechatArticle(sourceUrl));
+    return extractWechatArticle(sourceUrl);
   }
   try {
-    return await measureSourceStage(input?.onProgress, {
-      event: "article_source_fetch_completed",
-      message: "网页正文获取完成",
-      details: { provider: "web", platform }
-    }, () => extractWebArticle(sourceUrl));
+    return await extractWebArticle(sourceUrl);
   } catch (error) {
     if (tikhubError && platform === "xiaohongshu") {
       throw tikhubArticleFailure(tikhubError);
     }
     throw error;
-  }
-}
-
-async function measureSourceStage(onProgress, descriptor, operation) {
-  const startedAt = Date.now();
-  try {
-    return await operation();
-  } finally {
-    try {
-      onProgress?.({ ...descriptor, durationMs: Date.now() - startedAt });
-    } catch {
-      // Diagnostics must not affect source extraction.
-    }
   }
 }
 
@@ -128,7 +115,6 @@ export function isVideoUrl(value) {
     "youtu.be",
     "v.douyin.com",
     "iesdouyin.com",
-    "www.iesdouyin.com",
     "douyin.com",
     "www.douyin.com",
     "xiaohongshu.com",
@@ -151,9 +137,9 @@ function isWechatArticleUrl(value) {
   return hostname === "mp.weixin.qq.com";
 }
 
-function shouldUseTikHubArticleSource(platform, { env = process.env } = {}) {
+function shouldUseTikHubArticleSource(platform, { env = process.env, force = false } = {}) {
   return isTikHubArticlePlatform(platform)
-    && readBooleanFlag(env.TIKHUB_CONTENT_ENABLED, true)
+    && (force || readBooleanFlag(env.TIKHUB_CONTENT_ENABLED, false))
     && Boolean(String(env.TIKHUB_API_KEY || "").trim());
 }
 

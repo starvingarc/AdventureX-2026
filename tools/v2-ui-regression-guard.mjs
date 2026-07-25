@@ -10,8 +10,12 @@ const files = {
   reviewFlowScreens: resolve(repoRoot, "拾贝/拾贝/V2/Screens/Review/V2ReviewFlowScreens.swift"),
   awakeningViews: resolve(repoRoot, "拾贝/拾贝/V2/Screens/Home/V2AwakeningViews.swift"),
   awakeningModels: resolve(repoRoot, "拾贝/拾贝/V2/Models/V2AwakeningModels.swift"),
+  screenshotAwakeningViews: resolve(repoRoot, "拾贝/拾贝/V2/Screens/Home/V2ScreenshotAwakeningViews.swift"),
+  screenshotMemoryModels: resolve(repoRoot, "拾贝/拾贝/V2/Models/V2ScreenshotMemoryModels.swift"),
+  tabScreens: resolve(repoRoot, "拾贝/拾贝/V2/Screens/Tabs/V2TabScreens.swift"),
   v2Root: resolve(repoRoot, "拾贝/拾贝/V2/V2RootView.swift"),
-  apiClient: resolve(repoRoot, "拾贝/拾贝/Services/APIClient.swift")
+  apiClient: resolve(repoRoot, "拾贝/拾贝/Services/APIClient.swift"),
+  apiClientTests: resolve(repoRoot, "拾贝/拾贝Tests/APIClientDecodingTests.swift")
 };
 
 const source = Object.fromEntries(
@@ -70,9 +74,147 @@ const checks = [
   check(
     "awakening_home_is_single_card_and_low_pressure",
     source.awakeningViews.includes("今天，唤醒一点记忆")
-      && source.awakeningViews.includes('return response?.hasActiveCard == true ? "继续这张" : "抽一张"')
-      && source.awakeningViews.includes("一张就好，随时可以停下"),
-    "Awakening home must present one resumable card without streak, rank, or social pressure."
+      && source.awakeningViews.includes('return response?.hasActiveCard == true ? "继续这张" : "召回一张"')
+      && source.awakeningViews.includes("一次只看一张")
+      && !source.awakeningViews.includes("V2MemoryPoolSelector")
+      && !source.awakeningViews.includes("连续召回"),
+    "Awakening home must expose one low-pressure recall entry without pool or mode selectors."
+  ),
+  check(
+    "recall_ritual_uses_frozen_phase_contract",
+    /enum V2RecallPresentationPhase[\s\S]*case home[\s\S]*case summoning[\s\S]*case recall[\s\S]*case scratching[\s\S]*case revealed[\s\S]*case assessing[\s\S]*case checkpoint[\s\S]*case stowing[\s\S]*case paused/.test(source.awakeningViews),
+    "The recall ritual must keep the frozen nine-phase presentation contract."
+  ),
+  check(
+    "recall_mascot_has_ten_states",
+    /enum V2RecallMascotState[\s\S]*case idle[\s\S]*case reacting[\s\S]*case turning[\s\S]*case rummaging[\s\S]*case carrying[\s\S]*case watching[\s\S]*case acknowledging[\s\S]*case thinking[\s\S]*case sleeping[\s\S]*case farewell/.test(source.awakeningViews),
+    "Five bundled poses must be composed into ten semantic mascot states."
+  ),
+  check(
+    "scratch_reveal_uses_canvas_grid_threshold",
+    source.screenshotAwakeningViews.includes("Canvas { context, size in")
+      && source.screenshotAwakeningViews.includes("context.blendMode = .destinationOut")
+      && source.screenshotAwakeningViews.includes("brushDiameter: CGFloat = 26")
+      && source.screenshotAwakeningViews.includes("coverage >= 0.45"),
+    "Scratch reveal must use a 26pt destination-out Canvas and a 45 percent grid threshold."
+  ),
+  check(
+    "checkpoint_and_persistence_are_explicit",
+    source.screenshotAwakeningViews.includes('"继续下一张"')
+      && source.screenshotAwakeningViews.includes('Button("先收好"')
+      && source.screenshotAwakeningViews.includes('@AppStorage("recallo.v06.currentCardID")')
+      && source.screenshotAwakeningViews.includes('@AppStorage("recallo.v06.scratchPaths")')
+      && source.screenshotAwakeningViews.includes('@AppStorage("recallo.v06.assessedReviewCycles")'),
+    "Checkpoint choice, scratch restoration, and idempotent assessment markers must persist."
+  ),
+  check(
+    "assessment_idempotency_is_scoped_to_review_cycle",
+    source.screenshotAwakeningViews.includes("currentReviewCycleKey")
+      && source.screenshotAwakeningViews.includes('attemptId: "ios-capture-assessment-\\(currentReviewCycleKey)"')
+      && source.screenshotAwakeningViews.includes('@AppStorage("recallo.v06.assessedReviewCycles")')
+      && !source.screenshotAwakeningViews.includes('attemptId: "ios-capture-assessment-\\(currentCard.id)"'),
+    "Assessment idempotency must be stable for retries but change when the card enters a later review cycle."
+  ),
+  check(
+    "optional_capture_schedule_has_stable_cycle_key",
+    source.screenshotMemoryModels.includes('?? "initial"')
+      && source.screenshotAwakeningViews.includes("currentCard.reviewCycleKey(scheduleOverride: currentSchedule)")
+      && !source.screenshotAwakeningViews.includes("currentCard.schedule.nextReviewAt"),
+    "Optional capture schedules must compile safely and use a deterministic initial review-cycle key."
+  ),
+  check(
+    "capture_assessment_prefers_server_mastery",
+    /struct Mastery: Decodable, Equatable[\s\S]*before: String[\s\S]*after: String[\s\S]*successfulRecallCount: Int[\s\S]*reviewCount: Int/.test(source.apiClient)
+      && source.screenshotMemoryModels.includes("if let serverMastery")
+      && source.v2Root.includes("serverMastery: response.mastery")
+      && source.screenshotAwakeningViews.includes("if let serverMastery = response.mastery"),
+    "Assessment responses may omit mastery for old servers, but server-owned mastery must win when present."
+  ),
+  check(
+    "capture_assessment_uses_server_canonical_value",
+    source.screenshotMemoryModels.includes("func canonicalAssessment(fallback: V2MemoryAssessment)")
+      && source.v2Root.includes("let canonicalAssessment = response.canonicalAssessment(fallback: assessment)")
+      && source.v2Root.includes("screenshotCards[index].apply(\n                canonicalAssessment,")
+      && source.screenshotAwakeningViews.includes("assessment = canonicalAssessment"),
+    "A repeated attempt must apply the assessment returned by the server, not a conflicting retry value."
+  ),
+  check(
+    "checkpoint_resume_is_scoped_to_input_review_cycle",
+    source.screenshotAwakeningViews.includes('@AppStorage("recallo.v06.presentationReviewCycleKey")')
+      && source.screenshotAwakeningViews.includes("persistedPresentationReviewCycleKey = currentReviewCycleKey")
+      && source.screenshotAwakeningViews.includes("restoredCard.matchesPersistedPresentation(")
+      && source.screenshotAwakeningViews.includes("resetPresentationForCurrentCycle()")
+      && source.screenshotMemoryModels.includes("func matchesPersistedPresentation(")
+      && source.apiClientTests.includes("testPresentationResumeRejectsDifferentReviewCycle"),
+    "Persisted scratch and reveal state must be discarded when the card advances to a different review cycle."
+  ),
+  check(
+    "fragments_are_saved_but_never_reviewed",
+    source.screenshotMemoryModels.includes("guard card.state == .formal, disposition == .createCard")
+      && source.v2Root.includes("guard disposition == .createCard, memoryCard.state == .formal")
+      && source.v2Root.includes("selectedTab = .materials")
+      && source.tabScreens.includes('case .archiveOnly:\n            "已保存碎片"')
+      && source.tabScreens.includes('case .needsConfirmation:\n            "待确认"')
+      && source.tabScreens.includes("if isFormalReviewCard, let schedule = captured.schedule"),
+    "Archive-only and confirmation-needed captures must remain visible fragments without mastery, scheduling, or draw eligibility."
+  ),
+  check(
+    "capture_delete_waits_for_server_success",
+    /func deleteCaptureMemoryCard\(id: String\)[\s\S]*?\/api\/memory-cards\/[\s\S]*?method: "DELETE"/.test(source.apiClient)
+      && /let response = try await apiClient\.deleteCaptureMemoryCard\(id: id\)[\s\S]*?guard response\.deleted[\s\S]*?screenshotCards\.removeAll/.test(source.v2Root)
+      && source.tabScreens.includes("删除这条记忆？")
+      && source.tabScreens.includes("pendingMemoryCardDeletion"),
+    "Knowledge-library deletion must be confirmed and local state may change only after a successful DELETE response."
+  ),
+  check(
+    "account_deletion_clears_capture_state_before_refresh",
+    /_ = try await apiClient\.deleteAccount\(\)[\s\S]*?clearCaptureMemoryStateAfterAccountDeletion\(\)[\s\S]*?await refreshBackendContentAfterAccountChange\(\)/.test(source.v2Root)
+      && /clearCaptureMemoryStateAfterAccountDeletion\(\)[\s\S]*?screenshotAnalysisTask\?\.cancel\(\)[\s\S]*?screenshotCards\.removeAll\(\)[\s\S]*?screenshotDrawSession = nil[\s\S]*?V2ScreenshotPersistence\.clear\(\)/.test(source.v2Root)
+      && source.screenshotMemoryModels.includes('"recallo.v06.scratchPaths"')
+      && source.screenshotMemoryModels.includes('"recallo.v06.assessedReviewCycles"')
+      && source.screenshotMemoryModels.includes('"recallo.v06.presentationReviewCycleKey"')
+      && source.apiClientTests.includes("testAccountDeletionClearsPersistedScreenshotRecallState"),
+    "A successful account deletion must erase in-memory and persisted capture state before any best-effort refresh."
+  ),
+  check(
+    "ios_capture_contract_tests_cover_new_boundaries",
+    source.apiClientTests.includes("testOptionalScheduleProducesStableInitialReviewCycleKey")
+      && source.apiClientTests.includes("testServerMasteryOverridesLegacyClientProgression")
+      && source.apiClientTests.includes("testFragmentsNeverEnterFormalReviewPools")
+      && source.apiClientTests.includes("testDecodesCaptureMemoryCardDeletionContract")
+      && source.apiClientTests.includes("canonicalAssessment(fallback: .forgot)")
+      && source.apiClientTests.includes("testPresentationResumeRejectsDifferentReviewCycle")
+      && source.apiClientTests.includes("testAccountDeletionClearsPersistedScreenshotRecallState")
+      && source.apiClientTests.includes("XCTAssertNil(response.mastery)"),
+    "Swift contract tests must retain optional schedule, server mastery, legacy response, fragment eligibility, and delete decoding coverage."
+  ),
+  check(
+    "checkpoint_restores_assessment_mastery_and_schedule",
+    source.screenshotAwakeningViews.includes('@AppStorage("recallo.v06.assessment")')
+      && source.screenshotAwakeningViews.includes('@AppStorage("recallo.v06.masteryAfter")')
+      && source.screenshotAwakeningViews.includes('@AppStorage("recallo.v06.scheduleNextReviewAt")')
+      && source.screenshotAwakeningViews.includes("ImageFlowReviewSchedule("),
+    "Checkpoint restoration must keep the submitted assessment, mastery transition, and returned schedule."
+  ),
+  check(
+    "scratch_accessibility_and_coverage_share_cells",
+    source.screenshotAwakeningViews.includes("adjustCoveredCells(by: 0.15)")
+      && source.screenshotAwakeningViews.includes("brushDiameter / 2")
+      && !source.screenshotAwakeningViews.includes("coverage = min(1, coverage + 0.15)"),
+    "VoiceOver adjustment and finger scratching must share one cell-based coverage source without inflating the brush radius."
+  ),
+  check(
+    "fuzzy_feedback_uses_tilt_without_inactive_pause",
+    /case \.fuzzy: return \.turning/.test(source.screenshotAwakeningViews)
+      && /case \.inactive:\s+persistPresentationState\(\)/.test(source.screenshotAwakeningViews),
+    "Fuzzy feedback should use the head tilt and transient inactive events should not replace the ritual with a paused screen."
+  ),
+  check(
+    "summon_timings_cover_first_next_and_reduced_motion",
+    source.screenshotAwakeningViews.includes("[120_000_000, 360_000_000, 470_000_000, 300_000_000, 200_000_000]")
+      && source.screenshotAwakeningViews.includes("[80_000_000, 180_000_000, 180_000_000, 140_000_000, 120_000_000]")
+      && source.screenshotAwakeningViews.includes("180_000_000"),
+    "Summoning must total 1450ms for the first card, 700ms later, and 180ms with Reduce Motion."
   ),
   check(
     "awakening_source_is_feedback_only",

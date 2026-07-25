@@ -127,7 +127,7 @@ async function callQuickReviewModel({ article, source, boundedText, modelJsonCal
     source.url ? `链接：${source.url}` : ""
   ].filter(Boolean).join("\n");
   const user = `${metadata}\n\n内容：\n${boundedText}`;
-  const output = await modelJsonCaller({
+  const request = {
     system: [
       "你把碎片化内容压缩成可以在手机上快速复习的记忆卡。",
       "只依据输入，不补充未经原文支持的事实。",
@@ -142,9 +142,24 @@ async function callQuickReviewModel({ article, source, boundedText, modelJsonCal
     schema: QUICK_REVIEW_OUTPUT_SCHEMA,
     stage: "quick_review",
     modelUsageRecorder,
-    estimatedOutputTokens: 600
-  });
+    estimatedOutputTokens: 1_400
+  };
+  let output;
+  try {
+    output = await modelJsonCaller(request);
+  } catch (error) {
+    if (!isRetryableStructuredOutputError(error)) throw error;
+    output = await modelJsonCaller({
+      ...request,
+      user: `${user}\n\n上一次响应不是完整 JSON；这次只返回一个完整 JSON 对象，不要解释。`
+    });
+  }
   return normalizeGeneratedReview(output, article, source);
+}
+
+function isRetryableStructuredOutputError(error) {
+  const message = String(error?.message || "");
+  return message.includes("不是可解析 JSON") || message.includes("结构化文本");
 }
 
 function normalizeGeneratedReview(output, article, source) {

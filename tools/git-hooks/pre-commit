@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(git rev-parse --show-toplevel)"
 cd "$ROOT_DIR"
 
+node tools/secret-scan.mjs --current
 node tools/local-worktree-guard.mjs
 node tools/recallo-workspace-guard.mjs
 node tools/v2-ui-regression-guard.mjs

@@ -200,7 +200,6 @@ export function rateLimitGroupForRequest(req) {
   if (!url.startsWith("/api/")) return "none";
   if (method === "GET" && url === "/api/health") return "none";
   if (method === "GET" && url === "/api/version") return "none";
-  if (method === "GET" && /^\/api\/sources\/image-flow\/jobs\/[0-9a-f-]{36}$/i.test(url)) return "none";
   if (isImageFlowRoute(req)) return "generation";
   if (isGenerationRoute(req)) return "generation";
   if (method === "POST" && /^\/api\/v2\/recommended-articles\/[^/]+\/import$/.test(url)) return "recommended-import";

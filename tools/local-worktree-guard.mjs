@@ -1,11 +1,15 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
 import { realpathSync } from "node:fs";
-import { basename, resolve } from "node:path";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import {
+  approvedRootDescription,
+  classifyRecallWorktreeRoot
+} from "./worktree-root-policy.mjs";
+
 const repoRoot = realpathSync(resolve(fileURLToPath(new URL("..", import.meta.url))));
-const expectedRootName = "拾贝-prod-hardening";
 const blockedStagedPrefixes = [
   "experiments/shibei-v2/ios/"
 ];
@@ -26,10 +30,11 @@ function pass(message) {
 console.log("# Recallo Local Worktree Guard");
 console.log(`repoRoot=${repoRoot}`);
 
-if (basename(repoRoot) === expectedRootName) {
-  pass("worktree_root_is_recallo_prod_hardening");
+const rootPolicy = classifyRecallWorktreeRoot(repoRoot);
+if (rootPolicy.allowed) {
+  pass(`worktree_root_allowed kind=${rootPolicy.kind}`);
 } else {
-  fail(`wrong_worktree_root expected=${expectedRootName} actual=${basename(repoRoot)}`);
+  fail(`wrong_worktree_root expected=${approvedRootDescription()} actual=${repoRoot}`);
 }
 
 const officialProject = "拾贝/拾贝.xcodeproj/project.pbxproj";
@@ -52,6 +57,6 @@ for (const prefix of blockedStagedPrefixes) {
 
 if (process.exitCode) {
   console.error("");
-  console.error("Local worktree is not safe for Recallo commit/push. Use /Users/hanmingyu/Downloads/拾贝-prod-hardening and avoid the old experiments iOS project.");
+  console.error(`Local worktree is not safe for Recallo commit/push. Use ${approvedRootDescription()} and avoid the old experiments iOS project.`);
   process.exit(process.exitCode);
 }

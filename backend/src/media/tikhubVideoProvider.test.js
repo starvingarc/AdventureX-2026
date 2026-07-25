@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { fetchTikHubVideoSource } from "./tikhubVideoProvider.js";
-import { clearTikHubSearchSourceCache, primeTikHubSearchSource } from "./tikhubSearchSourceCache.js";
 
 test("normalizes Douyin TikHub response", async () => {
   const calls = [];
@@ -18,7 +17,12 @@ test("normalizes Douyin TikHub response", async () => {
           author: { nickname: "产品老张" },
           video: {
             duration: 61000,
-            play_addr: { url_list: ["https://media.example.com/douyin.mp4"] },
+            play_addr: {
+              url_list: [
+                "https://media.example.com/douyin.mp4",
+                "https://v3-dy-o-abtest.zjcdn.com/aweme/v1/play/video_id"
+              ]
+            },
             cover: { url_list: ["https://media.example.com/cover.jpg"] }
           }
         }
@@ -30,59 +34,28 @@ test("normalizes Douyin TikHub response", async () => {
   assert.equal(result.providerContentId, "douyin-1");
   assert.equal(result.title, "AI 产品调研流程");
   assert.equal(result.account, "产品老张");
-  assert.equal(result.mediaUrl, "https://media.example.com/douyin.mp4");
+  assert.equal(result.mediaUrl, "https://v3-dy-o-abtest.zjcdn.com/aweme/v1/play/video_id");
+  assert.deepEqual(result.mediaAlternativeUrls, ["https://media.example.com/douyin.mp4"]);
+  assert.equal(result.mediaRequestHeaders.referer, "https://www.douyin.com/");
   assert.equal(result.coverUrl, "https://media.example.com/cover.jpg");
   assert.equal(result.durationSeconds, 61);
-  assert.equal(result.mediaRequestHeaders.referer, "https://www.douyin.com/");
   assert.match(calls[0].url, /fetch_one_video_by_share_url/);
   assert.equal(calls[0].options.headers.authorization, "Bearer test-tikhub-key");
 });
 
-test("keeps alternate Douyin media URLs for automatic CDN fallback", async () => {
+test("accepts TikHub Douyin redirect hosts", async () => {
   const result = await fetchTikHubVideoSource({
-    sourceUrl: "https://www.douyin.com/video/douyin-2",
-    apiKey: "test-tikhub-key",
+    sourceUrl: "https://www.iesdouyin.com/share/video/123",
+    apiKey: "key",
     fetchImpl: async () => jsonResponse({
       data: {
-        aweme_id: "douyin-2",
-        video: {
-          play_addr: {
-            url_list: [
-              "https://media.example.com/primary.mp4",
-              "https://backup.example.com/secondary.mp4"
-            ]
-          }
-        }
+        aweme_id: "123",
+        desc: "可处理的重定向链接",
+        video: { play_addr: { url_list: ["https://media.example.com/video.mp4"] } }
       }
     })
   });
-
-  assert.equal(result.mediaUrl, "https://media.example.com/primary.mp4");
-  assert.deepEqual(result.mediaAlternativeUrls, ["https://backup.example.com/secondary.mp4"]);
-});
-
-test("reuses rich Douyin search metadata without a second TikHub request", async () => {
-  clearTikHubSearchSourceCache();
-  const sourceUrl = "https://www.douyin.com/video/search-cache-1";
-  primeTikHubSearchSource(sourceUrl, {
-    providerContentId: "search-cache-1",
-    title: "搜索直接命中",
-    description: "搜索结果已包含视频详情",
-    account: "示例博主",
-    sourceUrl,
-    mediaUrl: "https://media.example.com/low.mp4",
-    mediaUrls: ["https://media.example.com/low.mp4"],
-    durationSeconds: 30,
-    subtitles: []
-  });
-  const result = await fetchTikHubVideoSource({
-    sourceUrl,
-    apiKey: "key",
-    fetchImpl: async () => { throw new Error("detail API should not be called"); }
-  });
-  assert.equal(result.mediaUrl, "https://media.example.com/low.mp4");
-  assert.equal(result.title, "搜索直接命中");
-  clearTikHubSearchSourceCache();
+  assert.equal(result.platform, "douyin");
 });
 
 test("normalizes Xiaohongshu TikHub response", async () => {

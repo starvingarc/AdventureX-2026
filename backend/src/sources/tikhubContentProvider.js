@@ -1,10 +1,10 @@
 import { normalizeSubtitleTracks } from "../media/platformSubtitles.js";
 
-const DEFAULT_TIKHUB_BASE_URL = process.env.TIKHUB_BASE_URL || "https://api.tikhub.io";
+const DEFAULT_TIKHUB_BASE_URL = process.env.TIKHUB_BASE_URL || "https://api.tikhub.dev";
 const DEFAULT_TIKHUB_TIMEOUT_MS = readPositiveInt(process.env.TIKHUB_TIMEOUT_MS, 30_000);
 
 const PLATFORM_HOSTS = Object.freeze({
-  douyin: ["douyin.com"],
+  douyin: ["douyin.com", "iesdouyin.com"],
   xiaohongshu: ["xiaohongshu.com", "xhslink.com"],
   wechat: ["mp.weixin.qq.com"],
   zhihu: ["zhihu.com"]
@@ -126,13 +126,8 @@ function createTikHubRequest({ platform, sourceUrl, baseUrl, preferVideo }) {
   }
   if (platform === "zhihu") {
     const target = readZhihuTarget(sourceUrl);
-    const endpoint = target.kind === "answer"
-      ? "fetch_answer_detail"
-      : target.kind === "pin"
-        ? "fetch_pin_detail"
-        : "fetch_column_article_detail";
     return getRequest(
-      `${root}/api/v1/zhihu/web/${endpoint}`,
+      `${root}/api/v1/zhihu/web/${target.kind === "answer" ? "fetch_answer_detail" : "fetch_column_article_detail"}`,
       { [`${target.kind}_id`]: target.id },
       `zhihu_${target.kind}`
     );
@@ -224,14 +219,18 @@ function normalizeDouyin(payload, sourceUrl) {
     payload
   );
   const bitRateStreams = Array.isArray(root?.video?.bit_rate) ? root.video.bit_rate : [];
-  const audioCarrierStreams = bitRateStreams
-    .filter((stream) => Array.isArray(stream?.play_addr?.url_list) && stream.play_addr.url_list.length > 0)
-    .sort((left, right) => streamSize(left) - streamSize(right));
-  const mediaUrls = uniqueUrls(
-    audioCarrierStreams.flatMap((stream) => rankDouyinMediaUrls(stream.play_addr.url_list)),
-    rankDouyinMediaUrls(root?.video?.play_addr?.url_list || []),
-    rankDouyinMediaUrls(root?.video?.download_addr?.url_list || [])
-  );
+  const compatibleStreams = bitRateStreams
+    .filter((stream) => stream && !stream.is_h265 && !stream.is_bytevc1)
+    .sort((left, right) => {
+      const leftWidth = Number(left?.play_addr?.width || 1920);
+      const rightWidth = Number(right?.play_addr?.width || 1920);
+      return Math.abs(leftWidth - 1080) - Math.abs(rightWidth - 1080);
+    });
+  const mediaUrls = rankDouyinMediaUrls(uniqueUrls(
+    compatibleStreams.flatMap((stream) => stream?.play_addr?.url_list || []),
+    root?.video?.play_addr?.url_list,
+    root?.video?.download_addr?.url_list
+  ));
   const contentId = stringValue(root?.aweme_id || root?.id);
   const description = cleanText(root?.desc || root?.caption);
   return {
@@ -254,32 +253,6 @@ function normalizeDouyin(payload, sourceUrl) {
     subtitles: [],
     metadata: { stats: root?.statistics || {} }
   };
-}
-
-function streamSize(stream) {
-  const bytes = Number(stream?.play_addr?.data_size);
-  if (Number.isFinite(bytes) && bytes > 0) return bytes;
-  const bitRate = Number(stream?.bit_rate);
-  return Number.isFinite(bitRate) && bitRate > 0 ? bitRate : Number.MAX_SAFE_INTEGER;
-}
-
-function rankDouyinMediaUrls(urls) {
-  // TikHub usually returns equivalent ByteDance CDN URLs. In mainland China,
-  // the API play endpoints respond much faster and more consistently than the
-  // experimental zjcdn hosts, which can otherwise consume the full media
-  // timeout before ASR starts.
-  const hostPriority = (value) => {
-    try {
-      const host = new URL(value).hostname.toLowerCase();
-      if (host.includes("amemv.com")) return 0;
-      if (host.includes("douyinvod.com")) return 1;
-      if (host.includes("zjcdn.com")) return 3;
-      return 2;
-    } catch {
-      return 4;
-    }
-  };
-  return [...urls].sort((left, right) => hostPriority(left) - hostPriority(right));
 }
 
 function normalizeXiaohongshu(payload, sourceUrl) {
@@ -406,12 +379,10 @@ function normalizeWechat(payload, sourceUrl) {
 }
 
 function normalizeZhihu(payload, sourceUrl) {
-  const root = firstObject(payload?.data, payload?.pin, payload?.answer, payload?.article, payload);
+  const root = firstObject(payload?.data, payload?.answer, payload?.article, payload);
   const isAnswer = /\/answer\/\d+/.test(sourceUrl) || Boolean(root?.answer_id);
-  const isPin = /\/pin\/\d+/.test(sourceUrl) || root?.type === "pin" || Boolean(root?.pin_id);
   const contentId = stringValue(
-    root?.pin_id
-      || root?.answer_id
+    root?.answer_id
       || root?.article_id
       || root?.id
   );
@@ -421,39 +392,27 @@ function normalizeZhihu(payload, sourceUrl) {
       || root?.author_name
       || root?.nickname
   );
-  const pinParts = Array.isArray(root?.content)
-    ? root.content.map((item) => item?.own_text || item?.content || item?.text || "").filter(Boolean).join("\n\n")
-    : "";
-  const rawContent = root?.content_html || pinParts || root?.content || root?.text || root?.excerpt || root?.description;
-  const text = cleanText(stripHtml(rawContent));
+  const text = cleanText(stripHtml(root?.content || root?.text || root?.excerpt || root?.description));
   const questionTitle = cleanText(root?.question?.title);
-  const pinTitle = isPin ? firstContentLine(root?.excerpt_title || rawContent) : "";
   return {
     provider: "tikhub",
     platform: "zhihu",
     providerContentId: contentId,
-    kind: isPin ? "pin" : isAnswer ? "answer" : "article",
-    title: cleanText(root?.title) || pinTitle || questionTitle || text.slice(0, 80) || "知乎内容",
+    kind: isAnswer ? "answer" : "article",
+    title: cleanText(root?.title) || questionTitle || text.slice(0, 80) || "知乎内容",
     description: cleanText(root?.excerpt || root?.description),
     text,
     account,
     author: account,
     sourceUrl,
     publishedAt: stringValue(root?.created_time || root?.created || root?.updated_time),
-    images: isPin && Array.isArray(root?.content)
-      ? uniqueUrls(root.content.map((item) => item?.url || item?.image_url || item?.original_url))
-      : [],
+    images: [],
     mediaUrl: "",
     mediaUrls: [],
     coverUrl: "",
     durationSeconds: null,
     subtitles: [],
-    metadata: {
-      stats: {
-        ...(root?.voteup_count ? { voteup_count: root.voteup_count } : {}),
-        ...(root?.like_count ? { like_count: root.like_count } : {})
-      }
-    }
+    metadata: { stats: root?.voteup_count ? { voteup_count: root.voteup_count } : {} }
   };
 }
 
@@ -482,25 +441,15 @@ function readXiaohongshuWebParams(sourceUrl) {
 }
 
 function readZhihuTarget(sourceUrl) {
-  const pinId = sourceUrl.match(/\/pin\/(\d+)/)?.[1];
-  if (pinId) return { kind: "pin", id: pinId };
-  const answerId = sourceUrl.match(/\/answers?\/(\d+)/)?.[1];
+  const answerId = sourceUrl.match(/\/answer\/(\d+)/)?.[1];
   if (answerId) return { kind: "answer", id: answerId };
   const articleId = sourceUrl.match(/(?:zhuanlan\.zhihu\.com\/p\/|\/p\/)(\d+)/)?.[1];
   if (articleId) return { kind: "article", id: articleId };
   throw providerError(
     "invalid_content_url",
-    "知乎链接需要是想法、回答或专栏文章。",
+    "知乎链接需要是回答或专栏文章。",
     { retryable: false }
   );
-}
-
-function firstContentLine(value) {
-  const line = String(value || "")
-    .split(/<br\s*\/?\s*>|\r?\n|\s+\|\s+/i)
-    .map((item) => cleanText(stripHtml(item)))
-    .find(Boolean);
-  return String(line || "").slice(0, 160);
 }
 
 function findXiaohongshuRoot(payload) {
@@ -580,6 +529,23 @@ function uniqueUrls(...values) {
     }
   }
   return result;
+}
+
+function rankDouyinMediaUrls(urls) {
+  return [...urls].sort((left, right) => douyinMediaUrlScore(right) - douyinMediaUrlScore(left));
+}
+
+function douyinMediaUrlScore(value) {
+  try {
+    const hostname = new URL(value).hostname.toLowerCase();
+    let score = 0;
+    if (/douyinvod|douyinpic|bytecdn|snssdk|amemv/.test(hostname)) score += 4;
+    if (/aweme|video|play/.test(value)) score += 2;
+    if (/localhost|127\.0\.0\.1|example\.com/.test(hostname)) score -= 10;
+    return score;
+  } catch {
+    return -20;
+  }
 }
 
 function firstUrl(...values) {

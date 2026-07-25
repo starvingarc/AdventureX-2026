@@ -9,13 +9,15 @@ enum V2HomeTab: CaseIterable, Identifiable {
 
     var id: Self { self }
 
+    static let visibleTabs: [V2HomeTab] = [.learning, .materials, .notes]
+
     var title: String {
         switch self {
-        case .learning: "学习"
-        case .materials: "资料"
+        case .learning: "今日"
+        case .materials: "知识库"
         case .upload: ""
         case .discover: "发现"
-        case .notes: "笔记"
+        case .notes: "我的"
         }
     }
 
@@ -25,7 +27,7 @@ enum V2HomeTab: CaseIterable, Identifiable {
         case .materials: "V2NavMaterialsInactive"
         case .upload: nil
         case .discover: "V2NavDiscoverInactive"
-        case .notes: "V2NavNotesInactive"
+        case .notes: "TabProfileOutline"
         }
     }
 
@@ -35,7 +37,7 @@ enum V2HomeTab: CaseIterable, Identifiable {
         case .materials: "V2NavMaterialsSelected"
         case .upload: nil
         case .discover: "V2NavDiscoverSelected"
-        case .notes: "V2NavNotesSelected"
+        case .notes: "TabProfileFilled"
         }
     }
 }

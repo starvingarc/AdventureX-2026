@@ -1,5 +1,5 @@
 export const VIDEO_DEFAULTS = Object.freeze({
-  maxDurationSeconds: 2 * 60 * 60,
+  maxDurationSeconds: 15 * 60,
   platformAllowlist: Object.freeze([
     "douyin",
     "xiaohongshu",
@@ -12,7 +12,7 @@ export const VIDEO_DEFAULTS = Object.freeze({
   localWhisperModel: "small",
   localWhisperDevice: "auto",
   localWhisperComputeType: "int8",
-  localWhisperLanguage: "auto",
+  localWhisperLanguage: "zh",
   frameProvider: "none",
   visualProvider: "none",
   visualModel: "qwen3-vl-flash",

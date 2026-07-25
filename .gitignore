@@ -10,6 +10,8 @@ backend/.env.*
 !experiments/shibei-v2/backend/.env.example
 .tmp/
 .runtime/
+production-db-export/
+production-diagnostics/
 .venv-dspy/
 .venv-video-asr/
 .cache/video-models/

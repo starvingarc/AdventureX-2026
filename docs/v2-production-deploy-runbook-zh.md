@@ -110,10 +110,10 @@ npm run check:production-deploy-inputs -- \
 - `APNS_BUNDLE_ID=com.maxhan.shibei`
 - `APNS_ENV=production`
 
-视频链接能力新增必配变量：
+内容解析能力新增必配变量：
 
 - `TIKHUB_API_KEY`：抖音/小红书视频取源，以及小红书图文、公众号和知乎来源增强。只确认存在，不记录值。
-- `QWEN_API_KEY` 或 `DASHSCOPE_API_KEY`：Qwen VL 视觉增强。只确认存在，不记录值。
+- `QWEN_API_KEY` 或 `DASHSCOPE_API_KEY`：截图直接识别和复习题生成。只确认存在，不记录值。
 - `RUNTIME_READINESS_TOKEN`：仅用于部署检查访问 `/api/source/runtime-readiness`，不能暴露给客户端。
 
 视频能力的产品默认值由代码集中维护，除非产品策略变化，不建议在 Railway 手动覆盖：
@@ -122,9 +122,11 @@ npm run check:production-deploy-inputs -- \
 - `VIDEO_LINK_ENABLED=1`
 - `VIDEO_YTDLP_ENABLED=1`
 - `VIDEO_ASR_PROVIDER=local_whisper`
-- `VIDEO_FRAME_PROVIDER=crv_style_ffmpeg`
-- `VIDEO_VISUAL_PROVIDER=qwen-vl`
+- `VIDEO_FRAME_PROVIDER=none`
+- `VIDEO_VISUAL_PROVIDER=none`
 - `TIKHUB_CONTENT_ENABLED=1`
+
+B 站优先版本先用截图视觉识别确定视频，再以字幕或 ASR 补充上下文，因此默认不对整段视频抽帧或再次调用视觉模型。需要评估无字幕视频时，再显式开启 `crv_style_ffmpeg` 和 `qwen-vl`。
 
 如果必须临时关闭视频能力，优先设置 `VIDEO_LINK_ENABLED=0`，并在 deployment intent 中记录原因和恢复条件。不要通过删除 provider key 来“临时关闭”，否则 readiness 结果会变成配置缺失，难以区分策略关闭和环境损坏。
 

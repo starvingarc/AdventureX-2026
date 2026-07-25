@@ -1,5 +1,5 @@
 {
-  "name": "shibei-backend",
+  "name": "recallo-generation-demo",
   "version": "0.2.0",
   "private": true,
   "type": "module",
@@ -8,14 +8,19 @@
     "start": "node src/start.js",
     "worker": "node src/worker.js",
     "start:web": "GENERATION_WORKER_DISABLED=1 node src/server.js",
-    "check": "node --check src/start.js && node --check src/server.js && node --check src/worker.js && node --check src/env.js && node --check src/generation/openaiClient.js && node --check src/v2/generation/quickReviewGenerator.js && node --check src/v2/generation/generateReviewPathV2.js && node --check src/sources/extractSourceContent.js && node --check src/media/asrAudioChunks.js && node --check src/media/bilibiliSubtitleProvider.js && node --check src/media/mediaFiles.js && node --check src/media/platformSubtitles.js && node --check src/media/qwenFileTranscriptionProvider.js && node --check src/media/temporaryPublicMedia.js && node --check src/media/ytDlpRuntime.js && node --check src/media/speechToTextProvider.js && node --check src/flow/imageFlowJobs.js && node --check src/flow/ocr.js && node --check src/flow/search.js && node --check src/flow/source.js && node --check src/flow/review.js && node --check src/flow/unsourcedImage.js && node --check src/flow/index.js && node --check src/flow/cli.mjs && node --test src/generation/tests/openaiClientCost.test.js src/tests/requestGuards.test.js src/v2/generation/generateReviewPathV2.test.js src/v2/contracts/reviewPathContract.test.js src/media/asrAudioChunks.test.js src/media/extractVideoLearningSource.test.js src/media/bilibiliSubtitleProvider.test.js src/media/platformSubtitles.test.js src/media/temporaryPublicMedia.test.js src/media/ytDlpRuntime.test.js src/flow/imageFlowJobs.test.js src/flow/index.test.js",
-    "check:v2": "node --test src/v2/generation/generateReviewPathV2.test.js src/v2/contracts/reviewPathContract.test.js",
+    "check": "node scripts/check-source.mjs",
+    "check:v2": "node scripts/check-source.mjs --scope=src/v2",
     "check:video-source": "node --test src/media/extractVideoLearningSource.test.js src/media/platformSubtitles.test.js src/media/learningSource.test.js src/media/videoExtractionCache.test.js",
     "smoke:v2:queue": "node scripts/smoke-v2-queue.mjs",
     "benchmark:video-source": "node scripts/benchmark-video-learning-source.mjs",
-    "image-flow": "node src/flow/cli.mjs"
+    "benchmark:capture-memory-fixtures": "node scripts/benchmark-capture-memory-fixtures.mjs",
+    "image-flow": "node src/flow/cli.mjs",
+    "test:all": "node scripts/check-source.mjs --tests-only",
+    "fixtures:capture-gallery": "node test-fixtures/capture-gallery/generate.mjs"
   },
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "pg": "^8.20.0",
     "playwright": "^1.60.0"

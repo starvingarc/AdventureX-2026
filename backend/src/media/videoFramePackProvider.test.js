@@ -8,8 +8,8 @@ import {
   resolveVideoFramePackProviderName
 } from "./videoFramePackProvider.js";
 
-test("resolves disabled frame pack provider names", () => {
-  assert.equal(resolveVideoFramePackProviderName({}), "crv_style_ffmpeg");
+test("defaults frame pack generation to disabled", () => {
+  assert.equal(resolveVideoFramePackProviderName({}), "none");
   assert.equal(resolveVideoFramePackProviderName({ VIDEO_FRAME_PROVIDER: "none" }), "none");
   assert.equal(resolveVideoFramePackProviderName({ VIDEO_FRAME_PROVIDER: "off" }), "none");
   assert.equal(resolveVideoFramePackProviderName({ VIDEO_FRAME_PROVIDER: "disabled" }), "none");

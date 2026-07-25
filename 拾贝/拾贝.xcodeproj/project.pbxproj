@@ -10,6 +10,7 @@
 		FA70C00C2FC000000000000C /* MockReviewServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA70C00D2FC000000000000D /* MockReviewServiceTests.swift */; };
 		FA70C00E2FC000000000000E /* APIClientDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA70C00F2FC000000000000F /* APIClientDecodingTests.swift */; };
 		FA70C0102FC0000000000010 /* DeviceIdentityStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA70C0112FC0000000000011 /* DeviceIdentityStoreTests.swift */; };
+		FA70C0122FC0000000000012 /* Pow in Frameworks */ = {isa = PBXBuildFile; productRef = FA70C0142FC0000000000014 /* Pow */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -43,6 +44,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA70C0122FC0000000000012 /* Pow in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -104,6 +106,7 @@
 			);
 			name = "拾贝";
 			packageProductDependencies = (
+				FA70C0142FC0000000000014 /* Pow */,
 			);
 			productName = "拾贝";
 			productReference = FA48BAF22FB8628200A66913 /* Recallo.app */;
@@ -160,6 +163,9 @@
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
 			productRefGroup = FA48BAF32FB8628200A66913 /* Products */;
+			packageReferences = (
+				FA70C0132FC0000000000013 /* XCRemoteSwiftPackageReference "Pow" */,
+			);
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -349,7 +355,6 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Recallo;
-				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking = YES;
 				INFOPLIST_KEY_ShiBeiAPNSEnvironment = "$(APS_ENVIRONMENT)";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -480,6 +485,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		FA70C0132FC0000000000013 /* XCRemoteSwiftPackageReference "Pow" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/EmergeTools/Pow.git";
+			requirement = {
+				kind = exactVersion;
+				version = 1.0.6;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		FA70C0142FC0000000000014 /* Pow */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FA70C0132FC0000000000013 /* XCRemoteSwiftPackageReference "Pow" */;
+			productName = Pow;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = FA48BAEA2FB8628200A66913 /* Project object */;
 }

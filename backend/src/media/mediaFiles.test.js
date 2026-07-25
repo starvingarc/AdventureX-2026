@@ -46,23 +46,6 @@ test("rejects media larger than configured max bytes", async () => {
   );
 });
 
-test("lets a hedged caller cancel a slow CDN download", async () => {
-  const controller = new AbortController();
-  const pending = downloadMediaToTempFile({
-    mediaUrl: "https://slow.example.com/video.mp4",
-    signal: controller.signal,
-    fetchImpl: async (_url, options) => new Promise((_resolve, reject) => {
-      options.signal.addEventListener("abort", () => {
-        const error = new Error("aborted");
-        error.name = "AbortError";
-        reject(error);
-      }, { once: true });
-    })
-  });
-  controller.abort();
-  await assert.rejects(pending, /读取视频内容超时/);
-});
-
 test("downloads protected CDN media with concurrent byte ranges", async () => {
   const source = Buffer.from("range-download-content");
   const ranges = [];

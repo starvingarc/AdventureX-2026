@@ -63,6 +63,39 @@ test("routes Xiaohongshu image notes through TikHub instead of generic HTML extr
   assert.equal(result.source.blocks[0].id, "xiaohongshu-platform-text-001");
 });
 
+test("allows the verified screenshot flow to force Xiaohongshu source extraction", async () => {
+  let calls = 0;
+  const result = await extractSourceContent({
+    sourceType: "article_link",
+    sourceUrl: "https://www.xiaohongshu.com/explore/note-verified",
+    forceTikHubContent: true,
+    screenshotText: "截图里清楚显示：先回忆再查看答案，用反馈修正真正没有掌握的部分。"
+  }, {
+    env: {
+      TIKHUB_API_KEY: "configured",
+      TIKHUB_CONTENT_ENABLED: "0"
+    },
+    fetchTikHubContentSource: async ({ sourceUrl }) => {
+      calls += 1;
+      return {
+        provider: "tikhub",
+        platform: "xiaohongshu",
+        providerContentId: "note-verified",
+        kind: "image_text",
+        title: "截图已核验的笔记",
+        text: "短文",
+        account: "学习笔记",
+        sourceUrl,
+        images: []
+      };
+    }
+  });
+
+  assert.equal(calls, 1);
+  assert.equal(result.sourceTitle, "截图已核验的笔记");
+  assert.match(result.rawText, /先回忆再查看答案/);
+});
+
 test("short image-only social posts ask the user to use screenshot vision", () => {
   assert.throws(
     () => buildTikHubArticleSource({

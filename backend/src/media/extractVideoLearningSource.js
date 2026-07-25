@@ -1,5 +1,4 @@
 import { dirname } from "node:path";
-import { availableParallelism } from "node:os";
 
 import { splitAudioForParallelAsr } from "./asrAudioChunks.js";
 import { cleanupMediaTempFiles, downloadMediaToTempFile } from "./mediaFiles.js";
@@ -45,7 +44,6 @@ export async function extractVideoLearningSource({
   rawText = "",
   sourceTitle = "",
   preferredTimestampSeconds = null,
-  preferredLanguage = "auto",
   provider = null,
   downloadMedia = downloadMediaToTempFile,
   downloadYtDlpMedia = downloadYtDlpMediaToTempFile,
@@ -66,12 +64,9 @@ export async function extractVideoLearningSource({
   videoSourceCache = undefined,
   learningSourceCache = undefined,
   extractionCacheVersion = VIDEO_LEARNING_SOURCE_CACHE_VERSION,
-  publicMediaBaseUrl = process.env.SHIBEI_PUBLIC_BASE_URL || "",
-  asrMode = normalizeVideoAsrMode(process.env.VIDEO_ASR_MODE),
-  onProgress = null
+  publicMediaBaseUrl = process.env.SHIBEI_PUBLIC_BASE_URL || ""
 } = {}) {
   const sourceInput = sourceUrl || rawText;
-  const asrPrompt = [sourceTitle, rawText].map((value) => String(value || "").trim()).filter(Boolean).join("；").slice(0, 300);
   const visualEnabled = readBooleanFlag(process.env.VIDEO_VISUAL_ENABLED, false)
     || createFramePack !== createVideoFramePack
     || understandVisuals !== understandVideoVisuals
@@ -100,7 +95,6 @@ export async function extractVideoLearningSource({
   });
   const extractionSignature = buildVideoExtractionSignature({
     asrProvider: transcribeAudio ? "custom" : speechToTextProvider?.name || "custom",
-    asrMode,
     frameProvider: framePackProvider?.name || "custom",
     visualProvider: visualUnderstandingProvider?.name || "custom",
     sourceProvider: activeProvider?.name || "custom",
@@ -112,11 +106,7 @@ export async function extractVideoLearningSource({
     extractionVersion: extractionCacheVersion,
     extractionSignature
   });
-  const cachedLearningSource = await measureExtractionStage(onProgress, {
-    event: "learning_cache_lookup_completed",
-    message: "已检查转写结果缓存",
-    details: { cache: "learning_source" }
-  }, () => readCache(resolvedLearningSourceCache, learningSourceCacheKey));
+  const cachedLearningSource = await readCache(resolvedLearningSourceCache, learningSourceCacheKey);
   if (cachedLearningSource) {
     recordMediaUsage(mediaUsageRecorder, {
       stage: "video_learning_source_cache",
@@ -137,29 +127,17 @@ export async function extractVideoLearningSource({
   }
 
   const videoSourceCacheKey = buildVideoSourceCacheKey({ sourceUrl: sourceInput });
-  let video = await measureExtractionStage(onProgress, {
-    event: "video_source_cache_lookup_completed",
-    message: "已检查视频源缓存",
-    details: { cache: "video_source" }
-  }, () => readCache(resolvedVideoSourceCache, videoSourceCacheKey));
+  let video = await readCache(resolvedVideoSourceCache, videoSourceCacheKey);
   let videoSourceCacheHit = Boolean(video);
   if (!video) {
-    video = await measureExtractionStage(onProgress, {
-      event: "video_source_fetch_completed",
-      message: "视频地址和元数据获取完成",
-      details: { provider: activeProvider?.name || "unknown" }
-    }, () => activeProvider.fetchVideoSource({ sourceUrl: sourceInput }));
+    video = await activeProvider.fetchVideoSource({ sourceUrl: sourceInput });
     enforceVideoDurationLimit(video, { maxDurationSeconds });
     await writeCache(resolvedVideoSourceCache, videoSourceCacheKey, video);
   } else {
     enforceVideoDurationLimit(video, { maxDurationSeconds });
   }
   recordVideoSourceUsage(mediaUsageRecorder, { video, videoSourceCacheHit, videoSourceCacheKey });
-  const platformTranscript = await measureExtractionStage(onProgress, {
-    event: "subtitle_lookup_completed",
-    message: "平台字幕检查完成",
-    details: { subtitleCount: Array.isArray(video.subtitles) ? video.subtitles.length : 0 }
-  }, () => fetchPlatformTranscript({ subtitles: video.subtitles }));
+  const platformTranscript = await fetchPlatformTranscript({ subtitles: video.subtitles });
   if (platformTranscript && !visualEnabled) {
     const transcriptProvider = platformTranscript.provider || "platform_subtitle";
     recordMediaUsage(mediaUsageRecorder, {
@@ -203,15 +181,7 @@ export async function extractVideoLearningSource({
     learningSource.extractionMeta.userVisibleContentBasis = buildUserVisibleContentBasis(visualUnderstanding);
     learningSource.extractionMeta.asr = {
       provider: transcriptProvider,
-      sampled: false,
-      mode: "full",
-      coverage: {
-        mode: "full",
-        source: "platform_subtitle",
-        completedChunks: null,
-        totalChunks: null,
-        ratio: 1
-      },
+      sampled: transcriptProvider.includes(":quorum-"),
       segmentCount: Array.isArray(platformTranscript.segments) ? platformTranscript.segments.length : 0
     };
     learningSource.extractionMeta.fastPath = "platform_subtitle";
@@ -246,11 +216,7 @@ export async function extractVideoLearningSource({
         && Object.keys(video.mediaRequestHeaders || {}).length === 0
       ) {
         try {
-          transcript = await measureExtractionStage(onProgress, {
-            event: "direct_asr_completed",
-            message: "云端音频地址转写完成",
-            details: { provider: speechToTextProvider?.name || "unknown" }
-          }, () => speechToTextProvider.transcribeMedia({ mediaUrl: video.audioUrl, language: preferredLanguage }));
+          transcript = await speechToTextProvider.transcribeMedia({ mediaUrl: video.audioUrl });
           recordMediaUsage(mediaUsageRecorder, {
             stage: "audio_extraction",
             provider: "provider_audio_url",
@@ -265,11 +231,7 @@ export async function extractVideoLearningSource({
 
     if (!transcript || visualEnabled) {
       try {
-        mediaFile = await measureExtractionStage(onProgress, {
-          event: "media_download_completed",
-          message: "视频媒体下载完成",
-          details: { provider: video.mediaDownload?.provider || video.provider || "unknown" }
-        }, () => downloadVideoMedia({ video, downloadMedia, downloadYtDlpMedia, mediaMaxBytes }));
+        mediaFile = await downloadVideoMedia({ video, downloadMedia, downloadYtDlpMedia, mediaMaxBytes });
       } catch (error) {
         if (!shouldRefreshCachedVideoSource({ error, videoSourceCacheHit })) throw error;
         staleVideoSourceCache = true;
@@ -309,13 +271,10 @@ export async function extractVideoLearningSource({
         publicMediaBaseUrl,
         durationSeconds: video.durationSeconds,
         preferredTimestampSeconds,
-        preferredLanguage,
         splitAudio: splitAudioForAsr,
         tempFiles,
-        transcribeChunk: (chunk) => activeTranscribeAudio({ audioPath: chunk.path, language: preferredLanguage, initialPrompt: asrPrompt }),
-        fallback: () => transcribeLocalAudio({ mediaFile, extractAudio, activeTranscribeAudio, tempFiles, mediaUsageRecorder, preferredLanguage, initialPrompt: asrPrompt }),
-        asrMode,
-        onProgress
+        transcribeChunk: (chunk) => activeTranscribeAudio({ audioPath: chunk.path }),
+        fallback: () => transcribeLocalAudio({ mediaFile, extractAudio, activeTranscribeAudio, tempFiles, mediaUsageRecorder })
       });
     }
     const transcriptProvider = transcript.provider || speechToTextProvider.name || "custom";
@@ -417,9 +376,7 @@ export async function extractVideoLearningSource({
     learningSource.extractionMeta.userVisibleContentBasis = buildUserVisibleContentBasis(visualUnderstanding);
     learningSource.extractionMeta.asr = {
       provider: transcriptProvider,
-      sampled: transcript?.coverage?.mode === "sampled" || transcriptProvider.includes(":sampled-"),
-      mode: transcript?.coverage?.mode || (transcriptProvider.includes(":sampled-") ? "sampled" : "full"),
-      coverage: transcript?.coverage || null,
+      sampled: transcriptProvider.includes(":quorum-"),
       segmentCount: Array.isArray(transcript.segments) ? transcript.segments.length : 0
     };
     if (mediaUsageRecorder?.calls) {
@@ -678,13 +635,6 @@ async function downloadVideoMedia({
     });
   }
   const urls = [video.mediaUrl, ...(video.mediaAlternativeUrls || [])].filter(Boolean);
-  if (urls.length > 1 && downloadMedia === downloadMediaToTempFile) {
-    return downloadHedgedMedia(urls.slice(0, 2), {
-      downloadMedia,
-      mediaMaxBytes,
-      requestHeaders: video.mediaRequestHeaders || {}
-    });
-  }
   let lastError;
   for (const mediaUrl of urls) {
     try {
@@ -700,38 +650,6 @@ async function downloadVideoMedia({
   throw lastError;
 }
 
-function downloadHedgedMedia(urls, { downloadMedia, mediaMaxBytes, requestHeaders }) {
-  return new Promise((resolveDownload, rejectDownload) => {
-    const controllers = urls.map(() => new AbortController());
-    const failures = [];
-    let settled = false;
-    urls.forEach((mediaUrl, index) => {
-      downloadMedia({
-        mediaUrl,
-        maxBytes: mediaMaxBytes,
-        requestHeaders,
-        signal: controllers[index].signal
-      }).then((file) => {
-        if (settled) {
-          cleanupMediaTempFiles(file).catch(() => {});
-          return;
-        }
-        settled = true;
-        controllers.forEach((controller, controllerIndex) => {
-          if (controllerIndex !== index) controller.abort();
-        });
-        resolveDownload(file);
-      }).catch((error) => {
-        failures.push(error);
-        if (!settled && failures.length >= urls.length) {
-          settled = true;
-          rejectDownload(failures.at(-1));
-        }
-      });
-    });
-  });
-}
-
 function isAudioMediaFile(mediaFile) {
   if (mediaFile?.isAudioOnly) return true;
   const contentType = String(mediaFile?.contentType || "").toLowerCase();
@@ -739,7 +657,7 @@ function isAudioMediaFile(mediaFile) {
   return /\.(m4a|mp3|opus|ogg|wav)(?:$|\?)/i.test(String(mediaFile?.path || ""));
 }
 
-async function transcribeLocalAudio({ mediaFile, extractAudio, activeTranscribeAudio, tempFiles, mediaUsageRecorder, preferredLanguage, initialPrompt }) {
+async function transcribeLocalAudio({ mediaFile, extractAudio, activeTranscribeAudio, tempFiles, mediaUsageRecorder }) {
   const sourceIsAudio = isAudioMediaFile(mediaFile);
   const audio = sourceIsAudio
     ? { ...mediaFile, format: "source_audio", sampleRate: null }
@@ -751,7 +669,7 @@ async function transcribeLocalAudio({ mediaFile, extractAudio, activeTranscribeA
     metadata: { format: audio.format || "", sampleRate: audio.sampleRate || null, fastPath: sourceIsAudio }
   });
   if (!sourceIsAudio) tempFiles.push(audio);
-  return activeTranscribeAudio({ audioPath: audio.path, language: preferredLanguage, initialPrompt });
+  return activeTranscribeAudio({ audioPath: audio.path });
 }
 
 async function transcribeWithTemporaryPublicMedia({
@@ -760,59 +678,26 @@ async function transcribeWithTemporaryPublicMedia({
   publicMediaBaseUrl,
   durationSeconds,
   preferredTimestampSeconds,
-  preferredLanguage,
   splitAudio,
   tempFiles,
   transcribeChunk,
-  fallback,
-  asrMode,
-  onProgress
+  fallback
 }) {
-  const fullAsr = normalizeVideoAsrMode(asrMode) === "full";
-  const localAsr = typeof speechToTextProvider?.transcribeMedia !== "function";
-  const parallelThresholdSeconds = localAsr
-    ? readPositiveInt(process.env.LOCAL_ASR_PARALLEL_THRESHOLD_SECONDS, 30)
-    : readPositiveInt(process.env.QWEN_ASR_PARALLEL_THRESHOLD_SECONDS, 900);
+  const parallelThresholdSeconds = readPositiveInt(process.env.QWEN_ASR_PARALLEL_THRESHOLD_SECONDS, 900);
   if (Number(durationSeconds) >= parallelThresholdSeconds) {
     try {
-      const chunked = await measureExtractionStage(onProgress, {
-        event: "audio_chunking_completed",
-        message: "音频切片完成",
-        details: { provider: "ffmpeg" }
-      }, () => splitAudio({
-        inputPath: mediaFile.path,
-        ...(localAsr ? { chunkSeconds: readPositiveInt(process.env.LOCAL_ASR_CHUNK_SECONDS, 10) } : {})
-      }));
+      const chunked = await splitAudio({ inputPath: mediaFile.path });
       tempFiles.push({ dir: chunked.dir });
-      const sampledCoverageRatio = readCoverageRatio(process.env.VIDEO_SAMPLED_COVERAGE_RATIO, 0.3);
-      const configuredMaxChunks = localAsr
-        ? readPositiveInt(process.env.LOCAL_ASR_MAX_CHUNKS, 12)
-        : readPositiveInt(process.env.QWEN_ASR_MAX_CHUNKS, 12);
-      const sampledRequiredChunks = Math.min(
-        chunked.chunks.length,
-        Math.max(5, Math.ceil(chunked.chunks.length * sampledCoverageRatio))
-      );
-      const sampledSelectionSize = Math.min(
-        chunked.chunks.length,
-        Math.max(configuredMaxChunks, sampledRequiredChunks)
-      );
-      const chunks = fullAsr
-        ? chunked.chunks
-        : selectRepresentativeChunks(chunked.chunks, {
-            maxChunks: sampledSelectionSize,
-            preferredTimestampSeconds
-          });
+      const chunks = selectRepresentativeChunks(chunked.chunks, {
+        maxChunks: readPositiveInt(process.env.QWEN_ASR_MAX_CHUNKS, 8),
+        preferredTimestampSeconds
+      });
       if (typeof speechToTextProvider?.transcribeMedia === "function" && normalizePublicMediaBase(publicMediaBaseUrl)) {
         return await transcribeChunksWithQuorum({
           chunks,
           providerName: speechToTextProvider.name,
           concurrency: readPositiveInt(process.env.QWEN_ASR_CHUNK_CONCURRENCY, 6),
-          quorum: fullAsr
-            ? chunks.length
-            : Math.max(readPositiveInt(process.env.QWEN_ASR_SUCCESS_QUORUM, 5), sampledRequiredChunks),
-          requireComplete: fullAsr,
-          sourceTotalChunks: chunked.chunks.length,
-          targetSourceCoverageRatio: fullAsr ? 1 : sampledCoverageRatio,
+          quorum: readPositiveInt(process.env.QWEN_ASR_SUCCESS_QUORUM, 3),
           transcribe: async (chunk) => {
             const lease = registerTemporaryPublicMedia({
               path: chunk.path,
@@ -821,7 +706,7 @@ async function transcribeWithTemporaryPublicMedia({
             });
             if (!lease) throw new Error("public media URL is unavailable");
             try {
-              return await speechToTextProvider.transcribeMedia({ mediaUrl: lease.url, language: preferredLanguage });
+              return await speechToTextProvider.transcribeMedia({ mediaUrl: lease.url });
             } finally {
               lease.release();
             }
@@ -831,32 +716,17 @@ async function transcribeWithTemporaryPublicMedia({
       if (typeof transcribeChunk === "function") {
         return await transcribeChunksWithQuorum({
           chunks,
-          providerName: "local_whisper",
-          concurrency: localAsrConcurrency(),
-          quorum: fullAsr
-            ? chunks.length
-            : Math.max(readPositiveInt(process.env.LOCAL_ASR_SUCCESS_QUORUM, 5), sampledRequiredChunks),
-          requireComplete: fullAsr,
-          sourceTotalChunks: chunked.chunks.length,
-          targetSourceCoverageRatio: fullAsr ? 1 : sampledCoverageRatio,
-          transcribe: (chunk) => measureExtractionStage(onProgress, {
-            event: "asr_chunk_completed",
-            message: `Whisper 分片 ${chunk.chunkIndex + 1} 转写完成`,
-            details: { chunkIndex: chunk.chunkIndex, startSeconds: chunk.startSeconds, provider: "local_whisper" }
-          }, () => transcribeChunk(chunk))
+          providerName: "local_whisper:sampled",
+          concurrency: readPositiveInt(process.env.LOCAL_ASR_CHUNK_CONCURRENCY, 2),
+          quorum: readPositiveInt(process.env.LOCAL_ASR_SUCCESS_QUORUM, 2),
+          transcribe: transcribeChunk
         });
       }
     } catch {
       // Preserve the full-file fallback when no representative chunk succeeds.
     }
   }
-  if (typeof speechToTextProvider?.transcribeMedia !== "function") {
-    return measureExtractionStage(onProgress, {
-      event: "full_audio_asr_completed",
-      message: "完整音频 Whisper 转写完成",
-      details: { provider: "local_whisper" }
-    }, fallback);
-  }
+  if (typeof speechToTextProvider?.transcribeMedia !== "function") return fallback();
   const lease = registerTemporaryPublicMedia({
     path: mediaFile.path,
     contentType: mediaFile.contentType,
@@ -864,7 +734,7 @@ async function transcribeWithTemporaryPublicMedia({
   });
   if (!lease) return fallback();
   try {
-    return await speechToTextProvider.transcribeMedia({ mediaUrl: lease.url, language: preferredLanguage });
+    return await speechToTextProvider.transcribeMedia({ mediaUrl: lease.url });
   } catch (error) {
     // A temporary URL can fail when the deployment is not publicly reachable.
     // Preserve local Whisper as the development fallback.
@@ -874,54 +744,13 @@ async function transcribeWithTemporaryPublicMedia({
   }
 }
 
-async function measureExtractionStage(onProgress, descriptor, operation) {
-  const startedAt = Date.now();
-  try {
-    return await operation();
-  } finally {
-    const durationMs = Date.now() - startedAt;
-    try {
-      onProgress?.({ ...descriptor, durationMs });
-    } catch {
-      // Diagnostics must never change extraction behavior.
-    }
-  }
-}
-
-function localAsrConcurrency() {
-  const explicit = Number(process.env.LOCAL_ASR_CHUNK_CONCURRENCY);
-  if (Number.isFinite(explicit) && explicit > 0) return Math.floor(explicit);
-  const threadsPerWorker = readPositiveInt(process.env.LOCAL_WHISPER_CPU_THREADS, 2);
-  // Bound total CTranslate2 threads to the available logical CPU budget. More
-  // processes than this reduce throughput because every worker performs dense
-  // matrix operations at the same time.
-  return Math.max(1, Math.min(8, Math.floor(availableParallelism() / threadsPerWorker)));
-}
-
-async function transcribeChunksWithQuorum({
-  chunks,
-  transcribe,
-  providerName,
-  concurrency,
-  quorum,
-  requireComplete = false,
-  sourceTotalChunks = chunks.length,
-  targetSourceCoverageRatio = requireComplete ? 1 : 0.3
-}) {
+async function transcribeChunksWithQuorum({ chunks, transcribe, providerName, concurrency, quorum }) {
   const required = Math.max(1, Math.min(Number(quorum) || 1, chunks.length));
-  const isSatisfied = (records) => requireComplete
-    ? records.length === chunks.length
-    : records.length >= required && hasFrontMiddleEndCoverage(records.map((record) => record.chunk), sourceTotalChunks);
   const results = await collectWithSuccessQuorum(chunks, {
     concurrency,
     quorum: required,
-    isSatisfied,
     operation: async (chunk) => {
-      const transcript = await retryAsync(() => transcribe(chunk), {
-        attempts: requireComplete ? 2 : 1,
-        baseDelayMs: 120,
-        jitterMs: 30
-      });
+      const transcript = await transcribe(chunk);
       const segments = (transcript?.segments || []).map((segment, index) => ({
         ...segment,
         id: `chunk-${String(chunk.chunkIndex + 1).padStart(3, "0")}-${segment.id || index + 1}`,
@@ -929,86 +758,23 @@ async function transcribeChunksWithQuorum({
         endSeconds: Number(segment.endSeconds) + chunk.startSeconds
       }));
       if (!segments.length) throw new Error("ASR chunk returned no segments");
-      return { chunk, segments };
+      return segments;
     }
   });
-  if (!isSatisfied(results)) {
-    const regions = completedTemporalRegions(results.map((record) => record.chunk), sourceTotalChunks);
-    throw new Error(`${requireComplete ? "full" : "sampled"} ASR incomplete: ${results.length}/${chunks.length} chunks, regions=${regions.join(",")}`);
-  }
-  const segments = results.flatMap((record) => record.segments)
-    .sort((left, right) => Number(left.startSeconds) - Number(right.startSeconds));
+  const segments = results.flat().sort((left, right) => Number(left.startSeconds) - Number(right.startSeconds));
   if (!segments.length) throw new Error("parallel ASR returned no segments");
-  const selectedChunks = chunks.map((chunk) => publicChunkCoverage(chunk, sourceTotalChunks));
-  const usedChunks = results.map((record) => publicChunkCoverage(record.chunk, sourceTotalChunks))
-    .sort((left, right) => left.index - right.index);
-  const regions = completedTemporalRegions(results.map((record) => record.chunk), sourceTotalChunks);
   return {
-    provider: `${providerName || "asr"}:${requireComplete ? "full" : "sampled"}-${results.length}-of-${chunks.length}`,
+    provider: `${providerName || "asr"}:quorum-${results.length}-of-${chunks.length}`,
     text: segments.map((segment) => segment.text).join(" "),
-    segments,
-    coverage: {
-      mode: requireComplete ? "full" : "sampled",
-      completedChunks: results.length,
-      totalChunks: chunks.length,
-      sourceTotalChunks,
-      ratio: chunks.length ? results.length / chunks.length : 0,
-      sourceChunkRatio: sourceTotalChunks ? results.length / sourceTotalChunks : 0,
-      targetSourceCoverageRatio,
-      temporalRegions: regions,
-      frontMiddleEndCovered: regions.includes("front") && regions.includes("middle") && regions.includes("end"),
-      selectedChunks,
-      usedChunks
-    }
+    segments
   };
-}
-
-function hasFrontMiddleEndCoverage(chunks, sourceTotalChunks) {
-  const uniqueIndexes = new Set(chunks.map((chunk) => Number(chunk.chunkIndex)));
-  if (sourceTotalChunks <= 2) return uniqueIndexes.size >= sourceTotalChunks;
-  const regions = completedTemporalRegions(chunks, sourceTotalChunks);
-  return ["front", "middle", "end"].every((region) => regions.includes(region));
-}
-
-function completedTemporalRegions(chunks, sourceTotalChunks) {
-  return [...new Set(chunks.map((chunk) => temporalRegion(chunk.chunkIndex, sourceTotalChunks)))];
-}
-
-function temporalRegion(chunkIndex, sourceTotalChunks) {
-  const total = Math.max(1, Number(sourceTotalChunks) || 1);
-  const position = total <= 1 ? 0.5 : Number(chunkIndex) / (total - 1);
-  if (position < 1 / 3) return "front";
-  if (position > 2 / 3) return "end";
-  return "middle";
-}
-
-function publicChunkCoverage(chunk, sourceTotalChunks) {
-  return {
-    index: Number(chunk.chunkIndex) + 1,
-    chunkIndex: Number(chunk.chunkIndex),
-    startSeconds: Number(chunk.startSeconds) || 0,
-    region: temporalRegion(chunk.chunkIndex, sourceTotalChunks)
-  };
-}
-
-function normalizeVideoAsrMode(value) {
-  return String(value || "full").trim().toLowerCase() === "sampled" ? "sampled" : "full";
-}
-
-function readCoverageRatio(value, fallback) {
-  const number = Number(value);
-  if (!Number.isFinite(number) || number <= 0 || number > 1) return fallback;
-  return number;
 }
 
 function selectRepresentativeChunks(chunks, { maxChunks, preferredTimestampSeconds }) {
-  const indexes = chunks.length <= maxChunks
-    ? new Set(chunks.map((_, index) => index))
-    : new Set([0, chunks.length - 1, Math.floor((chunks.length - 1) / 2)]);
-  if (chunks.length > maxChunks) {
-    for (let slot = 1; indexes.size < maxChunks && slot < maxChunks * 2; slot += 1) {
-      indexes.add(Math.round((slot * (chunks.length - 1)) / (maxChunks - 1)));
-    }
+  if (chunks.length <= maxChunks) return chunks;
+  const indexes = new Set([0, chunks.length - 1, Math.floor((chunks.length - 1) / 2)]);
+  for (let slot = 1; indexes.size < maxChunks && slot < maxChunks * 2; slot += 1) {
+    indexes.add(Math.round((slot * (chunks.length - 1)) / (maxChunks - 1)));
   }
   const timestamp = Number(preferredTimestampSeconds);
   if (Number.isFinite(timestamp)) {
@@ -1031,7 +797,7 @@ function selectRepresentativeChunks(chunks, { maxChunks, preferredTimestampSecon
   return [...priority, ...selected.filter((index) => !priority.includes(index))].map((index) => chunks[index]);
 }
 
-function collectWithSuccessQuorum(items, { concurrency, quorum, operation, isSatisfied = (successes) => successes.length >= quorum }) {
+function collectWithSuccessQuorum(items, { concurrency, quorum, operation }) {
   return new Promise((resolve, reject) => {
     const successes = [];
     const failures = [];
@@ -1046,7 +812,7 @@ function collectWithSuccessQuorum(items, { concurrency, quorum, operation, isSat
           active -= 1;
           if (settled) return;
           successes.push(value);
-          if (isSatisfied(successes)) {
+          if (successes.length >= quorum) {
             settled = true;
             resolve([...successes]);
             return;
@@ -1058,7 +824,7 @@ function collectWithSuccessQuorum(items, { concurrency, quorum, operation, isSat
           failures.push(error);
           if (cursor >= items.length && active === 0) {
             settled = true;
-            if (isSatisfied(successes)) resolve([...successes]);
+            if (successes.length) resolve([...successes]);
             else reject(failures.at(-1) || new Error("all ASR chunks failed"));
             return;
           }

@@ -1,7 +1,8 @@
+import { createHash } from "node:crypto";
 import { createServer } from "node:http";
 import { createReadStream } from "node:fs";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { join, normalize, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import "./env.js";
 import { STATUS_TEXT } from "./generation/types.js";
@@ -101,12 +102,15 @@ import {
 import { buildVersionInfo } from "./versionInfo.js";
 import { AppleAuthError, verifyAppleIdentityToken } from "./appleAuth.js";
 import { buildSourceCapabilities, preflightSourceInput } from "./sources/sourcePreflight.js";
-import { runImageFlow } from "./flow/index.js";
+import { imageFlowInternalEvidence, runImageFlow } from "./flow/index.js";
 import { createImageFlowJob, getImageFlowJob } from "./flow/imageFlowJobs.js";
+import { configureScreenshotE2EFixture } from "./flow/e2eScreenshotFixture.js";
+import {
+  captureMemoryRepository,
+  isCapturePersistenceStale
+} from "./flow/captureMemoryStore.js";
 import { buildMemoizedVideoRuntimeReadiness } from "./media/videoRuntimeReadiness.js";
 import { takeTemporaryPublicMedia } from "./media/temporaryPublicMedia.js";
-import { warmLocalWhisperPool } from "./media/localWhisperTranscriptionProvider.js";
-import { resolveSpeechToTextProviderName } from "./media/speechToTextProvider.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const projectRoot = resolve(__dirname, "..", "..");
@@ -173,6 +177,26 @@ async function sendPublicHtml(req, res, fileName) {
     return;
   }
   sendText(res, 200, data, "text/html; charset=utf-8");
+}
+
+async function sendAppDemoAsset(req, res, fileName) {
+  const assetRoot = resolve(docsRoot, "app-demo-assets");
+  const filePath = resolve(assetRoot, fileName);
+  if (filePath !== assetRoot && !filePath.startsWith(`${assetRoot}/`)) {
+    sendText(res, 403, "Forbidden");
+    return;
+  }
+
+  const contentType = filePath.endsWith(".svg")
+    ? "image/svg+xml; charset=utf-8"
+    : "application/octet-stream";
+  const data = await readFile(filePath);
+  res.writeHead(200, {
+    "content-type": contentType,
+    "cache-control": "public, max-age=3600",
+    ...responseCorsHeaders(res)
+  });
+  res.end(req.method === "HEAD" ? undefined : data);
 }
 
 async function readBody(req) {
@@ -259,24 +283,44 @@ async function handleSourcePreflight(req, res) {
 
 async function handleImageFlow(req, res) {
   const body = await readBody(req);
+  const deviceId = getDeviceId(req);
   const input = {
     imageBase64: body.imageBase64 || body.image || "",
+    mimeType: body.mimeType || "",
     imagePath: process.env.NODE_ENV === "development" ? body.imagePath || "" : "",
-    ocrText: body.ocrText || "",
-    ocrLines: body.ocrLines || [],
     sourceUrl: body.sourceUrl || "",
-    asrMode: body.asrMode === "sampled" ? "sampled" : body.asrMode === "full" ? "full" : "",
     publicMediaBaseUrl: process.env.SHIBEI_PUBLIC_BASE_URL || requestBaseUrl(req),
-    includeDetails: body.includeDetails === true
+    includeDetails: false
   };
+  const persistenceEpoch = await captureMemoryRepository.beginPersistence(deviceId);
+  const imageSha256 = await imageFlowImageSha256(input);
   if (body.async === true) {
-    const job = createImageFlowJob((onProgress) => runImageFlow({ ...input, onProgress }));
+    const job = createImageFlowJob(
+      async (onProgress) => {
+        const result = await runImageFlow(configureScreenshotE2EFixture({
+          ...input, onProgress
+        }));
+        await persistCaptureMemoryResult(deviceId, result, {
+          imageSha256,
+          persistenceEpoch
+        });
+        return result;
+      },
+      { ownerId: deviceId }
+    );
     sendJson(res, 202, job);
     return;
   }
   try {
-    const result = await runImageFlow(input);
-    sendJson(res, result.status === "completed" || result.status === "ocr_completed" ? 200 : 422, result);
+    const result = await runImageFlow(configureScreenshotE2EFixture(input));
+    await persistCaptureMemoryResult(deviceId, result, {
+      imageSha256,
+      persistenceEpoch
+    });
+    const statusCode = result.status === "cancelled"
+      ? 409
+      : result.status === "completed" || result.status === "vision_completed" ? 200 : 422;
+    sendJson(res, statusCode, result);
   } catch (error) {
     sendJson(res, 422, {
       status: "failed",
@@ -284,6 +328,80 @@ async function handleImageFlow(req, res) {
       message: error?.message || "截图处理失败，请稍后重试。"
     });
   }
+}
+
+async function persistCaptureMemoryResult(deviceId, result, {
+  imageSha256 = "",
+  persistenceEpoch = null
+} = {}) {
+  const stored = await captureMemoryRepository.persistCaptureResult(deviceId, result, {
+    deviceId,
+    imageSha256,
+    persistenceEpoch,
+    evidence: imageFlowInternalEvidence(result)
+  });
+  if (isCapturePersistenceStale(stored)) {
+    result.status = "cancelled";
+    result.errorCode = stored.errorCode;
+    result.message = "任务处理期间数据已被删除，本次结果未保存。";
+    result.captureAnalysis = null;
+    result.memoryCard = null;
+    result.review = null;
+    result.schedule = null;
+    delete result.captureId;
+    return stored;
+  }
+  if (stored && result?.captureAnalysis) {
+    const payload = captureMemoryCardPayload(stored);
+    result.captureId = stored.captureId;
+    result.captureAnalysis.disposition = stored.disposition;
+    result.captureAnalysis.memoryCard = stored.disposition === "create_card" ? payload : null;
+    result.captureAnalysis.schedule = stored.schedule || null;
+    result.memoryCard = stored.disposition === "create_card"
+      ? {
+          ...(result.memoryCard || {}),
+          id: stored.id,
+          state: "formal",
+          nextReviewAt: stored.schedule?.nextReviewAt
+        }
+      : { ...payload, state: "fragment" };
+    result.schedule = stored.schedule || null;
+    if (stored.disposition !== "create_card") result.review = null;
+  }
+  return stored;
+}
+
+function captureMemoryCardPayload(stored) {
+  const fields = stored?.disposition === "create_card"
+    ? [
+        "id", "coreKnowledge", "recallCue", "hiddenSemantic", "explanation",
+        "sourceEvidenceIds", "rarity", "rarityReason", "rarityConfidence",
+        "rarityRuleVersion", "recallVariants", "sourceStatus", "sourceTitle", "sourceUrl"
+      ]
+    : ["id", "coreKnowledge", "recallCue", "explanation", "sourceStatus"];
+  const payload = {};
+  for (const field of fields) {
+    if (stored?.[field] !== undefined) payload[field] = structuredClone(stored[field]);
+  }
+  return payload;
+}
+
+async function imageFlowImageSha256(input) {
+  const encoded = String(input?.imageBase64 || "").trim();
+  if (encoded) {
+    const payload = encoded.replace(/^data:image\/[A-Za-z0-9.+-]+;base64,/i, "").replace(/\s+/g, "");
+    if (/^[A-Za-z0-9+/]+={0,2}$/.test(payload)) {
+      const bytes = Buffer.from(payload, "base64");
+      if (bytes.length > 0) return createHash("sha256").update(bytes).digest("hex");
+    }
+  }
+  if (input?.imagePath) {
+    const bytes = await readFile(input.imagePath).catch(() => null);
+    if (bytes?.length) return createHash("sha256").update(bytes).digest("hex");
+  }
+  return createHash("sha256")
+    .update([input?.mimeType, input?.sourceUrl, encoded].map((value) => String(value || "")).join("\n"))
+    .digest("hex");
 }
 
 async function handleTemporaryAsrMedia(req, res, token) {
@@ -2212,7 +2330,17 @@ const server = createServer(async (req, res) => {
   const pathname = requestUrl.pathname.replace(/\/+$/, "") || "/";
 
   if (["GET", "HEAD"].includes(req.method) && pathname === "/demo") {
-    await sendPublicHtml(req, res, "flow-demo.html");
+    await sendPublicHtml(req, res, "ios-app-demo.html");
+    return;
+  }
+
+  if (["GET", "HEAD"].includes(req.method) && ["/app-demo", "/ios-preview"].includes(pathname)) {
+    await sendPublicHtml(req, res, "ios-app-demo.html");
+    return;
+  }
+
+  if (["GET", "HEAD"].includes(req.method) && pathname.startsWith("/app-demo-assets/")) {
+    await sendAppDemoAsset(req, res, pathname.slice("/app-demo-assets/".length));
     return;
   }
 
@@ -2286,8 +2414,69 @@ const server = createServer(async (req, res) => {
 
   const imageFlowJobMatch = pathname.match(/^\/api\/sources\/image-flow\/jobs\/([0-9a-f-]{36})$/i);
   if (req.method === "GET" && imageFlowJobMatch) {
-    const job = getImageFlowJob(imageFlowJobMatch[1]);
+    const job = getImageFlowJob(imageFlowJobMatch[1], { ownerId: getDeviceId(req) });
     sendJson(res, job ? 200 : 404, job || { errorCode: "image_flow_job_not_found", message: "任务不存在或已过期。" });
+    return;
+  }
+
+  if (req.method === "GET" && pathname === "/api/memory-cards") {
+    try {
+      const result = await captureMemoryRepository.list(deviceId, {
+        pool: requestUrl.searchParams.get("pool") || ""
+      });
+      sendJson(res, 200, result);
+    } catch (error) {
+      sendJson(res, error.statusCode || 422, {
+        errorCode: error.code || "capture_memory_cards_unavailable",
+        message: error.message || "暂时无法读取记忆卡。"
+      });
+    }
+    return;
+  }
+
+  const captureMemoryCardMatch = pathname.match(/^\/api\/memory-cards\/([^/]+)$/);
+  if (req.method === "DELETE" && captureMemoryCardMatch) {
+    const result = await captureMemoryRepository.deleteCard(
+      deviceId,
+      decodeURIComponent(captureMemoryCardMatch[1])
+    );
+    if (!result) {
+      sendJson(res, 404, {
+        errorCode: "capture_memory_card_not_found",
+        message: "记忆卡不存在。"
+      });
+    } else {
+      sendJson(res, 200, result);
+    }
+    return;
+  }
+
+  const captureMemoryAssessmentMatch = pathname.match(/^\/api\/memory-cards\/([^/]+)\/assessments$/);
+  if (req.method === "POST" && captureMemoryAssessmentMatch) {
+    try {
+      const body = await readBody(req);
+      const result = await captureMemoryRepository.recordAssessment(
+        deviceId,
+        decodeURIComponent(captureMemoryAssessmentMatch[1]),
+        {
+          attemptId: body.attemptId,
+          assessment: body.assessment
+        }
+      );
+      if (!result) {
+        sendJson(res, 404, {
+          errorCode: "capture_memory_card_not_found",
+          message: "记忆卡不存在。"
+        });
+      } else {
+        sendJson(res, 200, result);
+      }
+    } catch (error) {
+      sendJson(res, error.statusCode || 422, {
+        errorCode: error.code || "capture_memory_assessment_not_recorded",
+        message: error.message || "复习反馈保存失败。"
+      });
+    }
     return;
   }
 
@@ -2475,6 +2664,9 @@ const server = createServer(async (req, res) => {
 
   if (req.method === "DELETE" && req.url === "/api/device-data") {
     const deleted = await deleteStoredDeviceData(deviceId);
+    if (!hasDatabase) {
+      deleted.captureMemoryCards = await captureMemoryRepository.clearDevice(deviceId);
+    }
     sendJson(res, 200, { ok: true, deleted });
     return;
   }
@@ -2873,11 +3065,6 @@ function startServer() {
     .then((result) => {
       server.listen(port, host, () => {
         console.log(`Recallo Demo 已启动：http://${host}:${port} (${result.storage})`);
-        if (["local_whisper", "faster_whisper"].includes(resolveSpeechToTextProviderName())) {
-          warmLocalWhisperPool().catch((error) => {
-            console.warn(`本地 ASR 预热失败：${error?.message || error}`);
-          });
-        }
       });
     })
     .catch((error) => {
@@ -2892,10 +3079,13 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
 
 export {
   buildCostRunResponse,
+  captureMemoryCardPayload,
   costWorkbenchEnabled,
   createReviewSessionForChapter,
+  persistCaptureMemoryResult,
   recordSessionAttempt,
   saveCostRunResponse,
+  server,
   serializeChapterForClient,
   startOrResumeReviewSession,
   startOrResumeV2ReviewSession

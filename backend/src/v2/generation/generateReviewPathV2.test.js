@@ -47,6 +47,23 @@ test("bounds long content deterministically while retaining head, middle and tai
   assert.match(first, /C+$/);
 });
 
+test("repairs an incomplete structured response at most once", async () => {
+  const calls = [];
+  const result = await generateReviewPathV2(ARTICLE, {
+    cacheEnabled: false,
+    modelJsonCaller: async (request) => {
+      calls.push(request);
+      if (calls.length === 1) throw new Error("模型返回内容不是可解析 JSON，请重试。");
+      return fixture();
+    },
+    now: "2026-07-23T00:00:00.000Z"
+  });
+
+  assert.equal(calls.length, 2);
+  assert.match(calls[1].user, /上一次响应不是完整 JSON/);
+  assert.equal(result.status, "completed");
+});
+
 function fixture() {
   return {
     title: "主动回想比反复阅读更有效",

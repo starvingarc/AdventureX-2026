@@ -5,12 +5,11 @@ import {
   normalizeVideoSourceUrl
 } from "./videoPlatforms.js";
 import { fetchTikHubContentSource } from "../sources/tikhubContentProvider.js";
-import { readTikHubSearchSource } from "./tikhubSearchSourceCache.js";
 
 export async function fetchTikHubVideoSource({
   sourceUrl,
   apiKey = process.env.TIKHUB_API_KEY || "",
-  baseUrl = process.env.TIKHUB_BASE_URL || "https://api.tikhub.io",
+  baseUrl = process.env.TIKHUB_BASE_URL || "https://api.tikhub.dev",
   fetchImpl = fetch,
   timeoutMs = readPositiveInt(process.env.TIKHUB_TIMEOUT_MS, 30_000)
 } = {}) {
@@ -23,9 +22,9 @@ export async function fetchTikHubVideoSource({
       { retryable: false, provider: "tikhub" }
     );
   }
-  let content = readTikHubSearchSource(url.href);
+  let content;
   try {
-    content ||= await fetchTikHubContentSource({
+    content = await fetchTikHubContentSource({
       sourceUrl: url.href,
       apiKey,
       baseUrl,

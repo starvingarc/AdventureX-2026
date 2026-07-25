@@ -36,7 +36,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
       RAILWAY_PROJECT_ID: ${{ inputs.railway_project_id }}
       POSTGRES_SERVICE_ID: ${{ inputs.postgres_service_id }}
       RAILWAY_ENVIRONMENT: ${{ inputs.railway_environment }}
@@ -52,11 +51,29 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Refuse missing Railway API token
+        env:
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
         run: |
           if [ -z "$RAILWAY_API_TOKEN" ]; then
             echo "Repository secret RAILWAY_API_TOKEN is required."
             exit 1
           fi
+
+      - name: Refuse missing backup encryption passphrase
+        env:
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.PRODUCTION_DB_EXPORT_PASSPHRASE }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${BACKUP_ENCRYPTION_PASSPHRASE:-}" ]; then
+            echo "Repository secret PRODUCTION_DB_EXPORT_PASSPHRASE is required."
+            exit 1
+          fi
+          if [ "${#BACKUP_ENCRYPTION_PASSPHRASE}" -lt 24 ]; then
+            echo "PRODUCTION_DB_EXPORT_PASSPHRASE must contain at least 24 characters."
+            exit 1
+          fi
+          echo "::add-mask::$BACKUP_ENCRYPTION_PASSPHRASE"
 
       - name: Setup Node
         uses: actions/setup-node@v5
@@ -68,25 +85,29 @@ jobs:
           npm install --global @railway/cli
 
       - name: Resolve database URL from Railway variables
+        id: database_url
+        env:
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
         run: |
           set -euo pipefail
           variables_json="$(railway variable list --project "$RAILWAY_PROJECT_ID" --service "$POSTGRES_SERVICE_ID" --environment "$RAILWAY_ENVIRONMENT" --json)"
           database_url="$(printf '%s' "$variables_json" | node tools/extract-railway-database-url.mjs)"
           echo "::add-mask::$database_url"
-          {
-            echo "DATABASE_URL<<EOF"
-            echo "$database_url"
-            echo "EOF"
-          } >> "$GITHUB_ENV"
+          echo "value=$database_url" >> "$GITHUB_OUTPUT"
 
-      - name: Export database backup
+      - name: Export and encrypt database backup
+        env:
+          DATABASE_URL: ${{ steps.database_url.outputs.value }}
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.PRODUCTION_DB_EXPORT_PASSPHRASE }}
+        shell: bash
         run: |
           set -euo pipefail
+          umask 077
+          command -v openssl >/dev/null
           mkdir -p production-db-export
           stamp="$(date -u +'%Y%m%d-%H%M%S')"
           backup_file="production-db-export/${stamp}-shibei-production-old-test-data.dump"
-          metadata_file="production-db-export/${stamp}-shibei-production-old-test-data.md"
-          restore_list_file="production-db-export/${stamp}-pg-restore-list.txt"
+          encrypted_backup_file="${backup_file}.enc"
 
           docker run --rm \
             -e DATABASE_URL \
@@ -98,52 +119,34 @@ jobs:
             --no-acl \
             --file "/backup/$(basename "$backup_file")"
 
-          docker run --rm \
-            -v "$PWD/production-db-export:/backup" \
-            postgres:18 \
-            pg_restore --list "/backup/$(basename "$backup_file")" > "$restore_list_file"
-          backup_sha="$(sha256sum "$backup_file" | awk '{print $1}')"
-          backup_size="$(wc -c < "$backup_file" | tr -d ' ')"
+          openssl enc \
+            -aes-256-cbc \
+            -salt \
+            -pbkdf2 \
+            -iter 200000 \
+            -md sha256 \
+            -pass env:BACKUP_ENCRYPTION_PASSPHRASE \
+            -in "$backup_file" \
+            -out "$encrypted_backup_file"
 
-          cat > "$metadata_file" <<'EOF'
-          # Shibei V2 Old Production Test Data Export
+          rm -f "$backup_file"
+          if [ -e "$backup_file" ]; then
+            echo "Plaintext database backup still exists; refusing artifact upload."
+            exit 1
+          fi
+          if [ ! -s "$encrypted_backup_file" ]; then
+            echo "Encrypted database backup is empty or missing."
+            exit 1
+          fi
 
-          - Created at: `__CREATED_AT__`
-          - Actor: `__ACTOR__`
-          - Workflow run: `__RUN_ID__`
-          - Railway project id: `__RAILWAY_PROJECT_ID__`
-          - Railway environment: `__RAILWAY_ENVIRONMENT__`
-          - Postgres service id: `__POSTGRES_SERVICE_ID__`
-          - Backup file: `__BACKUP_FILE__`
-          - Backup format: `pg_dump custom`
-          - SHA256: `__BACKUP_SHA__`
-          - Size bytes: `__BACKUP_SIZE__`
-          - Data strategy: `reset-data`
-          - Purpose: old production data is test-only, exported before V2 empty-database production test.
-
-          Restore example:
-
-          ```sh
-          pg_restore --clean --if-exists --no-owner --no-acl --dbname "$DATABASE_URL" __BACKUP_FILE__
-          ```
-          EOF
-
-          sed -i \
-            -e "s|__CREATED_AT__|${stamp}Z|g" \
-            -e "s|__ACTOR__|${{ github.actor }}|g" \
-            -e "s|__RUN_ID__|${{ github.run_id }}|g" \
-            -e "s|__RAILWAY_PROJECT_ID__|${RAILWAY_PROJECT_ID}|g" \
-            -e "s|__RAILWAY_ENVIRONMENT__|${RAILWAY_ENVIRONMENT}|g" \
-            -e "s|__POSTGRES_SERVICE_ID__|${POSTGRES_SERVICE_ID}|g" \
-            -e "s|__BACKUP_FILE__|$(basename "$backup_file")|g" \
-            -e "s|__BACKUP_SHA__|${backup_sha}|g" \
-            -e "s|__BACKUP_SIZE__|${backup_size}|g" \
-            "$metadata_file"
+          encrypted_sha="$(sha256sum "$encrypted_backup_file" | awk '{print $1}')"
+          encrypted_size="$(wc -c < "$encrypted_backup_file" | tr -d ' ')"
+          echo "Encrypted backup ready: sha256=${encrypted_sha} size=${encrypted_size}"
 
       - name: Upload database export artifact
         uses: actions/upload-artifact@v6
         with:
           name: v2-old-production-test-data-export
-          path: production-db-export/
+          path: production-db-export/*.dump.enc
           if-no-files-found: error
           retention-days: ${{ inputs.retention_days }}

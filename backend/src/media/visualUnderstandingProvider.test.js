@@ -8,8 +8,8 @@ import {
   understandVideoVisuals
 } from "./visualUnderstandingProvider.js";
 
-test("resolves disabled visual understanding provider names to none", () => {
-  assert.equal(resolveVisualUnderstandingProviderName({}), "qwen-vl");
+test("defaults video visual understanding to disabled", () => {
+  assert.equal(resolveVisualUnderstandingProviderName({}), "none");
   assert.equal(resolveVisualUnderstandingProviderName({ VIDEO_VISUAL_PROVIDER: "none" }), "none");
   assert.equal(resolveVisualUnderstandingProviderName({ VIDEO_VISUAL_PROVIDER: "off" }), "none");
   assert.equal(resolveVisualUnderstandingProviderName({ VIDEO_VISUAL_PROVIDER: "disabled" }), "none");

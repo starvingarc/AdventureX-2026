@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Recallo · 毛球召回</title>
+  <style>
+    :root{color-scheme:light;--cream:#fff6e8;--paper:#fffaf0;--ink:#243f43;--muted:#657477;--coral:#e98d6b;--sage:#dbe8d4;--mist:#e7eef1;--lavender:#e9e0f1;--night:#25384d;--gold:#d9a94d;--danger:#9c554c}
+    *{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;background:#eef1ea;color:var(--ink)}button,input{font:inherit}button{cursor:pointer}button:focus-visible,input:focus-visible,canvas:focus-visible{outline:3px solid rgba(233,141,107,.5);outline-offset:3px}
+    .preview-shell{min-height:100vh;display:grid;grid-template-columns:minmax(260px,420px) minmax(375px,430px);gap:48px;align-items:center;justify-content:center;padding:32px}.preview-copy{max-width:390px}.brand{font-size:13px;font-weight:800;letter-spacing:.08em}.preview-copy h1{font-size:42px;line-height:1.08;margin:20px 0 16px}.preview-copy p{color:var(--muted);line-height:1.75}.preview-note{margin-top:20px;padding:14px;border-radius:16px;background:rgba(255,250,240,.78);font-size:13px;line-height:1.6}.reset-button{margin-top:18px;border:0;border-bottom:1px solid currentColor;background:transparent;color:var(--muted)}
+    .device{position:relative;width:390px;height:min(844px,calc(100vh - 32px));min-height:650px;overflow:hidden;border:8px solid #25343b;border-radius:44px;background:var(--cream);box-shadow:0 28px 70px rgba(37,56,77,.22)}.app{height:100%;overflow:hidden;background:var(--stage,var(--cream));transition:background .28s ease}.screen{position:relative;height:100%;overflow-y:auto;padding:calc(22px + env(safe-area-inset-top)) 18px calc(104px + env(safe-area-inset-bottom));background:var(--stage,var(--cream))}.screen::after{content:"";position:fixed;inset:0;pointer-events:none;opacity:.055;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.18'/%3E%3C/svg%3E")}.top{min-height:44px;display:flex;align-items:center;justify-content:space-between;gap:12px;position:relative;z-index:2}.top strong{font-size:17px}.icon,.subtle{min-width:44px;min-height:44px;border:0;background:transparent;color:var(--ink);font-weight:720}.subtle{text-decoration:underline;text-underline-offset:4px}.notice{min-height:34px;margin:8px 0 0;padding:8px 11px;border-radius:12px;background:rgba(255,250,240,.78);color:var(--muted);font-size:12px;line-height:1.45}.notice.error{color:var(--danger);background:#fff0ed}
+    .nav{position:absolute;z-index:8;left:14px;right:14px;bottom:calc(12px + env(safe-area-inset-bottom));height:74px;padding:8px 16px;display:flex;justify-content:space-around;border:1px solid rgba(36,63,67,.12);border-radius:28px;background:rgba(255,250,240,.92);backdrop-filter:blur(12px);box-shadow:0 10px 30px rgba(45,61,48,.13)}.nav button{min-width:72px;min-height:54px;border:0;background:transparent;color:#748083;font-size:11px}.nav button[aria-current=page]{color:var(--ink);font-weight:800}.nav b{display:block;margin-bottom:4px;font-size:19px}
+    .scene{min-height:650px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;position:relative;z-index:1}.scene h2{margin:8px 0 6px;font-size:25px;line-height:1.25}.scene>p{max-width:300px;margin:0 0 18px;color:var(--muted);font-size:13px;line-height:1.55}.mascot{position:relative;width:136px;height:136px;border:0;background:transparent}.mascot img{width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 12px 14px rgba(49,62,52,.12))}.mascot[data-state=reacting] img{animation:boop .36s ease}.mascot[data-state=rummaging] img{animation:rummage .42s ease-in-out infinite alternate}.mascot[data-state=acknowledging] img{animation:hop .48s ease}.mascot[data-state=sleeping] img{animation:breathe 2.8s ease-in-out infinite}
+    .stack{position:relative;width:250px;height:225px;margin:10px 0 20px;border:0;background:transparent;touch-action:none}.card-layer{position:absolute;inset:20px 10px 0;border:1px solid rgba(36,63,67,.16);border-radius:24px;background:var(--paper);box-shadow:0 15px 32px rgba(49,64,52,.13)}.card-layer:nth-child(1){transform:rotate(-5deg) translate(-7px,5px)}.card-layer:nth-child(2){transform:rotate(5deg) translate(7px,5px)}.card-front{display:grid;place-items:center;padding:24px;transform:none!important}.card-front strong{display:block;font-size:20px}.card-front span span{display:block;margin-top:8px;color:var(--muted);font-size:12px}.stack[disabled]{opacity:.52;cursor:not-allowed}.primary,.secondary{width:100%;min-height:52px;border-radius:16px;font-weight:800}.primary{border:0;background:var(--ink);color:#fffaf0}.secondary{border:1px solid rgba(36,63,67,.25);background:var(--paper);color:var(--ink)}.actions{width:100%;display:grid;gap:9px}.empty-cta{max-width:300px}
+    .upload-card{width:100%;margin-top:24px;padding:20px;border:1px solid rgba(36,63,67,.14);border-radius:24px;background:rgba(255,250,240,.9);box-shadow:0 16px 36px rgba(53,67,55,.12)}.upload-drop{display:grid;place-items:center;min-height:170px;padding:18px;border:1.5px dashed rgba(36,63,67,.28);border-radius:18px;background:#fff7e8;text-align:center}.upload-drop input{position:absolute;width:1px;height:1px;opacity:0}.upload-drop label{display:grid;gap:8px;cursor:pointer;font-weight:760}.upload-preview{width:100%;max-height:220px;margin-top:14px;object-fit:contain;border-radius:16px;background:#eee}.upload-meta{min-height:34px;margin:12px 0;color:var(--muted);font-size:12px;overflow-wrap:anywhere}.progress{display:grid;gap:8px;margin:14px 0}.progress-bar{height:7px;overflow:hidden;border-radius:999px;background:rgba(36,63,67,.1)}.progress-bar i{display:block;height:100%;width:var(--progress,0%);background:var(--coral);transition:width .2s ease}.success-card{width:100%;padding:20px;border:1px solid rgba(36,63,67,.14);border-radius:24px;background:var(--paper);text-align:left}.success-card h2{font-size:22px}.rarity{display:inline-flex;min-height:31px;align-items:center;padding:0 11px;border-radius:999px;background:rgba(36,63,67,.08);font-weight:850}
+    .summon-card{width:244px;height:318px;display:grid;place-items:center;padding:26px;border:1px solid rgba(36,63,67,.18);border-radius:26px;background:var(--paper);box-shadow:0 20px 46px rgba(56,67,55,.16);animation:summon 1.45s cubic-bezier(.2,.82,.2,1) both}.orbit{position:absolute;width:330px;height:170px;border:7px solid transparent;border-top-color:var(--coral);border-radius:50%;opacity:.55;animation:orbit .9s ease-in-out both;transform:rotate(-14deg)}
+    .memory{width:100%;max-width:335px;padding:20px;text-align:left;border:1px solid rgba(36,63,67,.15);border-radius:24px;background:var(--paper);box-shadow:0 16px 36px rgba(53,67,55,.14)}.memory[data-rarity=SR]{border-color:rgba(233,141,107,.7)}.memory[data-rarity=SSR]{border-color:rgba(219,169,77,.8);box-shadow:0 16px 40px rgba(219,169,77,.2)}.memory h2{margin:16px 0;font-size:21px;line-height:1.42}.core{font-size:16px;line-height:1.72}.scratch-wrap{position:relative;min-height:92px;margin:14px 0;overflow:hidden;border-radius:16px;background:#fff5df}.scratch-answer{min-height:92px;display:flex;align-items:center;padding:16px;color:var(--coral);font-size:18px;font-weight:760}.scratch{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair}.scratch-label{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;color:#5d686a;font-size:12px;font-weight:720}.explanation{margin-top:14px;padding-top:14px;border-top:1px dashed rgba(36,63,67,.18);color:var(--muted);font-size:14px;line-height:1.65}.assessment{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}.assessment button{min-height:46px;border:1px solid rgba(36,63,67,.23);border-radius:13px;background:var(--paper);color:var(--ink);font-weight:720}
+    .checkpoint{width:100%;max-width:330px;padding:20px;border:1px solid rgba(36,63,67,.17);border-radius:22px;background:var(--paper);text-align:left;box-shadow:0 14px 30px rgba(54,69,55,.13)}.checkpoint time{display:block;margin-top:14px;padding:12px;border-radius:13px;background:var(--sage);font-weight:760}.particles{position:absolute;inset:0;pointer-events:none}.particles i{position:absolute;width:8px;height:8px;border-radius:50%;background:#edb54a;animation:particle .55s ease-out both}
+    .library{position:relative;z-index:1}.library h2{font-size:26px;margin:22px 0 4px}.library>p{margin:0 0 18px;color:var(--muted)}.list{display:grid;gap:11px}.library-card{padding:16px;border:1px solid rgba(36,63,67,.13);border-radius:18px;background:rgba(255,250,240,.88)}.library-card h3{margin:8px 0;font-size:16px;line-height:1.45}.library-card small{display:block;color:var(--muted);line-height:1.5}.library-actions{display:flex;justify-content:flex-end;margin-top:10px}.delete{min-height:42px;border:0;background:transparent;color:var(--danger);font-weight:720}.confirm{margin-top:10px;padding:12px;border-radius:13px;background:#fff0ed}.confirm .actions{grid-template-columns:1fr 1fr;margin-top:8px}.library-empty{padding:54px 18px;border:1px dashed rgba(36,63,67,.2);border-radius:20px;text-align:center;color:var(--muted)}
+    .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+    @keyframes boop{45%{transform:scale(1.08,.93)}}@keyframes rummage{to{transform:translateX(14px) rotate(-4deg) scale(.96)}}@keyframes breathe{50%{transform:scale(1.02)}}@keyframes hop{45%{transform:translateY(-17px) scale(1.03)}}@keyframes summon{0%{transform:translateY(28px) scale(.94);opacity:.8}38%{transform:translateY(-22px) rotate(3deg)}70%{transform:translateY(-8px) rotate(-3deg)}100%{transform:none;opacity:1}}@keyframes orbit{0%{opacity:0;transform:rotate(-24deg) scale(.7)}50%{opacity:.6}100%{opacity:0;transform:rotate(12deg) scale(1.1)}}@keyframes particle{to{transform:translate(var(--x),var(--y)) scale(.2);opacity:0}}
+    @media(max-width:760px){.preview-shell{display:block;padding:0}.preview-copy{display:none}.device{width:100vw;height:100vh;min-height:650px;border:0;border-radius:0}}
+    @media(max-width:390px){.screen{padding-left:16px;padding-right:16px}.memory,.checkpoint{max-width:100%}.stack{width:232px}}
+    @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}.app{transition-duration:.18s}.mascot img,.stack,.primary{animation:none!important;transition-duration:.18s!important}.summon-card{animation:fade .18s ease both!important}.orbit,.particles{display:none!important}@keyframes fade{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:none}}}
+  </style>
+</head>
+<body>
+  <main class="preview-shell">
+    <section class="preview-copy" aria-labelledby="preview-title">
+      <div class="brand">RECALLO · iOS MVP</div>
+      <h1 id="preview-title">让毛球从旧截图里，取回今天值得想起的一张。</h1>
+      <p>这里使用与正式产品相同的截图异步接口和记忆卡合同。卡片必须来自服务端证据；失败会停在失败状态，不会换成演示答案。</p>
+      <div class="preview-note">路径：添加截图 → 等待分析 → 召回 → 刮开语义 → 自评 → 查看真实下次复习时间。图片会发送给已配置的视觉模型。</div>
+      <button class="reset-button" id="desktop-reset" type="button">只重置本页交互</button>
+    </section>
+    <section class="device" aria-label="Recallo iPhone 交互预览"><div class="app" id="app"></div></section>
+  </main>
+  <script id="recallo-v06-runtime">
+    (() => {
+      "use strict";
+      const STORAGE_KEY = "recallo-v06-web-state-v2";
+      const API = {
+        capture: "/api/sources/image-flow",
+        cards: "/api/memory-cards"
+      };
+      const phases = new Set(["home","upload","upload_complete","summoning","recall","scratching","revealed","assessing","checkpoint","stowing","paused"]);
+      const colors = {creamReady:"#fff6e8",mistProcessing:"#e7eef1",coralRecall:"#f7b99f",lavenderPaused:"#e9e0f1",sageLibrary:"#dbe8d4",navyNight:"#25384d"};
+      const poses = {
+        idle:["idle",""],reacting:["hop","!"],turning:["tilt",""],rummaging:["thinking","…"],carrying:["hop","✦"],
+        watching:["idle",""],acknowledging:["success","!"],thinking:["thinking","?"],sleeping:["tilt","z z"],farewell:["success","♡"]
+      };
+      const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+      const app = document.getElementById("app");
+      const transient = {file:null,imageData:"",previewUrl:"",uploadStatus:"idle",uploadMessage:"",uploadProgress:0,generatedCardId:"",assessmentBusy:false,assessmentError:"",syncError:"",deleteCandidate:"",deleteBusy:false,deleteError:""};
+      let timers = [];
+      let idleTimer = 0;
+      let lowPower = false;
+
+      function freshState(){
+        return {phase:"home",tab:"today",mascot:"idle",cards:[],cardIndex:0,summonCount:0,revealed:false,coverage:0,paths:[],cells:[],assessments:{},lastAssessment:"",pendingAssessment:"",resumePhase:"home",lastSummonDuration:0};
+      }
+      function loadState(){
+        try {
+          const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null") || {};
+          const value = {...freshState(),...parsed};
+          value.cards = Array.isArray(value.cards) ? value.cards.map(normalizeStoredCard).filter(Boolean) : [];
+          if (!phases.has(value.phase)) return freshState();
+          if (["upload","upload_complete"].includes(value.phase)) value.phase = "home";
+          if (["summoning","stowing"].includes(value.phase)) value.phase = "recall";
+          if (value.phase === "assessing") value.phase = value.pendingAssessment ? "revealed" : "checkpoint";
+          value.cardIndex = Math.max(0,Math.min(value.cardIndex,value.cards.length ? value.cards.length - 1 : 0));
+          return value;
+        } catch { return freshState(); }
+      }
+      let ui = loadState();
+      const escapeHtml = value => String(value ?? "").replace(/[&<>'"]/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#039;",'"':"&quot;"}[char]));
+      const save = () => localStorage.setItem(STORAGE_KEY,JSON.stringify(ui));
+      const clearTimers = () => { timers.forEach(clearTimeout); timers = []; };
+      const later = (fn,ms) => { const timer = setTimeout(fn,ms); timers.push(timer); return timer; };
+      const currentCard = () => ui.cards[ui.cardIndex] || null;
+      const isDue = card => {
+        if (!card?.lastAssessment) return true;
+        const nextReviewAt = card.schedule?.nextReviewAt;
+        if (!nextReviewAt) return true;
+        const timestamp = new Date(nextReviewAt).getTime();
+        return Number.isNaN(timestamp) || timestamp <= Date.now();
+      };
+      const dueCards = () => ui.cards.filter(isDue);
+      const selectDueCard = preferredId => {
+        const due = dueCards();
+        const selected = due.find(card => card.id === preferredId) || due[0] || null;
+        if (selected) ui.cardIndex = ui.cards.findIndex(card => card.id === selected.id);
+        return selected;
+      };
+      const inSession = () => ["summoning","recall","scratching","revealed","assessing","checkpoint","stowing"].includes(ui.phase);
+      const sourceLabel = card => [card.sourceTitle,sourceStatusLabel(card.sourceStatus)].filter(Boolean).join(" · ") || "来源尚未确认";
+      const sourceStatusLabel = status => status === "verified" ? "来源已核对" : status === "partial" ? "部分来源已核对" : "来源尚未确认";
+      const assessmentKey = card => `${card.id}-${card.schedule?.nextReviewAt || "initial"}`;
+      const attemptId = card => `web-capture-assessment-${assessmentKey(card)}`;
+
+      function normalizeStoredCard(value){
+        if (!value || typeof value !== "object" || !value.id || !value.coreKnowledge || !value.recallCue) return null;
+        return {
+          id:String(value.id),state:value.state || "formal",disposition:value.disposition || "create_card",coreKnowledge:String(value.coreKnowledge),
+          recallCue:String(value.recallCue),hiddenSemantic:String(value.hiddenSemantic || ""),explanation:String(value.explanation || ""),rarity:["R","SR","SSR"].includes(value.rarity) ? value.rarity : "R",
+          rarityReason:String(value.rarityReason || ""),sourceTitle:String(value.sourceTitle || ""),sourceStatus:value.sourceStatus || "unconfirmed",schedule:value.schedule || null,lastAssessment:value.lastAssessment || ""
+        };
+      }
+      function normalizeRecord(record){
+        const card = record?.memoryCard || record?.card || record;
+        if (!card) return null;
+        return normalizeStoredCard({...card,disposition:record?.disposition || card.disposition || "create_card",schedule:record?.schedule || card.schedule || null,lastAssessment:record?.lastAssessment || card.lastAssessment || ""});
+      }
+      function cardFromCapture(result){
+        const analysis = result?.captureAnalysis || {};
+        const disposition = analysis.disposition || result?.disposition || (result?.memoryCard?.state === "formal" ? "create_card" : "archive_only");
+        const card = analysis.memoryCard || result?.memoryCard;
+        const normalized = normalizeRecord({...card,disposition,schedule:analysis.schedule || result?.schedule || null});
+        return {disposition,card:normalized};
+      }
+      function replaceCard(card){
+        const index = ui.cards.findIndex(item => item.id === card.id);
+        if (index >= 0) ui.cards[index] = card; else ui.cards.unshift(card);
+        ui.cardIndex = Math.max(0,ui.cards.findIndex(item => item.id === card.id));
+        save();
+      }
+
+      function mascot(state=ui.mascot,interactive=false){
+        const [asset,effect] = poses[state] || poses.idle;
+        return `<button class="mascot" data-action="mascot" data-state="${state}" data-effect="${effect}" type="button" aria-label="毛球${interactive ? "，点它会回应你" : "正在陪你回忆"}" ${interactive ? "" : 'tabindex="-1"'}><img src="app-demo-assets/mascot-v06/recallo-mascot-${asset}.png" alt=""></button>`;
+      }
+      const top = (title,action="") => `<header class="top"><strong>${title}</strong>${action || "<span></span>"}</header>`;
+      const nav = () => `<nav class="nav" aria-label="主要导航">${[["today","☀","今日"],["library","▤","知识库"],["profile","○","我的"]].map(([id,icon,label])=>`<button data-tab="${id}" aria-current="${ui.tab === id ? "page" : "false"}" type="button"><b>${icon}</b>${label}</button>`).join("")}</nav>`;
+      const syncNotice = () => transient.syncError ? `<p class="notice error" role="alert" data-testid="sync-error">${escapeHtml(transient.syncError)}</p>` : "";
+
+      function homeView(){
+        const hasCards = ui.cards.length > 0;
+        const dueCount = dueCards().length;
+        const canRecall = dueCount > 0;
+        const title = !hasCards ? "先留下一张值得再想起的截图" : canRecall ? "找回一段自己的过去" : "今天已经完成";
+        return `<section class="screen" data-testid="v06-home">${top("Recallo · 今日",'<button class="icon" aria-label="添加截图" data-action="open-upload" type="button">＋</button>')}${syncNotice()}<div class="scene">${mascot(ui.mascot,true)}<h2>${title}</h2><p>${!hasCards ? "没有服务端记忆卡时，毛球不会凭空生成答案。" : canRecall ? `今天有 ${dueCount} 张到期记忆卡。每次只取回一张。` : "现有卡片还没到下次复习时间，可以去添加新的截图。"}</p><button class="stack" data-action="summon" data-testid="recall-stack" type="button" ${canRecall ? "" : "disabled"} aria-label="点按、长按或向上拖动，召回一张到期旧内容"><span class="card-layer"></span><span class="card-layer"></span><span class="card-layer card-front"><span><strong>${canRecall ? "今天的一张" : hasCards ? "今天已完成" : "等待第一张"}</strong><span>${canRecall ? "来自到期的旧内容" : "去添加新截图"}</span></span></span></button><div class="actions empty-cta"><button class="primary" data-action="${canRecall ? "summon" : hasCards ? "" : "open-upload"}" type="button" ${hasCards && !canRecall ? "disabled" : ""}>${canRecall ? "让毛球取回一张" : hasCards ? "今天已完成" : "添加第一张截图"}</button><button class="secondary" data-action="open-upload" type="button">添加新截图</button></div></div>${nav()}</section>`;
+      }
+      function uploadView(){
+        const busy = transient.uploadStatus === "submitting" || transient.uploadStatus === "polling";
+        return `<section class="screen" data-testid="v06-upload">${top("添加截图",'<button class="subtle" data-action="close-upload" type="button">返回</button>')}<div class="upload-card"><div class="upload-drop"><input id="capture-file" data-testid="capture-file" type="file" accept="image/png,image/jpeg,image/webp"><label for="capture-file"><span style="font-size:32px">▧</span><span>${transient.file ? "重新选择截图" : "选择 B站或抖音截图"}</span></label></div>${transient.previewUrl ? `<img class="upload-preview" src="${transient.previewUrl}" alt="待分析截图预览">` : ""}<p class="upload-meta" id="capture-file-name">${escapeHtml(transient.file ? `${transient.file.name} · ${formatBytes(transient.file.size)}` : "支持 PNG、JPEG、WebP")}</p>${busy ? `<div class="progress" aria-live="polite" data-testid="capture-progress"><div class="progress-bar"><i style="--progress:${transient.uploadProgress}%"></i></div><span>${escapeHtml(transient.uploadMessage)}</span></div>` : ""}${transient.uploadStatus === "error" ? `<p class="notice error" role="alert" data-testid="upload-error">${escapeHtml(transient.uploadMessage)}</p>` : ""}<button class="primary" data-action="submit-capture" data-testid="submit-capture" type="button" ${!transient.imageData || busy ? "disabled" : ""}>${busy ? "正在生成记忆卡" : "开始分析"}</button></div></section>`;
+      }
+      function uploadCompleteView(){
+        const card = ui.cards.find(item => item.id === transient.generatedCardId) || currentCard();
+        if (!card) { ui.phase = "home"; return homeView(); }
+        return `<section class="screen" data-testid="v06-upload-complete">${top("记忆卡已生成",'<button class="subtle" data-action="stow" type="button">先收好</button>')}<div class="scene">${mascot("carrying")}<article class="success-card"><span class="rarity">${escapeHtml(card.rarity)} · 核心潜力</span><h2>${escapeHtml(card.recallCue)}</h2><p>${escapeHtml(card.rarityReason)}</p><small>${escapeHtml(sourceLabel(card))}</small></article><div class="actions"><button class="primary" data-action="summon-generated" type="button">立即召回这张</button><button class="secondary" data-action="stow" type="button">收入知识库</button></div></div></section>`;
+      }
+      function libraryView(){
+        return `<section class="screen" data-testid="v06-library">${top("知识库",'<button class="icon" aria-label="添加截图" data-action="open-upload" type="button">＋</button>')}${syncNotice()}<div class="library"><h2>被你留下的记忆</h2><p>这里只展示服务端返回的真实卡片。</p><div class="list">${ui.cards.length ? ui.cards.map(libraryCard).join("") : '<div class="library-empty" data-testid="library-empty">知识库还是空的<br><button class="subtle" data-action="open-upload" type="button">添加第一张截图</button></div>'}</div>${transient.deleteError ? `<p class="notice error" role="alert" data-testid="delete-error">${escapeHtml(transient.deleteError)}</p>` : ""}</div>${nav()}</section>`;
+      }
+      function libraryCard(card){
+        const confirming = transient.deleteCandidate === card.id;
+        return `<article class="library-card" data-testid="library-card" data-card-id="${escapeHtml(card.id)}"><span class="rarity">${escapeHtml(card.rarity)}</span><h3>${escapeHtml(card.coreKnowledge)}</h3><small>${escapeHtml(sourceLabel(card))}</small><small>${card.schedule?.nextReviewAt ? `下次召回：${escapeHtml(formatDate(card.schedule.nextReviewAt))}` : "尚未安排复习"}</small><div class="library-actions"><button class="delete" data-delete="${escapeHtml(card.id)}" aria-label="删除 ${escapeHtml(card.coreKnowledge)}" type="button">删除</button></div>${confirming ? `<div class="confirm" role="group" aria-label="确认删除"><strong>删除后无法恢复</strong><div class="actions"><button class="secondary" data-action="cancel-delete" type="button">取消</button><button class="primary" data-confirm-delete="${escapeHtml(card.id)}" type="button" ${transient.deleteBusy ? "disabled" : ""}>确认删除</button></div></div>` : ""}</article>`;
+      }
+      function profileView(){
+        const count = Object.keys(ui.assessments).length;
+        return `<section class="screen" style="--ink:#fffaf0" data-testid="v06-profile">${top("我的")}<div class="scene">${mascot(count ? "acknowledging" : "sleeping")}<h2>${count ? `已经找回 ${count} 次` : "你的过去还安静地待着"}</h2><p>不打卡，不排行，只记录真实发生的回忆。</p><button class="secondary" data-action="reset" type="button">重置本页交互</button></div>${nav()}</section>`;
+      }
+      function summoningView(){
+        return `<section class="screen" data-testid="v06-summoning">${top("正在取回",'<button class="subtle" data-action="skip" type="button">跳过</button>')}<div class="scene"><div class="orbit"></div>${mascot()}<article class="summon-card"><div><span class="rarity">来自你的过去</span><h2>毛球找到了一张</h2><p>${ui.lastSummonDuration}ms · 可随时跳过</p></div></article></div></section>`;
+      }
+      function scratchView(card){
+        return ui.revealed ? `<div class="scratch-wrap"><div class="scratch-answer">${escapeHtml(card.hiddenSemantic)}</div></div>` : `<div class="scratch-wrap" data-testid="scratch-area"><div class="scratch-answer">${escapeHtml(card.hiddenSemantic)}</div><canvas class="scratch" tabindex="0" role="button" aria-label="刮开关键语义；回车或空格可直接揭示"></canvas><span class="scratch-label">轻轻刮开 · ${Math.round(ui.coverage * 100)}%</span></div>`;
+      }
+      function recallView(){
+        const card = currentCard();
+        if (!card) { ui.phase = "home"; return homeView(); }
+        const shown = ui.revealed || ui.phase === "revealed";
+        return `<section class="screen" data-testid="v06-recall">${top("先想一想",'<button class="subtle" data-action="stow" type="button">先收好</button>')}<div class="scene">${mascot(shown ? "thinking" : "watching")}<article class="memory" data-rarity="${escapeHtml(card.rarity)}"><span class="rarity">${escapeHtml(card.rarity)} · 核心潜力</span><h2>${escapeHtml(card.recallCue)}</h2><div class="core">${escapeHtml(maskCore(card))}</div>${scratchView(card)}${shown ? `<div class="explanation"><strong>${escapeHtml(card.coreKnowledge)}</strong><br>${escapeHtml(card.explanation)}<br><small>${escapeHtml(sourceLabel(card))}</small></div><div class="assessment"><button data-assess="remembered" type="button">记得</button><button data-assess="fuzzy" type="button">模糊</button><button data-assess="forgot" type="button">忘记</button></div>` : '<button class="subtle" data-action="reveal" type="button">一键揭示</button>'}</article></div></section>`;
+      }
+      function assessingView(){
+        const copy = ui.lastAssessment === "remembered" ? "这段记忆更清晰了" : ui.lastAssessment === "forgot" ? "没关系，下次再修复" : "已经找到一点轮廓";
+        return `<section class="screen" data-testid="v06-assessing"><div class="scene">${mascot(ui.lastAssessment === "remembered" ? "acknowledging" : ui.lastAssessment === "forgot" ? "thinking" : "turning")}${ui.lastAssessment === "remembered" && !reduced.matches ? '<span class="particles"><i style="left:46%;top:48%;--x:-35px;--y:-45px"></i><i style="left:52%;top:48%;--x:35px;--y:-52px"></i></span>' : ""}<h2>${copy}</h2><p>${transient.assessmentError ? escapeHtml(transient.assessmentError) : "正在把反馈写入服务端调度。"}</p>${transient.assessmentError ? '<button class="primary" data-action="retry-assessment" data-testid="assessment-retry" type="button">重试保存</button>' : '<div role="status" aria-label="正在保存复习结果">处理中…</div>'}</div></section>`;
+      }
+      function checkpointView(){
+        const card = currentCard();
+        if (!card) { ui.phase = "home"; return homeView(); }
+        const next = card.schedule?.nextReviewAt || "";
+        const hasNextDue = dueCards().length > 0;
+        return `<section class="screen" data-testid="v06-checkpoint">${top("这一张，已经找回")}<div class="scene">${mascot(ui.lastAssessment === "remembered" ? "acknowledging" : "thinking")}<article class="checkpoint"><span class="rarity">${escapeHtml(card.rarity)}</span><h2>${escapeHtml(card.hiddenSemantic || card.coreKnowledge)}</h2><p>${escapeHtml(card.rarityReason)}</p><time data-testid="next-review" data-next-review-at="${escapeHtml(next)}">${next ? `下次召回：${escapeHtml(formatDate(next))}` : "服务端尚未返回下次复习时间"}</time></article><div class="actions"><button class="primary" data-action="${hasNextDue ? "continue" : "stow"}" data-testid="continue-recall" type="button">${hasNextDue ? "继续下一张" : "今天已完成"}</button><button class="secondary" data-action="stow" type="button">先收好</button></div></div></section>`;
+      }
+      const pausedView = () => `<section class="screen" data-testid="v06-paused"><div class="scene">${mascot("sleeping")}<h2>这张卡替你停在这里</h2><p>回来时仍是同一张，刮开进度也还在。</p><button class="primary" data-action="resume" type="button">继续回忆</button></div></section>`;
+      const stowingView = () => `<section class="screen" data-testid="v06-stowing"><div class="scene">${mascot("farewell")}<h2>毛球把记忆收好了</h2><p>下次需要时，它会带着这张卡回来。</p></div></section>`;
+
+      function palette(){
+        if (ui.phase === "paused") return "lavenderPaused";
+        if (ui.tab === "library") return "sageLibrary";
+        if (ui.tab === "profile") return "navyNight";
+        if (["upload","summoning","assessing"].includes(ui.phase)) return "mistProcessing";
+        if (["recall","scratching","revealed"].includes(ui.phase)) return "coralRecall";
+        if (["checkpoint","stowing","upload_complete"].includes(ui.phase)) return "sageLibrary";
+        return "creamReady";
+      }
+      function render(){
+        const name = palette();
+        app.style.setProperty("--stage",colors[name]);
+        if (ui.phase === "paused") app.innerHTML = pausedView();
+        else if (ui.phase === "upload") app.innerHTML = uploadView();
+        else if (ui.phase === "upload_complete") app.innerHTML = uploadCompleteView();
+        else if (ui.phase === "summoning") app.innerHTML = summoningView();
+        else if (ui.phase === "assessing") app.innerHTML = assessingView();
+        else if (ui.phase === "checkpoint") app.innerHTML = checkpointView();
+        else if (ui.phase === "stowing") app.innerHTML = stowingView();
+        else if (["recall","scratching","revealed"].includes(ui.phase)) app.innerHTML = recallView();
+        else app.innerHTML = ui.tab === "library" ? libraryView() : ui.tab === "profile" ? profileView() : homeView();
+        bind();
+        if (["recall","scratching"].includes(ui.phase) && !ui.revealed) setupScratch();
+        save();
+      }
+
+      function openUpload(){ clearTimers(); ui.phase = "upload"; ui.tab = "today"; transient.uploadStatus = "idle"; transient.uploadMessage = ""; transient.uploadProgress = 0; render(); }
+      function closeUpload(){ ui.phase = "home"; revokePreview(); render(); }
+      function revokePreview(){ if (transient.previewUrl) URL.revokeObjectURL(transient.previewUrl); transient.previewUrl = ""; transient.file = null; transient.imageData = ""; }
+      async function readSelectedFile(file){
+        revokePreview();
+        if (!file) { render(); return; }
+        transient.file = file;
+        transient.previewUrl = URL.createObjectURL(file);
+        transient.imageData = await fileToDataURL(file);
+        transient.uploadStatus = "idle";
+        render();
+      }
+      async function submitCapture(){
+        if (!transient.imageData || transient.uploadStatus === "submitting" || transient.uploadStatus === "polling") return;
+        transient.uploadStatus = "submitting"; transient.uploadProgress = 12; transient.uploadMessage = "正在提交截图"; render();
+        try {
+          const response = await fetch(API.capture,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({imageBase64:transient.imageData,mimeType:transient.file?.type || "image/jpeg",async:true})});
+          const payload = await response.json().catch(()=>({}));
+          if (!response.ok) throw new Error(payload.message || payload.error?.message || "任务创建失败");
+          const result = payload.jobId ? await pollCapture(payload.jobId) : payload;
+          if (!["completed","vision_completed"].includes(result.status)) throw new Error(result.message || result.error?.message || "截图没有生成可用结果");
+          const resolved = cardFromCapture(result);
+          if (resolved.disposition !== "create_card" || resolved.card?.state !== "formal") {
+            throw new Error(resolved.disposition === "needs_confirmation" ? "证据不足，需要确认；本页不会伪造可复习卡。" : "这条内容仅适合存档，没有生成可复习卡。");
+          }
+          if (!resolved.card.hiddenSemantic || !resolved.card.coreKnowledge.includes(resolved.card.hiddenSemantic)) throw new Error("服务端返回的遮挡语义无法在核心知识中定位");
+          replaceCard(resolved.card);
+          transient.generatedCardId = resolved.card.id;
+          transient.uploadStatus = "complete"; transient.uploadProgress = 100; transient.uploadMessage = "记忆卡已生成";
+          ui.phase = "upload_complete"; ui.mascot = "carrying"; revokePreview(); render();
+        } catch (error) {
+          transient.uploadStatus = "error"; transient.uploadProgress = 0; transient.uploadMessage = error?.message || "截图处理失败"; render();
+        }
+      }
+      async function pollCapture(jobId){
+        transient.uploadStatus = "polling";
+        const started = Date.now();
+        let failures = 0;
+        while (Date.now() - started < 15 * 60 * 1000) {
+          try {
+            const response = await fetch(`${API.capture}/jobs/${encodeURIComponent(jobId)}`,{cache:"no-store"});
+            const job = await response.json().catch(()=>({}));
+            if (!response.ok) throw new Error(job.message || "无法读取任务状态");
+            failures = 0;
+            const stage = job.progress?.stage || "queued";
+            transient.uploadProgress = stage === "queued" ? 20 : stage === "vision" || stage === "ocr" ? 42 : stage === "search" ? 64 : 86;
+            transient.uploadMessage = job.progress?.message || "正在整理记忆卡";
+            render();
+            if (job.status === "succeeded") return job.result || {};
+            if (job.status === "failed") throw new Error(job.result?.error?.message || job.progress?.message || "内容处理失败");
+          } catch (error) {
+            failures += 1;
+            if (failures >= 3 || !/fetch|network|读取任务状态/i.test(error?.message || "")) throw error;
+          }
+          await delay(window.__RECALLO_E2E__ ? 40 : 1200);
+        }
+        throw new Error("处理超过 15 分钟，请稍后重试");
+      }
+
+      function startSummon(cardId=""){
+        const selected = selectDueCard(cardId);
+        if (!selected) { ui.phase = "home"; ui.tab = "today"; render(); return; }
+        clearTimers();
+        ui.tab = "today"; ui.phase = "summoning"; ui.mascot = "turning"; ui.revealed = false; ui.coverage = 0; ui.paths = []; ui.cells = []; ui.pendingAssessment = ""; transient.assessmentError = "";
+        ui.lastSummonDuration = reduced.matches ? 180 : ui.summonCount === 0 ? 1450 : 700;
+        render();
+        if (!reduced.matches) {
+          later(()=>{ui.mascot="rummaging";render();},Math.min(240,ui.lastSummonDuration*.25));
+          later(()=>{ui.mascot="carrying";render();},Math.min(720,ui.lastSummonDuration*.62));
+        }
+        later(finishSummon,ui.lastSummonDuration);
+      }
+      function finishSummon(){ clearTimers(); if (ui.phase !== "summoning") return; ui.phase = "recall"; ui.mascot = "watching"; ui.summonCount += 1; render(); }
+      function reveal(){ ui.revealed = true; ui.coverage = 1; ui.phase = "revealed"; ui.mascot = "thinking"; render(); }
+      async function assess(value){
+        const card = currentCard();
+        if (!card || transient.assessmentBusy) return;
+        const key = assessmentKey(card);
+        if (ui.assessments[key]) { ui.phase = "checkpoint"; render(); return; }
+        ui.lastAssessment = value; ui.pendingAssessment = value; ui.phase = "assessing"; transient.assessmentBusy = true; transient.assessmentError = ""; render();
+        try {
+          const response = await fetch(`${API.cards}/${encodeURIComponent(card.id)}/assessments`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({assessment:value,attemptId:attemptId(card)})});
+          const payload = await response.json().catch(()=>({}));
+          if (!response.ok) throw new Error(payload.message || "复习结果保存失败");
+          const canonical = payload.assessment?.assessment || value;
+          card.schedule = payload.schedule || card.schedule;
+          card.lastAssessment = canonical;
+          ui.assessments[key] = canonical; ui.lastAssessment = canonical; ui.pendingAssessment = ""; ui.phase = "checkpoint";
+        } catch (error) {
+          transient.assessmentError = error?.message || "复习结果保存失败";
+          ui.phase = "assessing";
+        } finally { transient.assessmentBusy = false; render(); }
+      }
+      function nextCard(){
+        const selected = selectDueCard();
+        if (!selected) { stow(); return; }
+        startSummon(selected.id);
+      }
+      function stow(){
+        clearTimers(); ui.phase = "stowing"; ui.mascot = "farewell"; render();
+        later(()=>{ui.phase="home";ui.tab="today";ui.mascot="idle";ui.revealed=false;ui.coverage=0;ui.paths=[];ui.cells=[];render();scheduleIdle();},reduced.matches ? 180 : 520);
+      }
+      async function deleteCard(id){
+        if (!id || transient.deleteBusy) return;
+        transient.deleteBusy = true; transient.deleteError = ""; render();
+        try {
+          const response = await fetch(`${API.cards}/${encodeURIComponent(id)}`,{method:"DELETE"});
+          const payload = await response.json().catch(()=>({}));
+          if (!response.ok || payload.deleted !== true) throw new Error(payload.message || "删除失败");
+          ui.cards = ui.cards.filter(card=>card.id !== id); ui.cardIndex = Math.max(0,Math.min(ui.cardIndex,ui.cards.length-1)); transient.deleteCandidate = "";
+        } catch (error) { transient.deleteError = error?.message || "删除失败"; }
+        finally { transient.deleteBusy = false; render(); }
+      }
+      function reset(){ clearTimers(); clearTimeout(idleTimer); revokePreview(); localStorage.removeItem(STORAGE_KEY); ui = freshState(); transient.syncError=""; transient.deleteCandidate=""; transient.deleteError=""; render(); refreshCards(); scheduleIdle(); }
+
+      function setupScratch(){
+        const canvas = app.querySelector(".scratch");
+        if (!canvas) return;
+        const rect = canvas.getBoundingClientRect();
+        const dpr = Math.max(1,devicePixelRatio || 1);
+        const context = canvas.getContext("2d");
+        canvas.width = Math.round(rect.width*dpr); canvas.height = Math.round(rect.height*dpr); context.scale(dpr,dpr);
+        context.fillStyle = "#c9c4b8"; context.fillRect(0,0,rect.width,rect.height); context.strokeStyle="rgba(91,88,82,.22)"; context.lineWidth=2;
+        for(let y=8;y<rect.height;y+=9){context.beginPath();context.moveTo(0,y);context.lineTo(rect.width,y-5);context.stroke();}
+        context.globalCompositeOperation="destination-out";context.lineWidth=26;context.lineCap="round";context.lineJoin="round";
+        let previous=null;
+        ui.paths.forEach(point=>{const p={x:point.x*rect.width,y:point.y*rect.height};if(point.move||!previous){previous=p;return;}context.beginPath();context.moveTo(previous.x,previous.y);context.lineTo(p.x,p.y);context.stroke();previous=p;});
+        let drawing=false;
+        const position=event=>({x:Math.max(0,Math.min(rect.width,event.clientX-rect.left)),y:Math.max(0,Math.min(rect.height,event.clientY-rect.top))});
+        const mark=(point,move=false)=>{ui.phase="scratching";const p={x:point.x/rect.width,y:point.y/rect.height,move};const last=ui.paths.at(-1);ui.paths.push(p);if(last&&!move){context.beginPath();context.moveTo(last.x*rect.width,last.y*rect.height);context.lineTo(point.x,point.y);context.stroke();}const cx=Math.floor(p.x*12),cy=Math.floor(p.y*7);for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)if(cx+dx>=0&&cx+dx<12&&cy+dy>=0&&cy+dy<7)ui.cells.push(`${cx+dx}:${cy+dy}`);ui.cells=[...new Set(ui.cells)];ui.coverage=Math.min(1,ui.cells.length/84);const label=app.querySelector(".scratch-label");if(label)label.textContent=`轻轻刮开 · ${Math.round(ui.coverage*100)}%`;save();if(ui.coverage>=.45)reveal();};
+        canvas.addEventListener("pointerdown",event=>{drawing=true;canvas.setPointerCapture(event.pointerId);mark(position(event),true);});
+        canvas.addEventListener("pointermove",event=>{if(drawing)mark(position(event));});
+        canvas.addEventListener("pointerup",event=>{drawing=false;try{canvas.releasePointerCapture(event.pointerId);}catch{}save();});
+        canvas.addEventListener("pointercancel",()=>{drawing=false;save();});
+        canvas.addEventListener("keydown",event=>{if(["Enter"," "].includes(event.key)){event.preventDefault();reveal();}else if(event.key.startsWith("Arrow")){event.preventDefault();for(let i=ui.cells.length;i<Math.min(84,ui.cells.length+12);i++)ui.cells.push(`${i%12}:${Math.floor(i/12)}`);ui.cells=[...new Set(ui.cells)];ui.coverage=ui.cells.length/84;ui.coverage>=.45?reveal():render();}});
+      }
+      function stackGesture(){
+        const stack=app.querySelector(".stack:not([disabled])");if(!stack)return;let startY=0,startX=0,triggered=false,hold=0;
+        stack.addEventListener("pointerdown",event=>{startY=event.clientY;startX=event.clientX;triggered=false;hold=setTimeout(()=>{triggered=true;startSummon();},460);});
+        stack.addEventListener("pointermove",event=>{const dy=event.clientY-startY,dx=event.clientX-startX;stack.style.transform=`translate(${Math.max(-6,Math.min(6,dx/9))}px,${Math.min(0,dy)}px) rotate(${Math.max(-4,Math.min(4,dx/12))}deg)`;if(!triggered&&dy<=-28){triggered=true;clearTimeout(hold);startSummon();}});
+        for(const type of ["pointerup","pointercancel"])stack.addEventListener(type,()=>{clearTimeout(hold);stack.style.transform="";});
+      }
+      function bind(){
+        app.querySelectorAll("[data-tab]").forEach(button=>button.addEventListener("click",()=>{if(inSession())return;ui.tab=button.dataset.tab;ui.phase="home";ui.mascot=ui.tab==="today"?"idle":ui.tab==="library"?"watching":"sleeping";render();}));
+        app.querySelectorAll("[data-action]").forEach(button=>button.addEventListener("click",event=>{const action=event.currentTarget.dataset.action;if(action==="open-upload")openUpload();else if(action==="close-upload")closeUpload();else if(action==="submit-capture")submitCapture();else if(action==="summon")startSummon();else if(action==="summon-generated")startSummon(transient.generatedCardId);else if(action==="skip")finishSummon();else if(action==="reveal")reveal();else if(action==="continue")nextCard();else if(action==="stow")stow();else if(action==="resume"){ui.phase=ui.resumePhase||"recall";render();}else if(action==="retry-assessment")assess(ui.pendingAssessment||ui.lastAssessment);else if(action==="cancel-delete"){transient.deleteCandidate="";render();}else if(action==="reset")reset();else if(action==="mascot"){const old=ui.mascot;ui.mascot="reacting";render();later(()=>{ui.mascot=old==="reacting"?"idle":old;render();},reduced.matches?180:360);}}));
+        app.querySelectorAll("[data-assess]").forEach(button=>button.addEventListener("click",()=>assess(button.dataset.assess)));
+        app.querySelectorAll("[data-delete]").forEach(button=>button.addEventListener("click",()=>{transient.deleteCandidate=button.dataset.delete;transient.deleteError="";render();}));
+        app.querySelectorAll("[data-confirm-delete]").forEach(button=>button.addEventListener("click",()=>deleteCard(button.dataset.confirmDelete)));
+        const input=app.querySelector("#capture-file");if(input)input.addEventListener("change",()=>readSelectedFile(input.files?.[0]));
+        stackGesture();
+      }
+      function scheduleIdle(){clearTimeout(idleTimer);if(reduced.matches||lowPower||document.hidden||ui.phase!=="home"||ui.tab!=="today")return;idleTimer=setTimeout(()=>{const states=["turning","thinking","sleeping","reacting"];ui.mascot=states[Math.floor(Math.random()*states.length)];render();later(()=>{if(ui.phase==="home"){ui.mascot="idle";render();scheduleIdle();}},650);},8000+Math.random()*6000);}
+      async function refreshCards(){
+        try {
+          const response=await fetch(API.cards,{cache:"no-store"});const payload=await response.json().catch(()=>({}));if(!response.ok)throw new Error(payload.message||"无法同步知识库");
+          const cards=(payload.cards||payload.items||[]).map(normalizeRecord).filter(card=>card&&card.disposition==="create_card"&&card.state==="formal");
+          ui.cards=cards;ui.cardIndex=Math.max(0,Math.min(ui.cardIndex,cards.length-1));transient.syncError="";render();
+        } catch(error){transient.syncError=error?.message||"无法同步知识库";render();}
+      }
+
+      function maskCore(card){const hidden=card.hiddenSemantic||"";return hidden&&card.coreKnowledge.includes(hidden)?card.coreKnowledge.replace(hidden,"▰▰▰▰"):card.coreKnowledge;}
+      function formatDate(value){const date=new Date(value);return Number.isNaN(date.getTime())?value:new Intl.DateTimeFormat("zh-CN",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}).format(date);}
+      function formatBytes(bytes){return `${(bytes/1024/1024).toFixed(bytes>1024*1024?1:2)} MB`;}
+      const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+      function fileToDataURL(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(new Error("无法读取截图"));reader.readAsDataURL(file);});}
+
+      document.addEventListener("visibilitychange",()=>{if(document.hidden&&inSession()){ui.resumePhase=ui.phase;ui.phase="paused";clearTimers();render();}else if(!document.hidden&&ui.phase==="paused"){ui.phase=ui.resumePhase||"recall";render();}});
+      reduced.addEventListener?.("change",()=>{if(ui.phase==="summoning")finishSummon();render();scheduleIdle();});
+      navigator.getBattery?.().then(battery=>{const sync=()=>{lowPower=!battery.charging&&battery.level<=.2;scheduleIdle();};battery.addEventListener("levelchange",sync);battery.addEventListener("chargingchange",sync);sync();}).catch(()=>{});
+      document.getElementById("desktop-reset").addEventListener("click",reset);
+      window.__recalloV06={getState:()=>JSON.parse(JSON.stringify(ui)),render,startSummon,finishSummon,reveal,assess,refreshCards,reset};
+      render();refreshCards();scheduleIdle();
+    })();
+  </script>
+</body>
+</html>

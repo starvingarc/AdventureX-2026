@@ -4,6 +4,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { scanTextForSecrets } from "./secret-scan.mjs";
+
 const repoRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const args = parseArgs(process.argv.slice(2));
 const expectedBaseUrl = args["base-url"] || "https://shibei-production.up.railway.app";
@@ -192,17 +194,34 @@ function checkRequiredSecretPresence(text) {
 }
 
 function checkSafety(text) {
-  const forbiddenPatterns = [
-    [/sk-[A-Za-z0-9_-]{12,}/, "model API key-looking value"],
-    [/postgres(?:ql)?:\/\/\S+/i, "Postgres database URL"],
-    [/mysql:\/\/\S+/i, "MySQL database URL"],
-    [/redis:\/\/\S+/i, "redis URL"],
-    [/RAILWAY_TOKEN\s*=\s*\S+/i, "Railway token assignment"],
-    [/-----BEGIN [A-Z ]*PRIVATE KEY-----/, "private key block"],
+  const detectedTypes = new Set(
+    scanTextForSecrets(text, { path: "deployment-inputs", source: "guard" })
+      .map((finding) => finding.type)
+  );
+  const scannerChecks = [
+    ["qwen_dotted_api_key", "dotted Qwen or DashScope API key-looking value"],
+    ["model_api_key", "model API key-looking value"],
+    ["tikhub_base64_assignment", "TikHub API key assignment"],
+    ["database_url", "database URL"],
+    ["github_token", "GitHub token"],
+    ["aws_access_key_id", "AWS access key id"],
+    ["private_key_block", "private key block"]
+  ];
+
+  for (const [type, label] of scannerChecks) {
+    checks.push(check(
+      `no_${slug(type)}`,
+      !detectedTypes.has(type),
+      `inputs file must not contain ${label}`
+    ));
+  }
+
+  const additionalPatterns = [
+    [/RAILWAY(?:_API)?_TOKEN\s*=\s*\S+/i, "Railway token assignment"],
     [/APNS_PRIVATE_KEY(?:_BASE64)?\s*[:=]\s*\S+/i, "APNS private key value"]
   ];
 
-  for (const [pattern, label] of forbiddenPatterns) {
+  for (const [pattern, label] of additionalPatterns) {
     checks.push(check(
       `no_${slug(label)}`,
       !pattern.test(text),

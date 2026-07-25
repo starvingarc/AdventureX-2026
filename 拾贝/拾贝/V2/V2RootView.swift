@@ -15,9 +15,14 @@ private enum V2NotificationRouteTarget {
     case failure
 }
 
-private struct V2PendingAIProcessingConsentSourceText: Identifiable {
+private struct V2PendingAIProcessingConsent: Identifiable {
+    enum Payload {
+        case sourceText(String)
+        case screenshot(Data)
+    }
+
     let id = UUID()
-    let value: String
+    let payload: Payload
 }
 
 struct V2RootView: View {
@@ -61,11 +66,14 @@ struct V2RootView: View {
     @State private var hasLoadedInitialBackendChapter = false
     @State private var showsStartupSplash = true
     @State private var generationState = V2GenerationState()
-    @State private var pendingAIProcessingConsentSourceText: V2PendingAIProcessingConsentSourceText?
+    @State private var pendingAIProcessingConsent: V2PendingAIProcessingConsent?
+    @State private var screenshotCards: [V2CapturedMemoryCard] = []
+    @State private var screenshotAnalysisState = V2ScreenshotAnalysisState.idle
+    @State private var screenshotAnalysisTask: Task<Void, Never>?
+    @State private var screenshotDrawSession: V2ScreenshotDrawSession?
     @State private var account: AccountSnapshot?
     @State private var isAccountLoading = false
     @State private var accountMessage = ""
-    @State private var imageFlowResponse: ImageFlowResponse?
 
     private let apiClient: APIClient
     private let allowsMockDataToggle: Bool
@@ -81,6 +89,21 @@ struct V2RootView: View {
 
     private var usesFixtures: Bool {
         allowsMockDataToggle && usesMockData
+    }
+
+    private var reviewableScreenshotCards: [V2CapturedMemoryCard] {
+        screenshotCards.filter {
+            $0.card.state == .formal && $0.disposition == .createCard
+        }
+    }
+
+    private var screenshotPoolCounts: [V2MemoryPool: Int] {
+        let now = Date()
+        return Dictionary(
+            uniqueKeysWithValues: V2MemoryPool.allCases.map { pool in
+                (pool, screenshotCards.filter { $0.isEligible(for: pool, now: now) }.count)
+            }
+        )
     }
 
     private var hasUnreadNotifications: Bool {
@@ -132,19 +155,39 @@ struct V2RootView: View {
         } message: {
             Text("删除后，这个章节和它的生成任务都会被移除。")
         }
-        .sheet(item: $pendingAIProcessingConsentSourceText) { pendingSourceText in
+        .sheet(item: $pendingAIProcessingConsent) { pendingConsent in
             V2AIProcessingConsentSheet(
                 onAgree: {
                     hasAcceptedAIProcessingConsent = true
-                    pendingAIProcessingConsentSourceText = nil
-                    startV2GenerationAfterConsent(sourceText: pendingSourceText.value)
+                    pendingAIProcessingConsent = nil
+                    switch pendingConsent.payload {
+                    case .sourceText(let sourceText):
+                        startV2GenerationAfterConsent(sourceText: sourceText)
+                    case .screenshot(let imageData):
+                        startScreenshotAnalysisAfterConsent(imageData: imageData)
+                    }
                 },
                 onCancel: {
-                    pendingAIProcessingConsentSourceText = nil
+                    pendingAIProcessingConsent = nil
                 }
             )
             .presentationDetents([.medium])
             .presentationDragIndicator(.visible)
+        }
+        .fullScreenCover(item: $screenshotDrawSession) { session in
+            V2ScreenshotAwakeningFlowView(
+                session: session,
+                onAssessment: { cardID, assessment, attemptID in
+                    try await applyScreenshotAssessment(
+                        cardID: cardID,
+                        assessment: assessment,
+                        attemptID: attemptID
+                    )
+                },
+                onClose: {
+                    screenshotDrawSession = nil
+                }
+            )
         }
         .onReceive(NotificationCenter.default.publisher(for: .shiBeiDidRegisterForRemoteNotifications)) { notification in
             guard let token = notification.userInfo?["deviceToken"] as? String else { return }
@@ -178,17 +221,26 @@ struct V2RootView: View {
         case .learning:
             V2AwakeningHomeView(
                 response: awakeningResponse,
-                hasReviewableContent: usesFixtures || backendChapters.contains(where: isHomeLearningCandidate),
+                hasReviewableContent: !reviewableScreenshotCards.isEmpty || usesFixtures || backendChapters.contains(where: isHomeLearningCandidate),
                 isLoading: isAwakeningLoading,
                 selectedTab: $selectedTab,
                 showsUnreadNotificationBadge: hasUnreadNotifications,
                 onOpenNotifications: { pushRoute(.notifications) },
-                onOpenProfile: { pushRoute(.profile) },
+                onOpenProfile: { selectedTab = .notes },
+                screenshotCardCount: reviewableScreenshotCards.count,
+                screenshotPoolCounts: screenshotPoolCounts,
+                onDrawScreenshot: { pool in
+                    openScreenshotDraw(mode: .single, pool: pool)
+                },
+                onContinuousScreenshotDraw: { pool in
+                    openScreenshotDraw(mode: .continuous, pool: pool)
+                },
                 onDraw: {
                     Task {
                         await openAwakeningCard()
                     }
-                }
+                },
+                onAddContent: { selectedTab = .upload }
             )
         case .materials:
             V2MaterialsView(
@@ -202,8 +254,12 @@ struct V2RootView: View {
                 generatingChapterStatus: isActiveGenerationFailed ? .failed : .generating,
                 generatingProgressText: generationDisplayText,
                 generatedChapter: backendReviewChapter,
+                screenshotCards: screenshotCards,
                 openGeneratingChapter: openGeneratingChapter(id:),
-                openChapter: openBackendChapter
+                openChapter: openBackendChapter,
+                deleteMemoryCard: { cardID in
+                    try await deleteScreenshotMemoryCard(id: cardID)
+                }
             )
         case .upload:
             V2UploadView(
@@ -216,10 +272,8 @@ struct V2RootView: View {
                     try await apiClient.preflightSource(input: input, fetchMetadata: true)
                 },
                 onGenerate: startV2Generation,
-                onScreenshotFlow: { image, progress in
-                    try await apiClient.analyzeImage(image: image, progress: progress)
-                },
-                onScreenshotCompleted: handleImageFlowCompleted
+                screenshotAnalysisState: screenshotAnalysisState,
+                onAnalyzeScreenshot: requestScreenshotAnalysis
             )
         case .discover:
             V2DiscoverView(
@@ -229,12 +283,17 @@ struct V2RootView: View {
                 openArticle: openRecommendedArticle
             )
         case .notes:
-            V2NotesView(
+            V2ProfileTabView(
                 selectedTab: $selectedTab,
-                usesMockData: usesFixtures,
-                savedQuestions: backendSavedQuestionItems,
-                onOpenSavedQuestion: openSavedQuestion,
-                onOpenBackendSavedQuestion: openBackendSavedQuestion
+                usesMockData: $usesMockData,
+                allowsMockDataToggle: allowsMockDataToggle,
+                reviewedCount: profileReviewedKnowledgeCountText,
+                streakDays: profileStreakDaysText,
+                account: account,
+                isAccountLoading: isAccountLoading,
+                accountMessage: accountMessage,
+                onSignInWithApple: signInWithApple,
+                onDeleteAccount: deleteAccount
             )
         }
     }
@@ -295,12 +354,6 @@ struct V2RootView: View {
                     openNotification(notification, target: .failure)
                 }
             )
-        case .imageFlowResult:
-            if let imageFlowResponse {
-                V2ImageFlowResultView(response: imageFlowResponse, onBack: goBack)
-            } else {
-                V2MissingRouteView(onBack: goBack)
-            }
         case .generationFailureDetail(let chapterID):
             V2GenerationFailureDetailView(
                 title: "章节详情",
@@ -633,7 +686,7 @@ struct V2RootView: View {
         guard usesFixtures else {
             return
         }
-        selectedTab = .notes
+        selectedTab = .materials
         questionInteractionStates.removeValue(forKey: savedQuestionStateKey(index: index))
         routeStore.reset(to: .savedQuestion(index: index))
     }
@@ -643,7 +696,7 @@ struct V2RootView: View {
               selectBackendChapter(id: savedQuestion.chapterID) else {
             return
         }
-        selectedTab = .notes
+        selectedTab = .materials
         questionInteractionStates.removeValue(forKey: backendSavedQuestionStateKey(questionID: savedQuestion.questionID))
         routeStore.reset(to: .savedBackendQuestion(item: savedQuestion))
     }
@@ -925,7 +978,7 @@ struct V2RootView: View {
             questionInteractionStates.removeValue(forKey: savedQuestionStateKey(index: nextIndex))
             replaceRoute(.savedQuestion(index: nextIndex))
         } else {
-            resetToHome(tab: .notes)
+            resetToHome(tab: .materials)
         }
     }
 
@@ -934,19 +987,19 @@ struct V2RootView: View {
 
         let savedQuestions = backendSavedQuestionItems
         guard let currentIndex = savedQuestions.firstIndex(where: { $0.questionID == currentQuestion.questionID }) else {
-            resetToHome(tab: .notes)
+            resetToHome(tab: .materials)
             return
         }
 
         let nextIndex = currentIndex + 1
         guard savedQuestions.indices.contains(nextIndex) else {
-            resetToHome(tab: .notes)
+            resetToHome(tab: .materials)
             return
         }
 
         let nextQuestion = savedQuestions[nextIndex]
         guard selectBackendChapter(id: nextQuestion.chapterID) else {
-            resetToHome(tab: .notes)
+            resetToHome(tab: .materials)
             return
         }
         questionInteractionStates.removeValue(forKey: backendSavedQuestionStateKey(questionID: nextQuestion.questionID))
@@ -1528,14 +1581,127 @@ struct V2RootView: View {
             return
         }
 
+        guard hasAcceptedAIProcessingConsent else {
+            pendingAIProcessingConsent = V2PendingAIProcessingConsent(payload: .sourceText(trimmed))
+            return
+        }
+
         startV2GenerationAfterConsent(sourceText: trimmed)
     }
 
+    private func requestScreenshotAnalysis(_ imageData: Data) {
+        guard !imageData.isEmpty else {
+            screenshotAnalysisState = .failed("没有读取到图片，请重新选择。")
+            return
+        }
+        guard hasAcceptedAIProcessingConsent else {
+            pendingAIProcessingConsent = V2PendingAIProcessingConsent(payload: .screenshot(imageData))
+            return
+        }
+        startScreenshotAnalysisAfterConsent(imageData: imageData)
+    }
+
+    private func startScreenshotAnalysisAfterConsent(imageData: Data) {
+        screenshotAnalysisTask?.cancel()
+        screenshotAnalysisState = .preparing
+        screenshotAnalysisTask = Task {
+            do {
+                let preparedData = try V2ScreenshotImageProcessor.prepare(imageData)
+                try Task.checkCancellation()
+                screenshotAnalysisState = .analyzing
+                let response = try await apiClient.analyzeScreenshot(imageData: preparedData)
+                try Task.checkCancellation()
+                let captureAnalysis = response.captureAnalysis
+                let disposition = captureAnalysis?.disposition
+                    ?? (response.memoryCard?.state == .formal ? .createCard : .archiveOnly)
+                guard var memoryCard = captureAnalysis?.memoryCard ?? response.memoryCard else {
+                    throw V2ScreenshotAnalysisError.missingMemoryCard
+                }
+                if let captureAnalysis {
+                    memoryCard.sourceStatus = captureAnalysis.sourceStatus
+                }
+                let captured = V2CapturedMemoryCard(
+                    card: memoryCard,
+                    screenshotData: preparedData,
+                    schedule: disposition == .createCard
+                        ? (captureAnalysis?.schedule ?? response.schedule)
+                        : nil,
+                    disposition: disposition
+                )
+                if let index = screenshotCards.firstIndex(where: { $0.id == captured.id }) {
+                    screenshotCards[index] = captured
+                } else {
+                    screenshotCards.append(captured)
+                }
+                guard disposition == .createCard, memoryCard.state == .formal else {
+                    screenshotAnalysisState = .generated(
+                        disposition == .needsConfirmation
+                            ? "证据不足，已保存为待确认碎片。"
+                            : "这条内容已保存为碎片，不进入复习。"
+                    )
+                    selectedTab = .materials
+                    return
+                }
+                screenshotAnalysisState = .generated(
+                    "记忆卡已生成，正在打开。"
+                )
+                selectedTab = .learning
+                screenshotDrawSession = V2ScreenshotDrawSession.make(
+                    mode: .single,
+                    from: [captured],
+                    pool: .due
+                )
+            } catch is CancellationError {
+                return
+            } catch {
+                screenshotAnalysisState = .failed(error.localizedDescription)
+            }
+        }
+    }
+
+    private func openScreenshotDraw(mode: V2ScreenshotDrawMode, pool: V2MemoryPool) {
+        guard let session = V2ScreenshotDrawSession.make(
+            mode: mode,
+            from: reviewableScreenshotCards,
+            pool: pool
+        ) else {
+            return
+        }
+        screenshotDrawSession = session
+    }
+
     @MainActor
-    private func handleImageFlowCompleted(_ response: ImageFlowResponse) {
-        imageFlowResponse = response
-        selectedTab = .learning
-        routeStore.reset(to: .imageFlowResult)
+    private func applyScreenshotAssessment(
+        cardID: String,
+        assessment: V2MemoryAssessment,
+        attemptID: String
+    ) async throws -> CaptureMemoryCardAssessmentResponse {
+        let response = try await apiClient.assessCaptureMemoryCard(
+            id: cardID,
+            assessment: assessment.rawValue,
+            attemptId: attemptID
+        )
+        let canonicalAssessment = response.canonicalAssessment(fallback: assessment)
+        if let index = screenshotCards.firstIndex(where: { $0.id == cardID }) {
+            screenshotCards[index].apply(
+                canonicalAssessment,
+                schedule: response.schedule,
+                serverMastery: response.mastery
+            )
+        }
+        return response
+    }
+
+    @MainActor
+    private func deleteScreenshotMemoryCard(id: String) async throws {
+        let response = try await apiClient.deleteCaptureMemoryCard(id: id)
+        guard response.deleted, response.cardId == id else {
+            throw APIClientError.invalidResponse
+        }
+        screenshotCards.removeAll { $0.id == id }
+        if screenshotDrawSession?.cards.contains(where: { $0.id == id }) == true {
+            screenshotDrawSession = nil
+        }
     }
 
     private func startV2GenerationAfterConsent(sourceText: String) {
@@ -1629,6 +1795,7 @@ struct V2RootView: View {
         async let minimumDisplayDuration: Void = sleepStartupSplashMinimumDuration()
         await refreshAccount()
         await loadLatestBackendChapterIfNeeded()
+        await refreshCaptureMemoryCards()
         await refreshAwakeningSession()
         await minimumDisplayDuration
 
@@ -1688,6 +1855,7 @@ struct V2RootView: View {
         accountMessage = ""
         do {
             _ = try await apiClient.deleteAccount()
+            clearCaptureMemoryStateAfterAccountDeletion()
             account = nil
             accountMessage = "账号数据已删除，当前设备会继续以匿名模式使用。"
             await refreshBackendContentAfterAccountChange()
@@ -1697,11 +1865,34 @@ struct V2RootView: View {
         isAccountLoading = false
     }
 
+    private func clearCaptureMemoryStateAfterAccountDeletion() {
+        screenshotAnalysisTask?.cancel()
+        screenshotAnalysisTask = nil
+        screenshotCards.removeAll()
+        screenshotDrawSession = nil
+        screenshotAnalysisState = .idle
+        pendingAIProcessingConsent = nil
+        V2ScreenshotPersistence.clear()
+    }
+
     @MainActor
     private func refreshBackendContentAfterAccountChange() async {
         hasLoadedInitialBackendChapter = false
         await loadLatestBackendChapterIfNeeded()
+        await refreshCaptureMemoryCards()
         await refreshAwakeningSession()
+    }
+
+    @MainActor
+    private func refreshCaptureMemoryCards() async {
+        guard !usesFixtures else { return }
+        do {
+            let records = try await apiClient.fetchCaptureMemoryCards()
+            screenshotCards = records.map(V2CapturedMemoryCard.init(record:))
+        } catch {
+            // Capture cards are an independent slice. A temporary list failure
+            // must not hide chapters or block the rest of app startup.
+        }
     }
 
     @MainActor
@@ -2423,12 +2614,12 @@ struct V2RootView: View {
         }
 
         if case .savedQuestion = route {
-            resetToHome(tab: .notes)
+            resetToHome(tab: .materials)
             return
         }
 
         if case .savedBackendQuestion = route {
-            resetToHome(tab: .notes)
+            resetToHome(tab: .materials)
             return
         }
 

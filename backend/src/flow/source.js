@@ -8,8 +8,7 @@ import {
 export async function extractFocusedSourceContent(input, {
   extractSourceContent = defaultExtractSourceContent
 } = {}) {
-  const extracted = await extractSourceContent(input);
-  const source = appendScreenshotEvidence(extracted, input?.screenshotText);
+  const source = await extractSourceContent(input);
   const focus = focusSourceContent(source, input?.timestampSeconds, {
     locatorTerms: input?.locatorTerms
   });
@@ -21,23 +20,6 @@ export async function extractFocusedSourceContent(input, {
     blocks: focus.blocks,
     focus
   };
-}
-
-function appendScreenshotEvidence(source, screenshotText) {
-  const visibleText = String(screenshotText || "").trim();
-  if (source?.sourceType !== "article_link" || source?.platform !== "xiaohongshu" || visibleText.length < 24) {
-    return source;
-  }
-  const platformText = String(source.rawText || "").trim();
-  const normalizedPlatform = normalize(platformText);
-  const normalizedScreenshot = normalize(visibleText);
-  if (!normalizedScreenshot || normalizedPlatform.includes(normalizedScreenshot)) return source;
-  const rawText = [visibleText, platformText].filter(Boolean).join("\n\n");
-  const blocks = [
-    { id: "xiaohongshu-screenshot-ocr-001", type: "paragraph", sourceRole: "screenshot_ocr", text: visibleText },
-    ...(Array.isArray(source.blocks) ? source.blocks : [])
-  ];
-  return { ...source, rawText, blocks };
 }
 
 export { isVideoUrl };

@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import pg from "pg";
+import { runVersionedMigrations } from "./database/migrations.js";
 
 const { Pool } = pg;
 
@@ -22,12 +23,14 @@ const connectionString = process.env.DATABASE_URL || "";
 
 export const hasDatabase = Boolean(connectionString);
 
-const pool = hasDatabase
+export const databasePool = hasDatabase
   ? new Pool({
       connectionString,
       ssl: process.env.PGSSLMODE === "require" ? { rejectUnauthorized: false } : undefined
     })
   : null;
+
+const pool = databasePool;
 
 export async function initDatabase() {
   if (!pool) return { ok: false, storage: "memory" };
@@ -274,6 +277,7 @@ export async function initDatabase() {
     CREATE INDEX IF NOT EXISTS audit_events_entity_idx
       ON audit_events(entity_type, entity_id, created_at DESC);
   `);
+  await runVersionedMigrations(pool);
 
   await markInterruptedGenerationJobs();
   return { ok: true, storage: "postgres" };
@@ -304,6 +308,53 @@ export async function ensureDevice(deviceId) {
      DO UPDATE SET last_seen_at = NOW()`,
     [deviceId]
   );
+}
+
+export async function incrementCapturePersistenceEpochForDevice(queryable, deviceId) {
+  const stableDeviceId = String(deviceId || "").trim();
+  if (!queryable || !stableDeviceId) throw new Error("queryable and deviceId are required");
+  const result = await queryable.query(
+    `UPDATE devices
+        SET capture_persistence_epoch = capture_persistence_epoch + 1,
+            last_seen_at = NOW()
+      WHERE id = $1
+      RETURNING id, capture_persistence_epoch`,
+    [stableDeviceId]
+  );
+  if (!result.rows[0]) throw new Error("capture persistence device not found");
+  return {
+    deviceIds: result.rows.map((row) => String(row.id)),
+    epochs: result.rows.map((row) => String(row.capture_persistence_epoch))
+  };
+}
+
+export async function incrementCapturePersistenceEpochsForAccount(queryable, {
+  accountId,
+  requestedDeviceId
+} = {}) {
+  const stableAccountId = String(accountId || "").trim();
+  const stableDeviceId = String(requestedDeviceId || "").trim();
+  if (!queryable || !stableAccountId || !stableDeviceId) {
+    throw new Error("queryable, accountId and requestedDeviceId are required");
+  }
+  const result = await queryable.query(
+    `UPDATE devices
+        SET capture_persistence_epoch = capture_persistence_epoch + 1,
+            last_seen_at = NOW()
+      WHERE id IN (
+        SELECT device_id FROM account_device_links WHERE account_id = $1
+        UNION
+        SELECT device_id FROM captures WHERE account_id = $1
+        UNION
+        SELECT $2::text
+      )
+      RETURNING id, capture_persistence_epoch`,
+    [stableAccountId, stableDeviceId]
+  );
+  return {
+    deviceIds: result.rows.map((row) => String(row.id)),
+    epochs: result.rows.map((row) => String(row.capture_persistence_epoch))
+  };
 }
 
 export function hashAccountIdentifier(value, options = {}) {
@@ -473,7 +524,9 @@ async function attachDeviceDataToAccount(queryable, { accountId, deviceId } = {}
     "notifications",
     "generation_jobs",
     "generation_quota_claims",
-    "device_push_tokens"
+    "device_push_tokens",
+    "captures",
+    "memory_cards"
   ];
   const counts = {};
   for (const table of tables) {
@@ -530,6 +583,14 @@ export async function deleteAccountData(accountId, {
       accountId: stableAccountId,
       reason
     });
+    const capturePersistenceEpochs = await incrementCapturePersistenceEpochsForAccount(client, {
+      accountId: stableAccountId,
+      requestedDeviceId: stableDeviceId
+    });
+    const captureMemoryCards = await client.query(
+      "DELETE FROM captures WHERE account_id = $1 RETURNING id",
+      [stableAccountId]
+    );
     const pushTokens = await client.query(
       `DELETE FROM device_push_tokens
         WHERE account_id = $1
@@ -562,6 +623,8 @@ export async function deleteAccountData(accountId, {
       favorites: favorites.rowCount || 0,
       notifications: notifications.rowCount || 0,
       generationJobs: generationJobs.rowCount || 0,
+      captureMemoryCards: captureMemoryCards.rowCount || 0,
+      capturePersistenceEpochs: capturePersistenceEpochs.deviceIds.length,
       pushTokens: pushTokens.rowCount || 0,
       quotaClaims: quotaClaims.rowCount || 0,
       deviceLinks: links.rowCount || 0
@@ -740,6 +803,7 @@ export async function deleteDeviceData(deviceId) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    const capturePersistenceEpochs = await incrementCapturePersistenceEpochForDevice(client, deviceId);
     const pushTokens = await client.query(
       `DELETE FROM device_push_tokens
         WHERE device_id = $1
@@ -772,6 +836,10 @@ export async function deleteDeviceData(deviceId) {
       whereSql: "TRUE",
       reason: "device_data_deleted_by_user"
     });
+    const captureMemoryCards = await client.query(
+      "DELETE FROM captures WHERE device_id = $1 RETURNING id",
+      [deviceId]
+    );
     await insertAuditEvent(client, {
       deviceId,
       action: "device_data.soft_delete",
@@ -784,7 +852,9 @@ export async function deleteDeviceData(deviceId) {
           notifications: notifications.rowCount,
           generationJobs: generationJobs.rowCount,
           favorites: favorites.rowCount,
-          pushTokens: pushTokens.rowCount
+          pushTokens: pushTokens.rowCount,
+          captureMemoryCards: captureMemoryCards.rowCount,
+          capturePersistenceEpochs: capturePersistenceEpochs.deviceIds.length
         }
       },
       snapshot: {
@@ -801,7 +871,9 @@ export async function deleteDeviceData(deviceId) {
       notifications: notifications.rowCount || 0,
       generationJobs: generationJobs.rowCount || 0,
       favorites: favorites.rowCount || 0,
-      pushTokens: pushTokens.rowCount || 0
+      pushTokens: pushTokens.rowCount || 0,
+      captureMemoryCards: captureMemoryCards.rowCount || 0,
+      capturePersistenceEpochs: capturePersistenceEpochs.deviceIds.length
     };
   } catch (error) {
     await client.query("ROLLBACK");

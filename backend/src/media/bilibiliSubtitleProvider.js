@@ -5,7 +5,7 @@ import { fetchYtDlpVideoSource } from "./ytDlpVideoProvider.js";
 
 const BILIBILI_API = "https://api.bilibili.com";
 const DEFAULT_TIMEOUT_MS = readPositiveInt(process.env.BILIBILI_API_TIMEOUT_MS, 12_000);
-const DEFAULT_TIKHUB_BASE_URL = "https://api.tikhub.io";
+const DEFAULT_TIKHUB_BASE_URL = "https://api.tikhub.dev";
 
 // Mirrors BibiGPT's fast path: fetch Bilibili's own metadata and subtitle tracks
 // before falling back to a media download and ASR.

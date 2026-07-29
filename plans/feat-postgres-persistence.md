@@ -1,6 +1,6 @@
 # PostgreSQL 耐久持久化与迁移
 
-- 状态：`in_progress`
+- 状态：`completed`
 - 优先级：P0
 - 创建：2026-07-29
 - 更新：2026-07-29
@@ -69,7 +69,7 @@ PR #29 已让生产配置 fail closed；当前 JSON Store 被明确标记为非�
 - [x] 覆盖空库、升级、重启、重复、幂等、并发、删除与失败测试。
 - [x] 在临时 PostgreSQL 17 集群完成 migration、业务读写和 dump/restore。
 - [x] 更新稳定合同、运维文档、决定记录与验证边界。
-- [ ] 完成范围匹配门禁，记录所有未验证的真实环境边界。
+- [x] 完成范围匹配门禁，记录所有未验证的真实环境边界。
 
 ## 验收标准
 
@@ -83,13 +83,15 @@ PR #29 已让生产配置 fail closed；当前 JSON Store 被明确标记为非�
 
 ## 验证
 
-- 计划创建：`npm --prefix backend run docs:check`、`git diff --check`。
-- 依赖安装后：`npm ci --prefix backend --ignore-scripts`。
-- 目标测试：migration、Postgres Store、readiness、合成 JSON import。
-- 正式后端门禁：`npm --prefix backend run check`、`npm --prefix backend run test:all`。
-- PostgreSQL 门禁：仓库提供的临时集群测试命令，使用本机 PostgreSQL 17.10 与合成数据。
-- 通用门禁：`npm --prefix backend run docs:check`、`git diff --check`。
-- 真实环境：不使用真实用户数据、生产 DATABASE_URL 或 Railway；这些不得记录为 Passed。
+- `npm ci --prefix backend --ignore-scripts`：通过；锁文件可从干净依赖状态安装 14 个包。
+- `npm --prefix backend run check`：通过；服务、配置、Store、migration、导入和测试 harness 均通过 Node 语法检查。
+- `npm --prefix backend run test:all`：通过；35 项中 34 项通过、1 项按设计跳过（需要隔离的 `TEST_DATABASE_URL`，由下一项专用门禁实际执行）。
+- `npm --prefix backend run test:postgres`：通过；本机 PostgreSQL 17.10 临时集群，覆盖失败 migration 整体回滚、空库与 `001`→`002` 升级、并发 runner、checksum 漂移、重复 capture、重启回读、assessment 幂等／并发、assessment/delete 竞争、合成 JSON 导入，以及 `pg_dump`/`pg_restore` 后回读。
+- `npm --prefix backend run docs:check`：通过；18 个 Markdown 文件、157 个 wiki 链接，无孤岛或索引冲突。
+- `git diff --check`：通过。
+- `git fetch origin main`：通过；完成时 `origin/main@0751dc6`，当前分支仅领先本计划与实现提交，没有落后提交。
+- UI / iOS：本次无客户端或页面改动，按 [[docs/quality-baseline]] 不触发 Simulator、浏览器或美学门禁。
+- 未验证：未连接 Railway、生产 PostgreSQL、真实 Qwen/TikHub、真实用户数据或真实备份；未执行生产 migration、容量压测、账号权限和连接切换。这些继续由 #19/#20 及新的 manual 授权处理，不记录为 Passed。
 
 ## 原则检验
 
@@ -109,7 +111,7 @@ PR #29 已让生产配置 fail closed；当前 JSON Store 被明确标记为非�
 
 ## 阻塞与恢复
 
-- 当前阻塞：无。
+- 当前阻塞：无；本计划验收完成。
 - 解除条件：若需要生产 DATABASE_URL、真实数据、Railway 操作或身份产品决定，停止并请求新的人工授权。
 - 下一位 Agent 从哪里继续：读取本计划、[[docs/quality-baseline]] 与 [[docs/ios-api-data-contract-zh]]，从 migration runner 和合成测试开始，不触碰 PR #28。
 

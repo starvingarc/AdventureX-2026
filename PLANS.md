@@ -6,7 +6,7 @@
 
 | 计划 | 分支 | 负责人 | 状态 | 模式 | 进度 | 下一步 |
 |---|---|---|---|---|---:|---|
-| [[plans/feat-postgres-persistence]] | `feat/postgres-persistence` | Codex | `in_progress` | `manual` | 90% | 复核范围并记录最终验证证据 |
+| [[plans/feat-postgres-persistence]] | `feat/postgres-persistence` | Codex | `completed` | `manual` | 100% | 退役计划并创建待评审 PR |
 
 ## 使用规则
 

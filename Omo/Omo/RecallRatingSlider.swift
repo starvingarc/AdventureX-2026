@@ -18,7 +18,7 @@ struct RecallRatingSlider: View {
             ZStack(alignment: .topLeading) {
                 track(width: width, travel: travel)
                 labels(width: width, travel: travel)
-                knob(travel: travel)
+                knob(width: width, travel: travel)
             }
             .frame(width: width, height: RecallRatingMetrics.totalHeight)
             .frame(maxWidth: .infinity, alignment: .center)
@@ -56,13 +56,13 @@ struct RecallRatingSlider: View {
         ZStack(alignment: .leading) {
             Capsule().fill(RecallPalette.card)
 
-            LinearGradient(
-                colors: [RecallPalette.card, RecallPalette.teal.opacity(0.8)],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-            .frame(width: max(RecallRatingMetrics.knobSize.width, knobCenter(travel: travel)))
+            ratingGradient
+            .frame(width: width, height: RecallRatingMetrics.trackHeight)
             .clipShape(Capsule())
+            .mask(alignment: .leading) {
+                Rectangle()
+                    .frame(width: knobCenter(travel: travel))
+            }
 
             ForEach(RecallRatingScale.nodes, id: \.assessment) { node in
                 Circle()
@@ -100,19 +100,38 @@ struct RecallRatingSlider: View {
         .allowsHitTesting(false)
     }
 
-    private func knob(travel: CGFloat) -> some View {
-        ZStack {
+    private func knob(width: CGFloat, travel: CGFloat) -> some View {
+        ZStack(alignment: .topLeading) {
             Capsule()
                 .fill(RecallPalette.drawer)
-                .overlay(Capsule().stroke(RecallPalette.teal, lineWidth: 1))
                 .shadow(color: RecallPalette.ink.opacity(0.27), radius: 5, y: 3)
+                .frame(
+                    width: RecallRatingMetrics.knobSize.width,
+                    height: RecallRatingMetrics.knobSize.height
+                )
+                .offset(x: CGFloat(position) * travel)
+
+            ratingGradient
+                .frame(width: width, height: RecallRatingMetrics.knobSize.height)
+                .mask(alignment: .topLeading) {
+                    Capsule().stroke(lineWidth: 1)
+                    .frame(
+                        width: RecallRatingMetrics.knobSize.width,
+                        height: RecallRatingMetrics.knobSize.height
+                    )
+                    .offset(x: CGFloat(position) * travel)
+                }
 
             Image(systemName: "arrow.right")
                 .font(.system(size: 16, weight: .bold))
                 .foregroundStyle(RecallPalette.teal)
+                .frame(
+                    width: RecallRatingMetrics.knobSize.width,
+                    height: RecallRatingMetrics.knobSize.height
+                )
+                .offset(x: CGFloat(position) * travel)
         }
-        .frame(width: RecallRatingMetrics.knobSize.width, height: RecallRatingMetrics.knobSize.height)
-        .offset(x: CGFloat(position) * travel)
+        .frame(width: width, height: RecallRatingMetrics.knobSize.height)
     }
 
     private func dragGesture(travel: CGFloat) -> some Gesture {
@@ -160,6 +179,14 @@ struct RecallRatingSlider: View {
     private func nodeCenter(for assessment: MemoryAssessment, travel: CGFloat) -> CGFloat {
         RecallRatingMetrics.knobSize.width / 2
             + CGFloat(RecallRatingScale.position(for: assessment)) * travel
+    }
+
+    private var ratingGradient: LinearGradient {
+        LinearGradient(
+            colors: [RecallPalette.card, RecallPalette.teal.opacity(0.8)],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
     }
 
     private var accessibilityValue: String {

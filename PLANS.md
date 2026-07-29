@@ -6,7 +6,7 @@
 
 | 计划 | 分支 | 负责人 | 状态 | 模式 | 进度 | 下一步 |
 |---|---|---|---|---|---:|---|
-| 无 | — | — | — | — | — | — |
+| [[plans/revert-pr-17-active-recall-interaction]] | `revert/pr-17-active-recall-interaction` | Codex | `in_progress` | `manual` | 0% | 反向撤销 PR #17 |
 
 ## 使用规则
 

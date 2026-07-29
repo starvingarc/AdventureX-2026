@@ -1,0 +1,100 @@
+name: Bug 报告
+description: 报告可以复现的错误、回归或失败语义。
+title: "[Bug] "
+labels:
+  - needs:triage
+  - type:bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请只提交可公开的最小证据。不要上传密钥、真实用户截图、个人信息、生产数据库或完整模型请求/响应。
+  - type: textarea
+    id: problem
+    attributes:
+      label: 当前问题与证据
+      description: 发生了什么？请附版本、环境、截图或日志的脱敏片段。
+      placeholder: 当前行为、发生频率和可观察证据。
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. …
+        2. …
+        3. …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为
+      description: 正确结果和失败语义应该是什么？
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: 主要范围
+      options:
+        - iOS
+        - Backend
+        - Product
+        - Infrastructure
+        - Documentation
+        - Assets
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: 范围与非目标
+      description: 写清本 Issue 需要修什么，以及明确不包含什么。
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 验收标准
+      description: 使用可验证的结果描述完成条件。
+      placeholder: |
+        - [ ] …
+        - [ ] …
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: 依赖与阻塞
+      description: 列出 blocked by / blocking 的 Issue、PR、权限或外部服务。
+      placeholder: 无；或 #123。
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: 验证方法
+      description: 需要运行哪些测试、设备、视口或真实服务检查？
+    validations:
+      required: true
+  - type: dropdown
+    id: risk
+    attributes:
+      label: 最高风险
+      options:
+        - 普通、仓库内且可回滚
+        - 生产或发布
+        - 数据迁移或持久化
+        - 隐私、权限或凭据
+        - 素材授权
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: 安全确认
+      options:
+        - label: 我已经移除密钥、真实用户数据、内部地址和未授权素材。
+          required: true

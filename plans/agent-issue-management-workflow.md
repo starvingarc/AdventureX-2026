@@ -57,8 +57,8 @@ Omo 当前有 8 个开放 Issue，但都没有标签、Milestone 或讨论记录
 
 ## 任务
 
-- [ ] 创建并验证 Issue Forms 与 PR 模板。
-- [ ] 写入 Issue 管理稳定文档、索引和决定记录。
+- [x] 创建并验证 Issue Forms 与 PR 模板。
+- [x] 写入 Issue 管理稳定文档、索引和决定记录。
 - [ ] 创建标签、Milestone 和 Project 字段。
 - [ ] 拆分 #7 与 #8，建立父子任务和依赖关系。
 - [ ] 整理 #9–#14 的结构、优先级、Milestone 与负责人。
@@ -95,6 +95,7 @@ Omo 当前有 8 个开放 Issue，但都没有标签、Milestone 或讨论记录
 - 2026-07-29：用户批准采用 Issue → Project → Plan → PR 的统一管理方案。
 - 2026-07-29：使用独立主题分支和 manual Plan，不直接在 `main` 修改。
 - 2026-07-29：标签只表达类型、范围与风险；状态和优先级进入 Project 字段。
+- 2026-07-29：仓库模板覆盖 Bug、Feature 与 Product / Contract change；稳定文档定义 Ready / Done 和部分覆盖规则。
 
 ## 阻塞与恢复
 

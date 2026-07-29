@@ -1,0 +1,94 @@
+name: Feature / 改进
+description: 提议一个可以独立验收的产品或工程改进。
+title: "[Feature] "
+labels:
+  - needs:triage
+  - type:feature
+body:
+  - type: textarea
+    id: motivation
+    attributes:
+      label: 动机与当前证据
+      description: 谁遇到了什么问题？为什么现在值得做？
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: 目标结果
+      description: 用用户或工程结果描述成功，不要只列实现手段。
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: 主要范围
+      options:
+        - iOS
+        - Backend
+        - Product
+        - Infrastructure
+        - Documentation
+        - Assets
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: 范围
+      placeholder: |
+        - …
+        - …
+    validations:
+      required: true
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: 非目标
+      description: 明确本 Issue 不会顺带解决的范围。
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 验收标准
+      placeholder: |
+        - [ ] …
+        - [ ] …
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: 依赖、父子任务与阻塞
+      description: 如果范围包含多个可独立结果，请改成父 Issue 和子 Issue。
+      placeholder: 无；或 Parent #123 / Blocked by #124。
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: 验证方法
+      description: 写清自动测试、Simulator / 浏览器、人工检查和真实服务边界。
+    validations:
+      required: true
+  - type: dropdown
+    id: risk
+    attributes:
+      label: 最高风险
+      options:
+        - 普通、仓库内且可回滚
+        - 产品原则或稳定合同
+        - 生产、发布或部署
+        - 数据迁移或持久化
+        - 隐私、权限或凭据
+        - 素材授权
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: 安全确认
+      options:
+        - label: 我没有在 Issue 中提交密钥、真实用户数据、内部地址或未授权素材。
+          required: true

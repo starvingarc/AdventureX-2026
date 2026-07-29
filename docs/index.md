@@ -18,6 +18,7 @@
 ## 工程与协作
 
 - [[docs/quality-baseline]]：验证矩阵、UI 原则门禁与证据分级。
+- [[docs/issue-management-workflow]]：Issue、Project、临时 Plan 与 PR 的统一流转、标签和完成门槛。
 - [[docs/documentation-guide]]：稳定文档、临时计划和决定记录的分层方式。
 - [[docs/decision-log]]：重大且难以逆转的决定。
 - [[AGENTS]]：所有 Coding Agent 的第一入口。

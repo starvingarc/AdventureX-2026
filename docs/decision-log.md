@@ -96,10 +96,45 @@ Omo 同时包含 SwiftUI、Node.js、平台 Adapter、数据库、部署、公�
 
 当文档数量或链接规则显著增长时，复审现有双链检查是否需要增加标题锚点、孤岛检测或 CI 门禁。
 
+## 2026-07-29：采用 Issue → Project → Plan → PR 的统一工作链路
+
+- 状态：accepted
+- 决策者：Project owner
+- 相关计划：`plans/agent-issue-management-workflow.md`
+
+### 背景
+
+Omo 的开放 Issue 缺少统一标签、Milestone、验收和依赖；部分 Issue 同时包含多个可独立结果。若让 Issue、Project 和临时 Plan 同时复制任务状态，多人 Agent 会看到相互漂移的排期。
+
+### 决定
+
+- Issue 保存长期问题、动机、范围、验收和依赖。
+- Omo Roadmap Project 保存跨分支状态、Priority、Estimate 和 Iteration。
+- 复杂任务仍以分支派生的临时 Plan 冻结合同并记录施工证据。
+- PR 保存实际 diff、Plan 历史、稳定文档和验证结果。
+- 只有完整满足验收的 PR 使用 `Closes #N`；部分覆盖使用 `Refs #N`。
+- 标签只表达类型、范围和风险，状态与优先级不在标签中重复维护。
+
+### 理由
+
+每一层只维护一种事实，能让需求长期追踪、分支施工和合并证据互相连接，同时保持 [[PLANS]] 的 checkout 局部性和幂等生命周期。
+
+### 后果
+
+- 新 Issue 通过结构化表单进入 `needs:triage`。
+- 多目标 Issue 需要拆为父 Issue 和可独立验收的子 Issue。
+- Project 状态变化不能替代代码、测试、真实环境证据或 PR 评审。
+- 团队需要定期分诊 Inbox、阻塞、无负责人和未关联 PR。
+
+### 验证或复审条件
+
+当维护 Project 的成本高于带来的全局可见性，或 GitHub 原生字段与自动化能力发生重大变化时，复审字段数量和自动化范围；不得退回到 Issue、Plan 和 PR 三处复制同一进度。
+
 ## 相关文档
 
 - [[AGENTS]]
 - [[docs/index]]
+- [[docs/issue-management-workflow]]
 - [[docs/documentation-guide]]
 - [[plans/README]]
 - [[PLANS]]

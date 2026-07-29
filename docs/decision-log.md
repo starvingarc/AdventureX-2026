@@ -100,7 +100,7 @@ Omo 同时包含 SwiftUI、Node.js、平台 Adapter、数据库、部署、公�
 
 - 状态：accepted
 - 决策者：Product owner
-- 相关计划：[[plans/codex-fix-active-recall-interaction-impl]]
+- 相关计划：`plans/codex-fix-active-recall-interaction-impl.md`（已退役，保留于 Git 历史）
 
 ### 背景
 

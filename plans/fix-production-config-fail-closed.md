@@ -1,6 +1,6 @@
 # 生产配置缺失时 fail closed
 
-- 状态：`in_progress`
+- 状态：`completed`
 - 优先级：P0
 - 创建：2026-07-29
 - 更新：2026-07-29
@@ -62,7 +62,7 @@
 - [x] 新增 liveness/readiness 与生产业务门禁。
 - [x] 统一环境变量、部署探针与稳定文档。
 - [x] 覆盖缺失、错误、超时、无效上游与存储失败测试。
-- [ ] 完成范围匹配验证并记录未验证的真实服务/部署边界。
+- [x] 完成范围匹配验证并记录未验证的真实服务/部署边界。
 
 ## 验收标准
 
@@ -81,6 +81,11 @@
 - 通用门禁：`npm --prefix backend run docs:check`、`git diff --check`。
 - HTTP 合同：本地临时端口验证 liveness、readiness 与 fail-closed 响应。
 - 真实环境：不使用真实 Qwen/TikHub/Postgres，不部署 Railway/Vercel；这些结果不得标记为 Passed。
+- 2026-07-29：`npm --prefix backend run check` 通过，覆盖 5 个后端运行文件的 Node 语法检查。
+- 2026-07-29：`npm --prefix backend run test:all` 通过，27 tests / 27 pass / 0 fail；HTTP 测试在获准的本机 `127.0.0.1` 随机端口运行。
+- 2026-07-29：`npm --prefix backend run docs:check` 通过，17 Markdown 文件、146 个 wiki links，无孤立文档或计划索引冲突。
+- 2026-07-29：`git diff --check` 通过。
+- 未验证：真实 Qwen、TikHub、耐久数据库 Adapter、Railway/Vercel 部署与目标环境 readback；本地 Mock、Fixture 与 JSON Store 结果不作为这些能力的生产证据。
 
 ## 原则检验
 
@@ -96,12 +101,13 @@
 - 2026-07-29：当前 JSON Store 明确为本地能力，耐久存储由后续独立 Issue 实现。
 - 2026-07-29：#18 先合入，#28 随后 rebase；不得在本分支改写 #28。
 - 2026-07-29：Fixture 卡新增 `generationMode=fixture`，来源不可用新增 `sourceReason`，让测试数据与来源证据边界可机读。
+- 2026-07-29：本地门禁全部通过，计划完成；真实服务与部署边界保持未验证。
 
 ## 阻塞与恢复
 
 - 当前阻塞：无。
 - 解除条件：若验收要求真实提供方或耐久存储实现，拆分或链接对应 Issue，不在本计划伪造证据。
-- 下一位 Agent 从哪里继续：运行正式本地门禁，复核最终 diff 和真实环境未验证项；通过后把计划标记为 `completed` 并退役。
+- 下一位 Agent 从哪里继续：退役本计划，推送当前主题分支并创建 PR；PR 必须注明 #28 后续 rebase 的合并顺序与真实环境未验证项。
 
 ## 相关文档
 

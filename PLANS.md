@@ -6,7 +6,7 @@
 
 | 计划 | 分支 | 负责人 | 状态 | 模式 | 进度 | 下一步 |
 |---|---|---|---|---|---:|---|
-| [[plans/fix-production-config-fail-closed]] | `fix/production-config-fail-closed` | Codex | `in_progress` | `manual` | 85% | 运行正式门禁并复核最终证据 |
+| [[plans/fix-production-config-fail-closed]] | `fix/production-config-fail-closed` | Codex | `completed` | `manual` | 100% | 退役计划并创建 PR |
 
 ## 使用规则
 

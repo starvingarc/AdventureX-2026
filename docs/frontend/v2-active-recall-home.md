@@ -69,7 +69,7 @@
 
 ## 验证证据
 
-2026-07-29 的 Simulator 截图与交互记录见 [[docs/validation/omo-figma-active-recall-2026-07-29/README]]。
+首次 Figma 还原证据见 [[docs/validation/omo-figma-active-recall-2026-07-29/README]]；句内承重语义、滑条取消/确认和原地换卡的修复验证见 [[docs/validation/omo-active-recall-interaction-2026-07-29/README]]。
 
 ## 相关文档
 

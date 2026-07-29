@@ -1,6 +1,6 @@
 # Omo Issue 管理工作流
 
-- 状态：`in_progress`
+- 状态：`complete`
 - 优先级：P1
 - 创建：2026-07-29
 - 更新：2026-07-29
@@ -63,7 +63,7 @@ Omo 当前有 8 个开放 Issue，但都没有标签、Milestone 或讨论记录
 - [x] 拆分 #7 与 #8，建立父子任务和依赖关系。
 - [x] 整理 #9–#14 的结构、优先级、Milestone 与负责人。
 - [x] 把 PR #17 纳入全局视图，但不改变其 Draft / 合并状态。
-- [ ] 完成仓库门禁与外部配置回读验证。
+- [x] 完成仓库门禁与外部配置回读验证。
 
 ## 验收标准
 
@@ -82,6 +82,18 @@ Omo 当前有 8 个开放 Issue，但都没有标签、Milestone 或讨论记录
 - YAML 解析 `.github/ISSUE_TEMPLATE/*.yml`
 - 回读所有新标签、Milestone、Project 字段和被修改 Issue。
 - 明确区分仓库验证、GitHub 外部配置回执和未验证项。
+
+### 最终证据（2026-07-29）
+
+- YAML：4 个 `.github/ISSUE_TEMPLATE/*.yml` 均可解析；3 个 Issue Form 的字段 ID 唯一，textarea / dropdown 必填，checkbox options 必选。
+- Docs：`npm --prefix backend run docs:check` 通过，17 个 Markdown 文件、144 个 wiki links，无孤岛文档或计划索引冲突。
+- Diff：`git diff --check` 通过；完成验证前工作区干净。
+- Labels / Milestones：回读 14 个管理标签和 3 个开放 Milestone。
+- Issues：16 个开放 Issue 均有 labels、Milestone 与 assignee。
+- Project：私有 `Omo Roadmap` 有 16 个字段、17 个项；无缺失 Status、Priority 或 Estimate；Blocked 为 #9 / #11 / #14 / #20，In review 为 #17。
+- 原生关系：#7 子任务为 #18–#21；#8 子任务为 #22–#25；#9 ← #19、#11 ← #10、#14 ← #13、#20 ← #18 / #19 / #21。
+- PR：#17 回读为 open Draft、`Motion-first stabilization`、Project `In review`。
+- 未验证：Issue Forms 与 PR 模板只有合入默认分支后才会在 GitHub 新建入口中生效；未把分支文件表述为已上线模板。
 
 ## 外部配置回读
 
@@ -112,7 +124,7 @@ Omo 当前有 8 个开放 Issue，但都没有标签、Milestone 或讨论记录
 
 ## 阻塞与恢复
 
-- 当前阻塞：无。GitHub CLI 已更新到 2.96.0 并重新完成 `starvingarc` HTTPS 登录。
+- 当前阻塞：无。计划范围已完成，等待退役计划并创建 Draft PR。
 - 解除条件：不适用。
 - 下一位 Agent 从哪里继续：检查本计划任务列表、GitHub 当前配置与分支提交历史。
 

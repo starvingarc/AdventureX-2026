@@ -38,14 +38,16 @@ enum RecallHomeMetrics {
 enum RecallCardMetrics {
     static let cornerRadius: CGFloat = 18
     static let contentInset: CGFloat = 22
-    static let scratchHeight: CGFloat = 64
-    static let brushDiameter: CGFloat = 34
+    static let semanticHeight: CGFloat = 36
+    static let brushDiameter: CGFloat = 26
     static let visibleLayerCount = 4
 }
 
 enum RecallRatingMetrics {
-    static let trackHeight: CGFloat = 16
-    static let knobSize = CGSize(width: 44, height: 38)
-    static let nodeDiameter: CGFloat = 18
-    static let totalHeight: CGFloat = 82
+    static let trackWidth: CGFloat = 286
+    static let trackHeight: CGFloat = 32
+    static let knobSize = CGSize(width: 41.5, height: 36.2)
+    static let nodeDiameter: CGFloat = 6.5
+    static let labelTop: CGFloat = 42
+    static let totalHeight: CGFloat = 66
 }

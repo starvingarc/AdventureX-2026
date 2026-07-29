@@ -48,9 +48,10 @@ final class RecallInteractionStateTests: XCTestCase {
 
     func testRatingScaleUsesLeftEdgeAsCancelAndThreeAssessmentNodes() {
         XCTAssertNil(RecallRatingScale.nearestAssessment(at: 0))
-        XCTAssertEqual(RecallRatingScale.nearestAssessment(at: 0.28), .forgot)
-        XCTAssertEqual(RecallRatingScale.nearestAssessment(at: 0.62), .fuzzy)
-        XCTAssertEqual(RecallRatingScale.nearestAssessment(at: 1), .remembered)
+        XCTAssertNil(RecallRatingScale.nearestAssessment(at: 0.20))
+        XCTAssertEqual(RecallRatingScale.nearestAssessment(at: 0.42), .forgot)
+        XCTAssertEqual(RecallRatingScale.nearestAssessment(at: 0.70), .fuzzy)
+        XCTAssertEqual(RecallRatingScale.nearestAssessment(at: 0.97), .remembered)
     }
 
     func testKnowledgeSegmentsSupportBeginningMiddleAndEndMatches() {

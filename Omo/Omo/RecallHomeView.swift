@@ -24,8 +24,7 @@ struct RecallHomeView: View {
                 RecallRoundView(
                     cards: deck,
                     onAssess: assess,
-                    onComplete: finishRound,
-                    onOpenLibrary: onOpenLibrary
+                    onComplete: finishRound
                 )
             } else if store.cards.isEmpty {
                 firstLaunchContent

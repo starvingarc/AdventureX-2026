@@ -63,9 +63,9 @@ struct RecallRoundState: Equatable {
 enum RecallRatingScale {
     static let cancelPosition = 0.0
     static let nodes: [(assessment: MemoryAssessment, position: Double)] = [
-        (.forgot, 0.28),
-        (.fuzzy, 0.62),
-        (.remembered, 1.0)
+        (.forgot, 0.42),
+        (.fuzzy, 0.70),
+        (.remembered, 0.97)
     ]
 
     static func nearestAssessment(at position: Double) -> MemoryAssessment? {

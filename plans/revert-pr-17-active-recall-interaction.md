@@ -1,6 +1,6 @@
 # 回退 PR #17 Active Recall Interaction
 
-- 状态：`in_progress`
+- 状态：`completed`
 - 优先级：P0
 - 创建：2026-07-29
 - 更新：2026-07-29
@@ -47,10 +47,10 @@ PR #17 已通过 merge commit `2f6bd7e` 合入 `main`。用户确认该版本不
 
 ## 任务
 
-- [ ] 反向撤销 merge commit `2f6bd7e`。
-- [ ] 运行文档、后端、iOS 与 UI 原则门禁。
-- [ ] 记录证据、退役计划并创建 revert PR。
-- [ ] 合并 revert PR，确认远端 `main` 已恢复。
+- [x] 反向撤销 merge commit `2f6bd7e`。
+- [x] 运行文档、后端、iOS 与 UI 原则门禁。
+- [x] 记录完成证据。
+- [ ] 退役计划、创建并合入 revert PR，确认远端 `main` 已恢复。
 
 ## 验收标准
 
@@ -61,13 +61,16 @@ PR #17 已通过 merge commit `2f6bd7e` 合入 `main`。用户确认该版本不
 
 ## 验证
 
-- `npm ci --prefix backend --ignore-scripts`
-- `npm --prefix backend run docs:check`
-- `npm --prefix backend run check`
-- `npm --prefix backend run test:all`
-- `git diff --check`
-- XcodeBuildMCP：iPhone 17 与 iPhone 17e build/run/test
-- `git diff --exit-code 05ae8ba HEAD`（计划退役后）
+- `npm ci --prefix backend --ignore-scripts`：通过，0 vulnerabilities。
+- `npm --prefix backend run docs:check`：通过，17 Markdown / 142 wiki links。
+- `npm --prefix backend run check`：通过。
+- `npm --prefix backend run test:all`：通过，6 passed / 0 failed。
+- `git diff --check`：通过。
+- XcodeBuildMCP iPhone 17：build/run 通过，XCTest 1 passed / 0 failed。
+- XcodeBuildMCP iPhone 17e：build/run 通过，XCTest 1 passed / 0 failed。
+- iPhone 17 与 iPhone 17e 首页实际检查：无截断或横向溢出；添加截图、添加内容与三个底部导航入口均出现在可访问性树。
+- `git diff --exit-code 05ae8ba..HEAD -- . ':(exclude)PLANS.md' ':(exclude)plans/revert-pr-17-active-recall-interaction.md'`：通过。
+- 未验证：真实 Qwen / TikHub、生产持久化与部署、APNs、真机。
 
 ## 原则检验
 
@@ -80,12 +83,13 @@ PR #17 已通过 merge commit `2f6bd7e` 合入 `main`。用户确认该版本不
 
 - 2026-07-29：用户批准通过 revert PR 回退 #17，并在后续新 PR 中重新进入 review。
 - 2026-07-29：采用 merge commit 保留计划生命周期和原 PR 历史。
+- 2026-07-29：`git revert -m 1 2f6bd7e` 无冲突完成；除活动计划外，文件树与 `05ae8ba` 一致。
 
 ## 阻塞与恢复
 
-- 当前阻塞：无。
+- 当前阻塞：无；实现与验证完成，等待按规范退役并发布。
 - 解除条件：不适用。
-- 下一位 Agent 从哪里继续：检查当前任务清单与最新提交，先确认 `origin/main` 仍包含目标 merge。
+- 下一位 Agent 从哪里继续：退役本计划，创建 revert PR，并在合入前再次确认 `origin/main` 仍包含目标 merge。
 
 ## 相关文档
 

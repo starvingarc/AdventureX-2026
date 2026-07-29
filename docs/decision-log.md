@@ -124,7 +124,7 @@ Omo 的开放 Issue 缺少统一标签、Milestone、验收和依赖；部分 Is
 - 新 Issue 通过结构化表单进入 `needs:triage`。
 - 多目标 Issue 需要拆为父 Issue 和可独立验收的子 Issue。
 - Project 状态变化不能替代代码、测试、真实环境证据或 PR 评审。
-- 团队需要定期分诊 Inbox、阻塞、无负责人和未关联 PR。
+- 团队在 Issue 创建、开工、PR 创建／合入和阻塞变化时触发分诊；不设置固定短周期清理。
 
 ### 验证或复审条件
 

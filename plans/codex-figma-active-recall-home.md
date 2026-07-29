@@ -1,6 +1,6 @@
 # 按 Figma 复现主动召回首页
 
-- 状态：`in_progress`
+- 状态：`completed`
 - 优先级：P0
 - 创建：2026-07-29
 - 更新：2026-07-29
@@ -61,7 +61,7 @@
 - [x] 检查揭示前不泄露答案，补齐取消、确认、换卡和忘记重封测试。
 - [x] 更新稳定文档和素材来源，运行文档与静态门禁。
 - [x] 构建并在 Simulator 检查核心页面、交互、VoiceOver 与轻量尺寸边界。
-- [ ] 记录最终证据，完成并退役本计划，推送主题分支并创建 PR。
+- [x] 记录最终证据并完成本计划；退役、推送和 PR 按计划生命周期在后续独立提交执行。
 
 ## 验收标准
 
@@ -82,7 +82,20 @@
 - 使用实际可用 Simulator 运行 `OmoTests/FirstLaunchEmptyHomeTests` 与 `OmoTests/ActiveRecallHomeTests`。
 - 使用 Omo Scheme 执行 iOS build，并在常见 iPhone 尺寸检查首次空态、抽卡前、刮开中、揭示后、自评确认和下一张。
 - 在一个较小或较大 iPhone 尺寸做安全区、触控和横向溢出的轻量检查；不因该门禁扩大产品范围。
-- 在 Simulator 的无障碍树确认揭示前不包含 `hiddenSemantic`，并检查自评控件有离散、非 NaN 的语义值。
+- 在 Simulator 的无障碍树确认揭示前不包含当前合同中的 `answer`，并检查自评控件有离散、非 NaN 的语义值。
+
+最终结果：
+
+- `npm --prefix backend run docs:check`：通过，检查 19 篇 Markdown 与 151 个双链。
+- `git diff --check`：通过。
+- Omo iOS Simulator build：通过；最终构建耗时 24.7 秒。
+- Omo 全量 XCTest：6 项通过、0 失败、0 跳过；其中 `RecallInteractionStateTests` 5 项。
+- iPhone 17：首次空态、有卡待机、六张候选卡堆、揭示、自评取消、自评确认和下一张重新封住均完成真实运行检查。
+- iPhone 17 揭示前运行时无障碍快照不包含答案；Slider 初值为 `0`，不是 NaN。
+- iPhone SE：首次空态无横向溢出，菜单、上传和文件夹保持可见可触达。
+- 本地真实 assessment API：向右提交“记得”成功并进入下一张；向左回取消区不提交、不换卡。
+- 截图与人工结论：[[docs/validation/omo-figma-active-recall-2026-07-29/README]]。
+- 未验证：真实 Qwen、生产后端、Share Extension 与真机；本分支未改变这些边界。
 
 ## 原则检验
 
@@ -103,7 +116,7 @@
 
 ## 阻塞与恢复
 
-- 当前阻塞：无。
+- 当前阻塞：无；范围内验收已完成，等待按规范退役计划并创建 PR。
 - 解除条件：若复现需要改变 API、Schema 或主线状态机，停止施工并请求产品/合同负责人确认。
 - 下一位 Agent 从哪里继续：运行最终门禁，记录提交 SHA，完成并退役本计划，然后推送 PR。
 

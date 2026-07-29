@@ -6,7 +6,7 @@
 
 | 计划 | 分支 | 负责人 | 状态 | 模式 | 进度 | 下一步 |
 |---|---|---|---|---|---:|---|
-| [[plans/revert-pr-17-active-recall-interaction]] | `revert/pr-17-active-recall-interaction` | Codex | `completed` | `manual` | 100% | 退役计划并创建 revert PR |
+| 无 | — | — | — | — | — | — |
 
 ## 使用规则
 

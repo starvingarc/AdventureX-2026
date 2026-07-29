@@ -18,7 +18,9 @@ final class OmoStore: ObservableObject {
     }
 
     var dueCards: [MemoryCard] {
-        cards.filter(\.isDue).sorted { $0.nextReviewAt < $1.nextReviewAt }
+        cards
+            .filter { $0.isDue && $0.isRecallEligible }
+            .sorted { $0.nextReviewAt < $1.nextReviewAt }
     }
 
     func load() async {
@@ -58,7 +60,6 @@ final class OmoStore: ObservableObject {
     func assess(_ card: MemoryCard, as assessment: MemoryAssessment) async throws -> MemoryCard {
         let updated = try await api.assess(card, as: assessment)
         upsert(updated)
-        presentedCard = updated
         return updated
     }
 

@@ -46,7 +46,7 @@ PR #29 已让生产配置 fail closed；当前 JSON Store 被明确标记为非�
 - 重复 capture：同一 `(owner_id, card_id)` 首次写入为 canonical；重复 `save` 返回现有卡，不覆盖 assessment、mastery 或 schedule。
 - assessment：事务内 `SELECT ... FOR UPDATE`、唯一 attempt、版本条件更新；重复 attempt 返回当前卡且不重复计数。
 - 删除：硬删除 card，并由外键级联 assessment attempts；并发 assessment/delete 后不得复活卡片。
-- Migration：只增加 `NNN_*.sql`；记录 checksum；并发 runner 使用 PostgreSQL advisory lock；服务不自动 migrate。
+- Migration：只增加 `NNN-description.sql`；记录 checksum；并发 runner 使用 PostgreSQL advisory lock；服务不自动 migrate。
 - Readiness：仅 `DATABASE_URL` 存在不等于就绪；必须连接成功且所有仓库 migration checksum 与版本匹配。输出只含安全 driver/status/reason。
 - 失败语义：缺失/错误 URL、连接失败、migration 未应用/漂移、写入失败和 stale write 使用稳定安全码；不得返回连接串、SQL 参数、卡片 JSON 或驱动原始错误。
 - 兼容要求：无 `DATABASE_URL` 时非生产继续使用 JSON；生产环境仍 fail closed。旧 JSON 数据只通过显式合成/人工授权的导入命令处理，不在启动时静默搬迁。
@@ -61,14 +61,14 @@ PR #29 已让生产配置 fail closed；当前 JSON Store 被明确标记为非�
 
 ## 任务
 
-- [ ] 增加 PostgreSQL 配置校验、Store factory 与动态 readiness。
-- [ ] 建立顺序 migration runner、checksum、并发锁和 migration 状态。
-- [ ] 实现 Postgres owner/card/assessment 持久化与事务语义。
-- [ ] 保持 JSON Store 非生产兼容，并让 server await 统一 Store 合同。
-- [ ] 增加显式 migration/status 与合成 JSON 导入命令。
-- [ ] 覆盖空库、升级、重启、重复、幂等、并发、删除与失败测试。
-- [ ] 在临时 PostgreSQL 17 集群完成 migration、业务读写和 dump/restore。
-- [ ] 更新稳定合同、运维文档、决定记录与验证边界。
+- [x] 增加 PostgreSQL 配置校验、Store factory 与动态 readiness。
+- [x] 建立顺序 migration runner、checksum、并发锁和 migration 状态。
+- [x] 实现 Postgres owner/card/assessment 持久化与事务语义。
+- [x] 保持 JSON Store 非生产兼容，并让 server await 统一 Store 合同。
+- [x] 增加显式 migration/status 与合成 JSON 导入命令。
+- [x] 覆盖空库、升级、重启、重复、幂等、并发、删除与失败测试。
+- [x] 在临时 PostgreSQL 17 集群完成 migration、业务读写和 dump/restore。
+- [x] 更新稳定合同、运维文档、决定记录与验证边界。
 - [ ] 完成范围匹配门禁，记录所有未验证的真实环境边界。
 
 ## 验收标准
@@ -105,6 +105,7 @@ PR #29 已让生产配置 fail closed；当前 JSON Store 被明确标记为非�
 - 2026-07-29：服务不自动执行 migration；部署前由显式 CLI/发布流程应用，readiness 只检查。
 - 2026-07-29：owner 保持不透明过渡键，不在 #21 提前定义 #19 的认证与会话。
 - 2026-07-29：PR #28 仍独立 review；若其先合入，本分支从最新 main rebase 并保留 #29/#21 合同；若 #21 先合入，#28 后续 rebase，禁止本分支改写 #28。
+- 2026-07-29：本地 PostgreSQL 17.10 已覆盖失败 migration 事务回滚、`001`→`002` 升级、并发 runner、重启回读、写入并发和 `pg_dump`/`pg_restore`；生产 Railway 与真实数据仍未验证。
 
 ## 阻塞与恢复
 

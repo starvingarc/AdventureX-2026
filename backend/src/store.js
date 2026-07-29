@@ -15,12 +15,12 @@ export class CardStore {
     return [...this.cards.values()]
       .filter((entry) => entry.owner === owner)
       .sort((a, b) => b.card.createdAt.localeCompare(a.card.createdAt))
-      .map((entry) => publicCard(entry.card));
+      .map((entry) => toPublicCard(entry.card));
   }
 
   get(owner, cardId) {
     const entry = this.cards.get(key(owner, cardId));
-    return entry ? publicCard(entry.card) : null;
+    return entry ? toPublicCard(entry.card) : null;
   }
 
   save(owner, card) {
@@ -34,42 +34,24 @@ export class CardStore {
       else this.cards.delete(cardKey);
       throw error;
     }
-    return publicCard(card);
+    return toPublicCard(card);
   }
 
   assess(owner, cardId, assessment, attemptId) {
-    if (!assessments.has(assessment)) {
-      throw httpError(422, "assessment_invalid", "反馈只能是记得、模糊或忘记。");
-    }
-    if (!attemptId) throw httpError(422, "attempt_id_required", "缺少反馈幂等标识。");
+    validateAssessmentInput(assessment, attemptId);
     const entry = this.cards.get(key(owner, cardId));
     if (!entry) return null;
     const card = entry.card;
     const previous = structuredClone(card);
-    card.attemptIds ||= [];
-    if (card.attemptIds.includes(attemptId)) return publicCard(card);
-
-    card.attemptIds.push(attemptId);
-    card.reviewCount += 1;
-    if (assessment === "remembered") card.successfulRecallCount += 1;
-    card.lastAssessment = assessment;
-
-    card.masteryStage = nextMasteryStage(card.masteryStage, assessment);
-
-    const currentStep = Number(card.stepIndex || 0);
-    card.stepIndex = assessment === "forgot"
-      ? 0
-      : assessment === "fuzzy"
-        ? Math.max(1, currentStep - 1)
-        : Math.min(intervals.length - 1, currentStep + 1);
-    card.nextReviewAt = new Date(Date.now() + intervals[card.stepIndex] * 86_400_000).toISOString();
+    const applied = applyAssessment(card, assessment, attemptId);
+    if (!applied) return toPublicCard(card);
     try {
       this.persist();
     } catch (error) {
       entry.card = previous;
       throw error;
     }
-    return publicCard(card);
+    return toPublicCard(card);
   }
 
   delete(owner, cardId) {
@@ -95,6 +77,19 @@ export class CardStore {
       throw httpError(503, "storage_unavailable", "记忆卡存储暂时不可用。");
     }
   }
+
+  async readiness({ production = false } = {}) {
+    return {
+      ready: !production,
+      driver: "json",
+      durable: false,
+      reason: production ? "durable_storage_unavailable" : "",
+      appliedVersions: [],
+      pendingVersions: []
+    };
+  }
+
+  async close() {}
 }
 
 export function nextMasteryStage(currentStage, assessment) {
@@ -103,6 +98,36 @@ export function nextMasteryStage(currentStage, assessment) {
   if (stage === "sealed") return "awakened";
   if (assessment !== "remembered") return stage;
   return mastery[Math.min(mastery.length - 1, mastery.indexOf(stage) + 1)];
+}
+
+export function applyAssessment(card, assessment, attemptId, now = Date.now()) {
+  validateAssessmentInput(assessment, attemptId);
+  card.attemptIds ||= [];
+  if (card.attemptIds.includes(attemptId)) return false;
+
+  card.attemptIds.push(attemptId);
+  card.reviewCount = Number(card.reviewCount || 0) + 1;
+  if (assessment === "remembered") {
+    card.successfulRecallCount = Number(card.successfulRecallCount || 0) + 1;
+  }
+  card.lastAssessment = assessment;
+  card.masteryStage = nextMasteryStage(card.masteryStage, assessment);
+
+  const currentStep = Number(card.stepIndex || 0);
+  card.stepIndex = assessment === "forgot"
+    ? 0
+    : assessment === "fuzzy"
+      ? Math.max(1, currentStep - 1)
+      : Math.min(intervals.length - 1, currentStep + 1);
+  card.nextReviewAt = new Date(now + intervals[card.stepIndex] * 86_400_000).toISOString();
+  return true;
+}
+
+export function validateAssessmentInput(assessment, attemptId) {
+  if (!assessments.has(assessment)) {
+    throw httpError(422, "assessment_invalid", "反馈只能是记得、模糊或忘记。");
+  }
+  if (!attemptId) throw httpError(422, "attempt_id_required", "缺少反馈幂等标识。");
 }
 
 function load(filePath) {
@@ -117,7 +142,7 @@ function load(filePath) {
   }
 }
 
-function publicCard(card) {
+export function toPublicCard(card) {
   const { attemptIds, stepIndex, ...value } = card;
   return structuredClone(value);
 }

@@ -6,7 +6,7 @@
 
 | 计划 | 分支 | 负责人 | 状态 | 模式 | 进度 | 下一步 |
 |---|---|---|---|---|---:|---|
-| [[plans/feat-postgres-persistence]] | `feat/postgres-persistence` | Codex | `in_progress` | `manual` | 0% | 建立 migration runner 与合成测试 |
+| [[plans/feat-postgres-persistence]] | `feat/postgres-persistence` | Codex | `in_progress` | `manual` | 90% | 复核范围并记录最终验证证据 |
 
 ## 使用规则
 

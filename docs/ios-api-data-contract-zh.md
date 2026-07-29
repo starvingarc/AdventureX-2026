@@ -1,6 +1,6 @@
 # Omo iOS API 合同
 
-所有请求使用 JSON，并通过 `X-Device-Id` 隔离本机卡片。
+所有请求使用 JSON，并通过 `X-Device-Id` 隔离本机卡片。该请求头当前只是不透明的过渡 owner key，不是认证或可信账号边界；生产登录与授权由 #19 定义。
 
 ## 接口
 
@@ -65,9 +65,17 @@
   "checks": {
     "model": { "required": true, "ready": true, "provider": "qwen" },
     "source": { "required": true, "ready": true, "provider": "tikhub" },
-    "storage": { "required": true, "ready": false, "driver": "json", "durable": false }
+    "storage": {
+      "required": true,
+      "ready": false,
+      "driver": "postgres",
+      "durable": true,
+      "reason": "storage_migration_required",
+      "appliedVersions": ["001"],
+      "pendingVersions": ["002"]
+    }
   },
-  "blockers": ["durable_storage_unavailable"],
+  "blockers": ["storage_migration_required"],
   "warnings": []
 }
 ```
@@ -77,8 +85,8 @@
 ```json
 {
   "code": "service_not_ready",
-  "message": "生产依赖尚未就绪。",
-  "blockers": ["durable_storage_unavailable"]
+  "message": "服务依赖尚未就绪。",
+  "blockers": ["storage_migration_required"]
 }
 ```
 
@@ -94,10 +102,13 @@
 | Qwen | `QWEN_API`、`QWEN_BASE_URL`、`QWEN_MODEL`、`QWEN_TIMEOUT_MS` |
 | TikHub | `TIKHUB_API_KEY`、`TIKHUB_BASE_URL`、`TIKHUB_TIMEOUT_MS` |
 | 本地 JSON Store | `CARD_STORE_PATH` |
+| PostgreSQL | `DATABASE_URL`、`DATABASE_POOL_MAX`、`DATABASE_CONNECT_TIMEOUT_MS`、`DATABASE_IDLE_TIMEOUT_MS` |
 
-`BASE_URL`、`AI_MODEL`、`MODEL_REQUEST_TIMEOUT_MS` 和误拼的 `TICKHUB_API_KEY` 只作为迁移期兼容别名，新的部署与文档不得继续使用。当前 `CARD_STORE_PATH` 指向的 JSON Store 不属于耐久生产存储；不得把 `DATABASE_URL` 等尚未接入的变量写成已支持。
+`BASE_URL`、`AI_MODEL`、`MODEL_REQUEST_TIMEOUT_MS` 和误拼的 `TICKHUB_API_KEY` 只作为迁移期兼容别名，新的部署与文档不得继续使用。当前 `CARD_STORE_PATH` 指向的 JSON Store 不属于耐久生产存储；提供 `DATABASE_URL` 时不会回退 JSON，连接和顺序 migration 必须通过才能满足 storage readiness。完整迁移、导入和恢复合同见 [[docs/postgres-persistence]]。
 
 如果运行时仍检测到兼容别名，readiness 的 `warnings` 会返回 `deprecated_environment_variable:<NAME>`；它只包含变量名，不包含变量值。
+
+PostgreSQL 持久化使用 `(owner_id, card_id)` 作为 canonical key；重复截图不会覆盖已存在卡片的 mastery、assessment 或 schedule。assessment 的 `attemptId` 在数据库内唯一，重复提交只返回当前状态；并发更新使用行锁与版本 fencing。数据库或 migration 未就绪时业务请求返回 `service_not_ready`，驱动原始错误、连接串和 SQL 参数不会进入响应。
 
 ## 掌握阶段状态机
 

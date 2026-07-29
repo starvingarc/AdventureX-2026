@@ -83,3 +83,48 @@ test("legacy aliases remain compatible but are reported by name only", () => {
   ]);
   assert.equal(JSON.stringify(report).includes("legacy-secret"), false);
 });
+
+test("configured PostgreSQL is not ready until connection and migrations pass", () => {
+  const config = readRuntimeConfig({
+    NODE_ENV: "production",
+    QWEN_API: "qwen-secret",
+    TIKHUB_API_KEY: "tikhub-secret",
+    DATABASE_URL: "postgresql://omo:database-secret@db.example/omo"
+  });
+  const unchecked = buildReadiness(config);
+  const ready = buildReadiness(config, {
+    storage: {
+      ready: true,
+      driver: "postgres",
+      durable: true,
+      reason: "",
+      appliedVersions: ["001", "002"],
+      pendingVersions: []
+    }
+  });
+
+  assert.ok(unchecked.blockers.includes("storage_not_checked"));
+  assert.equal(ready.ready, true);
+  assert.equal(ready.checks.storage.driver, "postgres");
+  assert.deepEqual(ready.checks.storage.appliedVersions, ["001", "002"]);
+  assert.equal(JSON.stringify(ready).includes("database-secret"), false);
+});
+
+test("invalid database URL and pool settings fail readiness explicitly", () => {
+  const report = buildReadiness(readRuntimeConfig({
+    NODE_ENV: "development",
+    OMO_DEMO_MODE: "1",
+    DATABASE_URL: "https://user:secret@example.com/not-postgres",
+    DATABASE_POOL_MAX: "0",
+    DATABASE_CONNECT_TIMEOUT_MS: "invalid",
+    DATABASE_IDLE_TIMEOUT_MS: "-1"
+  }));
+
+  assert.deepEqual(report.blockers, [
+    "database_url_invalid",
+    "database_pool_max_invalid",
+    "database_connect_timeout_invalid",
+    "database_idle_timeout_invalid"
+  ]);
+  assert.equal(JSON.stringify(report).includes("secret"), false);
+});

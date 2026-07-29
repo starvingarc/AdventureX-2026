@@ -6,7 +6,6 @@
 
 - [[docs/product-principles]]：产品北极星、证据、召回、隐私与体验护栏。
 - [[docs/ios-api-data-contract-zh]]：当前截图主链、iOS 模型、API、兼容与失败语义。
-- [[docs/superpowers/specs/2026-07-29-active-recall-interaction-correction-design]]：恢复句内承重语义刮开与四层滑动自评的已确认修正规格。
 - [[docs/privacy-policy-zh]]：面向用户的隐私政策。
 - [[docs/support-zh]]：面向用户的支持说明。
 
@@ -14,8 +13,6 @@
 
 - [[docs/frontend/v2-frontend-architecture]]：当前精简 SwiftUI 视图、状态与 API 边界。
 - [[docs/frontend/v2-layout-system]]：当前布局 Token、召回动效和 UI 验证要求。
-- [[docs/frontend/v2-first-launch-empty-home]]：首次无卡片首页与第一次截图上传入口。
-- [[docs/frontend/v2-active-recall-home]]：有卡首页、默认十连抽、刮开与三档自评。
 - [[docs/asset-provenance]]：App 素材来源、授权、处理方式与哈希。
 
 ## 工程与协作

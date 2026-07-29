@@ -10,15 +10,13 @@
 - `OmoStore.swift`：卡片集合、加载、上传、反馈和删除状态。
 - `APIClient.swift`：设备隔离的 HTTP 合同。
 - `OmoModels.swift`：客户端可解码模型和展示派生值。
-- `RecallKnowledgeCardView.swift`：合法卡的句内知识排版、承重语义刮层和上下文详情。
-- `RecallRatingSlider.swift`：取消区与三档 assessment 的离散滑动交互。
 
 视图只触发 `OmoStore` 动作；Store 通过 `APIClient` 调用后端并发布新状态。后端是卡片、掌握阶段和下次复习时间的事实来源。
 
 ## 状态与兼容
 
 - 加载、生成、空状态和错误均显式展示。
-- `MemoryCard` 的来源核验字段与 `hiddenSemantic` 为可选，以兼容旧卡片；只有 `hiddenSemantic` 是 `coreKnowledge` 连续子串的到期卡可进入主动回忆牌组。
+- `MemoryCard` 的来源核验字段为可选，以兼容旧卡片。
 - Debug 启动参数仅用于 Simulator 路径验证，不改变 Release 行为。
 - 新增页面或状态前优先扩展现有 Store 和共享组件，避免恢复平行架构。
 

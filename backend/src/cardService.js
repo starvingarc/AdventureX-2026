@@ -3,67 +3,36 @@ import { verifyScreenshotSource } from "./sourceVerifier.js";
 
 const validRarities = new Set(["R", "SR", "SSR"]);
 
-export async function createMemoryCard(
-  { imageBase64, mimeType = "image/jpeg" } = {},
-  dependencies = {}
-) {
+export async function createMemoryCard({ imageBase64, mimeType = "image/jpeg" } = {}) {
   if (!imageBase64 || typeof imageBase64 !== "string") {
     throw httpError(400, "请先选择一张截图。 ");
   }
 
   const now = new Date().toISOString();
   const id = `card-${createHash("sha256").update(imageBase64).digest("hex").slice(0, 20)}`;
-  const usesDemoCard = !dependencies.modelCaller && !process.env.QWEN_API;
-  const modelCaller = dependencies.modelCaller
-    || (process.env.QWEN_API ? callQwen : async () => demoCard());
-  const sourceVerifier = dependencies.sourceVerifier || verifyScreenshotSource;
-  let generated = await modelCaller({
-    mode: "generate",
-    imageBase64,
-    mimeType
-  });
-
-  if (!hasValidHiddenSemantic(generated)) {
-    const validationError = hiddenSemanticError(generated);
-    generated = await modelCaller({
-      mode: "repair",
-      imageBase64,
-      mimeType,
-      invalidCandidate: generated,
-      validationError
-    });
-  }
-
-  if (!hasValidHiddenSemantic(generated)) {
-    throw httpError(502, "记忆卡缺少可验证的承重语义。 ");
-  }
-
-  const coreKnowledge = text(generated.coreKnowledge);
-  const hiddenSemantic = text(generated.hiddenSemantic);
-  const source = await sourceVerifier(generated).catch(() => ({
+  const generated = process.env.QWEN_API
+    ? await callQwen(imageBase64, mimeType)
+    : demoCard();
+  const source = await verifyScreenshotSource(generated).catch(() => ({
     status: "screenshot_only",
     provider: "tikhub",
     platform: generated.platform || "unknown"
   }));
-  const sourceStatus = text(source.status, "screenshot_only");
 
   return {
     id,
-    coreKnowledge,
-    hiddenSemantic,
+    coreKnowledge: text(generated.coreKnowledge, "这张截图包含一个值得再次想起的知识点。"),
     recallCue: text(generated.recallCue, "你保存这张截图时，最想记住什么？"),
-    answer: hiddenSemantic,
+    answer: text(generated.answer, generated.coreKnowledge),
     explanation: text(generated.explanation, "根据截图中的可见内容生成。"),
-    sourceTitle: text(source.title || generated.sourceTitle, usesDemoCard ? "本地演示卡" : "截图内容"),
+    sourceTitle: text(source.title || generated.sourceTitle, process.env.QWEN_API ? "截图内容" : "本地演示卡"),
     sourceAccount: text(source.account || generated.sourceAccount),
     sourcePlatform: text(source.platform || generated.platform || "unknown"),
     sourceUrl: text(source.url),
-    sourceStatus,
+    sourceStatus: source.status,
     sourceProvider: source.provider,
     sourceConfidence: Number(source.confidence || 0),
-    rarity: sourceStatus === "verified" && validRarities.has(generated.rarity)
-      ? generated.rarity
-      : "R",
+    rarity: validRarities.has(generated.rarity) ? generated.rarity : "R",
     createdAt: now,
     masteryStage: "sealed",
     nextReviewAt: now,
@@ -75,16 +44,9 @@ export async function createMemoryCard(
   };
 }
 
-async function callQwen({
-  mode,
-  imageBase64,
-  mimeType,
-  invalidCandidate,
-  validationError
-}) {
+async function callQwen(imageBase64, mimeType) {
   const baseURL = String(process.env.BASE_URL || "https://dashscope.aliyuncs.com/compatible-mode/v1")
     .replace(/\/$/, "");
-  const isRepair = mode === "repair";
   const response = await fetch(`${baseURL}/chat/completions`, {
     method: "POST",
     headers: {
@@ -100,8 +62,7 @@ async function callQwen({
           role: "system",
           content: [
             "你是 Omo 的记忆卡编辑器。只依据截图可见内容，提炼一个最值得长期记住的知识点。",
-            "输出 JSON：coreKnowledge、hiddenSemantic、recallCue、explanation、sourceTitle、sourceAccount、platform、rarity。",
-            "hiddenSemantic 必须非空，并且必须是 coreKnowledge 中字符完全一致的连续子串；它应是删去后能形成真实回忆缺口的承重语义。",
+            "输出 JSON：coreKnowledge、recallCue、answer、explanation、sourceTitle、sourceAccount、platform、rarity。",
             "sourceTitle 必须是当前主内容标题，sourceAccount 必须是当前发布者或 UP 主；忽略推荐列表、广告、画面字幕、合集名和状态栏。",
             "platform 只能是 bilibili、douyin、xiaohongshu、wechat、zhihu、youtube、unknown。",
             "rarity 只能是 R、SR、SSR；信息不足时保持谨慎，不补充截图外事实。"
@@ -110,17 +71,7 @@ async function callQwen({
         {
           role: "user",
           content: [
-            {
-              type: "text",
-              text: isRepair
-                ? [
-                    "上一次结果违反记忆卡合同，请只依据同一张截图重新生成完整 JSON。",
-                    `校验错误：${validationError}`,
-                    `上一次结果：${JSON.stringify(invalidCandidate || {})}`,
-                    "必须确保 hiddenSemantic 是 coreKnowledge 中逐字一致的连续子串。"
-                  ].join("\n")
-                : "请把这张截图制作成一张简洁的中文记忆卡。"
-            },
+            { type: "text", text: "请把这张截图制作成一张简洁的中文记忆卡。" },
             { type: "image_url", image_url: { url: `data:${mimeType};base64,${imageBase64}` } }
           ]
         }
@@ -152,28 +103,14 @@ async function callQwen({
 function demoCard() {
   return {
     coreKnowledge: "截图只有在被再次想起时，才真正从收藏变成记忆。",
-    hiddenSemantic: "再次想起",
     recallCue: "保存一张截图之后，怎样才能让它不再积灰？",
+    answer: "把截图转成可召回的卡片，并在合适的时间主动回忆。",
     explanation: "当前没有配置 QWEN_API，因此返回一张明确标记的本地演示卡。",
     sourceTitle: "本地演示卡",
     sourceAccount: "",
     platform: "unknown",
     rarity: "R"
   };
-}
-
-export function hasValidHiddenSemantic(value) {
-  const coreKnowledge = text(value?.coreKnowledge);
-  const hiddenSemantic = text(value?.hiddenSemantic);
-  return hiddenSemantic.length > 0 && coreKnowledge.includes(hiddenSemantic);
-}
-
-function hiddenSemanticError(value) {
-  const coreKnowledge = text(value?.coreKnowledge);
-  const hiddenSemantic = text(value?.hiddenSemantic);
-  if (!coreKnowledge) return "coreKnowledge 不能为空。";
-  if (!hiddenSemantic) return "hiddenSemantic 不能为空。";
-  return "hiddenSemantic 必须是 coreKnowledge 中逐字一致的连续子串。";
 }
 
 function text(value, fallback = "") {

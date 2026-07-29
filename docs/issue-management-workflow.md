@@ -52,6 +52,7 @@ Project 记录：
 - Linked pull requests、父 Issue 与子 Issue 进度。
 
 状态和 Priority 不重复做成标签；Project 是全局视图，[[PLANS]] 只描述当前 checkout。
+Project 默认保持私有，维护者按最小权限加入；仓库写权限不自动等于 Project 写权限。
 
 ## 标签
 
@@ -94,7 +95,7 @@ Issue 进入 `Ready` 前必须同时满足：
 
 只有在 PR 完整满足 Issue 验收时使用 `Closes #N`。部分覆盖使用 `Refs #N`；合入后缩小原 Issue 或创建剩余子 Issue，不提前关闭。
 
-## Done 与复审
+## Done 与触发式复审
 
 Issue 只有在以下条件同时满足时进入 `Done`：
 
@@ -104,13 +105,12 @@ Issue 只有在以下条件同时满足时进入 `Done`：
 - 未完成范围已经形成新的 Issue 或明确标为不计划；
 - Project 与 Issue 状态已回读确认。
 
-每周至少进行一次短分诊：
+不设置固定的每周短周期清理。以下事件发生时立即完成对应分诊：
 
-- 清理 `Inbox` 与 `needs:triage`；
-- 拆分 XL 或多目标 Issue；
-- 检查无负责人、阻塞和失效依赖；
-- 检查开放 PR 是否关联 Issue；
-- 合并重大 PR 后复审相关 Issue 的关闭、缩小或解除阻塞。
+- 新 Issue 创建时，补齐范围、验收、负责人和依赖，或保留在 `Inbox` / `needs:triage`。
+- Issue 进入 `Ready` 或开工时，拆分 XL / 多目标范围并复核负责人、依赖和验证。
+- PR 创建时关联 Issue；PR 合入时复审相关 Issue 的关闭、缩小或解除阻塞。
+- 负责人、优先级或阻塞关系变化时同步 Project；不得因为 Iteration 结束而自动关闭或清理 Issue。
 
 ## 相关文档
 

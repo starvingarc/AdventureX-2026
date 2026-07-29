@@ -6,7 +6,7 @@
 
 | 计划 | 分支 | 负责人 | 状态 | 模式 | 进度 | 下一步 |
 |---|---|---|---|---|---:|---|
-| [[plans/agent-issue-management-workflow]] | `agent/issue-management-workflow` | Codex | `in_progress` | `manual` | 2/7 | 配置标签、Milestone 与 Project |
+| [[plans/agent-issue-management-workflow]] | `agent/issue-management-workflow` | Codex | `in_progress` | `manual` | 6/7 | 完成仓库门禁与外部配置回读 |
 
 ## 使用规则
 

@@ -30,7 +30,7 @@ Omo 当前有 8 个开放 Issue，但都没有标签、Milestone 或讨论记录
 - 在决定记录中登记 Issue / Project / Plan / PR 的职责边界。
 - 建立精简标签、三个发布 Milestone 与 Omo Roadmap Project。
 - 整理当前开放 Issue 的优先级、范围、负责人、Milestone、父子任务与阻塞关系。
-- 把 PR #16 纳入对应 Milestone / Project，并保留其 Draft 与评审状态。
+- 把取代 #16 的 PR #17 纳入对应 Milestone / Project，并保留其 Draft 与评审状态。
 
 ## 非目标
 
@@ -53,16 +53,16 @@ Omo 当前有 8 个开放 Issue，但都没有标签、Milestone 或讨论记录
 |---|---|---|---|---|---|
 | 仓库模板与稳定文档 | Codex | `agent/issue-management-workflow` / `/private/tmp/omo-issue-management` | `.github/`、`docs/`、`AGENTS.md` | YAML 解析、`docs:check`、`git diff --check` | 现有合同需要改变 |
 | GitHub 标签与 Milestone | Codex | GitHub 外部配置 | Repo labels / milestones | 重新读取配置 | 权限不足或同名配置冲突 |
-| Project 与 Issue 整理 | Codex | GitHub 外部配置 | Omo Roadmap、Issue #7–#14、PR #16 | 重新读取 Issue / Project | 会关闭 PR、删除数据或改变产品实现 |
+| Project 与 Issue 整理 | Codex | GitHub 外部配置 | Omo Roadmap、Issue #7–#25、PR #17 | 重新读取 Issue / Project | 会关闭 PR、删除数据或改变产品实现 |
 
 ## 任务
 
 - [x] 创建并验证 Issue Forms 与 PR 模板。
 - [x] 写入 Issue 管理稳定文档、索引和决定记录。
-- [ ] 创建标签、Milestone 和 Project 字段。
-- [ ] 拆分 #7 与 #8，建立父子任务和依赖关系。
-- [ ] 整理 #9–#14 的结构、优先级、Milestone 与负责人。
-- [ ] 把 PR #16 纳入全局视图，但不改变其 Draft / 合并状态。
+- [x] 创建标签、Milestone 和 Project 字段。
+- [x] 拆分 #7 与 #8，建立父子任务和依赖关系。
+- [x] 整理 #9–#14 的结构、优先级、Milestone 与负责人。
+- [x] 把 PR #17 纳入全局视图，但不改变其 Draft / 合并状态。
 - [ ] 完成仓库门禁与外部配置回读验证。
 
 ## 验收标准
@@ -83,6 +83,17 @@ Omo 当前有 8 个开放 Issue，但都没有标签、Milestone 或讨论记录
 - 回读所有新标签、Milestone、Project 字段和被修改 Issue。
 - 明确区分仓库验证、GitHub 外部配置回执和未验证项。
 
+## 外部配置回读
+
+- GitHub CLI：2.96.0；`starvingarc` 通过 HTTPS 登录，scope 包含 `repo`、`project` 与 `workflow`。
+- Labels：创建并回读 14 个 `needs:triage` / type / area / risk 标签。
+- Milestones：创建并回读 `Motion-first stabilization`、`Production beta`、`Knowledge library`。
+- Project：私有 `Omo Roadmap`，16 个字段、17 个项；Status 为 Inbox / Ready / In progress / In review / Blocked / Done，并含 Priority、Estimate 与 14 天 Iteration。
+- Project 协作：现有仓库协作者 `qingshungLI`、`MaxHan7`、`meihuil269-dot` 为 Project writer。
+- 父子任务：#7 → #18 / #19 / #20 / #21；#8 → #22 / #23 / #24 / #25。
+- 阻塞：#9 blocked by #19；#11 blocked by #10；#14 blocked by #13；#20 blocked by #18 / #19 / #21。
+- PR：#17 保持 Draft，Milestone 为 `Motion-first stabilization`，Project Status 为 `In review`。
+
 ## 原则检验
 
 - 证据边界：只把 GitHub 回读结果写成已配置；计划中的未来动作不算完成。
@@ -96,6 +107,8 @@ Omo 当前有 8 个开放 Issue，但都没有标签、Milestone 或讨论记录
 - 2026-07-29：使用独立主题分支和 manual Plan，不直接在 `main` 修改。
 - 2026-07-29：标签只表达类型、范围与风险；状态和优先级进入 Project 字段。
 - 2026-07-29：仓库模板覆盖 Bug、Feature 与 Product / Contract change；稳定文档定义 Ready / Done 和部分覆盖规则。
+- 2026-07-29：用户取消固定短周期清理，改为 Issue 创建、开工、PR 创建／合入和阻塞变化时触发分诊；Iteration 只用于排期。
+- 2026-07-29：线上开放实现 PR 已从 #16 变为替代它的 #17；全局视图按 #17 回读，不改其 Draft / 合并状态。
 
 ## 阻塞与恢复
 

@@ -7,11 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		FA70C00C2FC000000000000C /* MockReviewServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA70C00D2FC000000000000D /* MockReviewServiceTests.swift */; };
 		FA70C00E2FC000000000000E /* APIClientDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA70C00F2FC000000000000F /* APIClientDecodingTests.swift */; };
-		FA70C0102FC0000000000010 /* DeviceIdentityStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA70C0112FC0000000000011 /* DeviceIdentityStoreTests.swift */; };
-		FA70C0162FC0000000000016 /* V2RealCaptureFixtureLoaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA70C0172FC0000000000017 /* V2RealCaptureFixtureLoaderTests.swift */; };
-		FA70C0122FC0000000000012 /* Pow in Frameworks */ = {isa = PBXBuildFile; productRef = FA70C0142FC0000000000014 /* Pow */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -20,23 +16,20 @@
 			containerPortal = FA48BAEA2FB8628200A66913 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = FA48BAF12FB8628200A66913;
-			remoteInfo = "Omo";
+			remoteInfo = Omo;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		FA48BAF22FB8628200A66913 /* Omo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Omo.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		FA70C0012FC0000000000001 /* OmoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "OmoTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
-		FA70C00D2FC000000000000D /* MockReviewServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockReviewServiceTests.swift; sourceTree = "<group>"; };
+		FA70C0012FC0000000000001 /* OmoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OmoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		FA70C00F2FC000000000000F /* APIClientDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClientDecodingTests.swift; sourceTree = "<group>"; };
-		FA70C0112FC0000000000011 /* DeviceIdentityStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceIdentityStoreTests.swift; sourceTree = "<group>"; };
-		FA70C0172FC0000000000017 /* V2RealCaptureFixtureLoaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2RealCaptureFixtureLoaderTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		FA48BAF42FB8628200A66913 /* Omo */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "Omo";
+			path = Omo;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -46,7 +39,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				FA70C0122FC0000000000012 /* Pow in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -81,12 +73,9 @@
 		FA70C0022FC0000000000002 /* OmoTests */ = {
 			isa = PBXGroup;
 			children = (
-				FA70C00D2FC000000000000D /* MockReviewServiceTests.swift */,
 				FA70C00F2FC000000000000F /* APIClientDecodingTests.swift */,
-				FA70C0112FC0000000000011 /* DeviceIdentityStoreTests.swift */,
-				FA70C0172FC0000000000017 /* V2RealCaptureFixtureLoaderTests.swift */,
 			);
-			path = "OmoTests";
+			path = OmoTests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -107,11 +96,10 @@
 			fileSystemSynchronizedGroups = (
 				FA48BAF42FB8628200A66913 /* Omo */,
 			);
-			name = "Omo";
+			name = Omo;
 			packageProductDependencies = (
-				FA70C0142FC0000000000014 /* Pow */,
 			);
-			productName = "Omo";
+			productName = Omo;
 			productReference = FA48BAF22FB8628200A66913 /* Omo.app */;
 			productType = "com.apple.product-type.application";
 		};
@@ -128,10 +116,10 @@
 			dependencies = (
 				FA70C0082FC0000000000008 /* PBXTargetDependency */,
 			);
-			name = "OmoTests";
+			name = OmoTests;
 			packageProductDependencies = (
 			);
-			productName = "OmoTests";
+			productName = OmoTests;
 			productReference = FA70C0012FC0000000000001 /* OmoTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
@@ -164,11 +152,10 @@
 			);
 			mainGroup = FA48BAE92FB8628200A66913;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = FA48BAF32FB8628200A66913 /* Products */;
-			packageReferences = (
-				FA70C0132FC0000000000013 /* XCRemoteSwiftPackageReference "Pow" */,
-			);
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -207,10 +194,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				FA70C00C2FC000000000000C /* MockReviewServiceTests.swift in Sources */,
 				FA70C00E2FC000000000000E /* APIClientDecodingTests.swift in Sources */,
-				FA70C0102FC0000000000010 /* DeviceIdentityStoreTests.swift in Sources */,
-				FA70C0162FC0000000000016 /* V2RealCaptureFixtureLoaderTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -349,17 +333,14 @@
 		FA48BAFE2FB8628400A66913 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				APS_ENVIRONMENT = development;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "Omo/Omo.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 44589Y6FA6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Omo;
-				INFOPLIST_KEY_OmoAPNSEnvironment = "$(APS_ENVIRONMENT)";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -380,17 +361,14 @@
 		FA48BAFF2FB8628400A66913 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				APS_ENVIRONMENT = production;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "Omo/Omo.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 44589Y6FA6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Omo;
-				INFOPLIST_KEY_OmoAPNSEnvironment = "$(APS_ENVIRONMENT)";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -489,25 +467,6 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
-
-/* Begin XCRemoteSwiftPackageReference section */
-		FA70C0132FC0000000000013 /* XCRemoteSwiftPackageReference "Pow" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/EmergeTools/Pow.git";
-			requirement = {
-				kind = exactVersion;
-				version = 1.0.6;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		FA70C0142FC0000000000014 /* Pow */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = FA70C0132FC0000000000013 /* XCRemoteSwiftPackageReference "Pow" */;
-			productName = Pow;
-		};
-/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = FA48BAEA2FB8628200A66913 /* Project object */;
 }

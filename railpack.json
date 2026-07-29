@@ -2,32 +2,6 @@
   "$schema": "https://schema.railpack.com",
   "provider": "node",
   "packages": {
-    "node": "20",
-    "python": "3.11"
-  },
-  "buildAptPackages": [
-    "ffmpeg"
-  ],
-  "steps": {
-    "build": {
-      "commands": [
-        "...",
-        "python -m venv .venv-video-asr",
-        ".venv-video-asr/bin/pip install --upgrade pip",
-        ".venv-video-asr/bin/pip install -r backend/requirements-video-asr.txt"
-      ]
-    }
-  },
-  "deploy": {
-    "aptPackages": [
-      "ffmpeg"
-    ],
-    "variables": {
-      "PYTHON_PATH": "/app/.venv-video-asr/bin/python",
-      "LOCAL_WHISPER_PYTHON": "/app/.venv-video-asr/bin/python",
-      "YT_DLP_PYTHON": "/app/.venv-video-asr/bin/python",
-      "FFMPEG_PATH": "ffmpeg",
-      "FFPROBE_PATH": "ffprobe"
-    }
+    "node": "20"
   }
 }

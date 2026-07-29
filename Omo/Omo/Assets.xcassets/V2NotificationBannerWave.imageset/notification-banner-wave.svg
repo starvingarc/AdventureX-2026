@@ -1,8 +1,0 @@
-<svg width="329" height="143" viewBox="0 0 329 143" fill="none" xmlns="http://www.w3.org/2000/svg">
-<mask id="notification_banner_wave_mask" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="4" y="53" width="321" height="82">
-<rect x="4" y="53" width="321" height="82" rx="15" fill="#FDFAF2"/>
-</mask>
-<g mask="url(#notification_banner_wave_mask)">
-<path d="M91.5 134.255C27.9 107.055 -4 121.922 -12 132.755L-8.5 162.756L325 153.755C328.5 134.922 332.9 99.7551 322.5 109.755C309.5 122.255 205.5 133.757 188 128.756C152.734 118.678 135.5 127.756 121 134.255C110.655 138.892 100 137.89 91.5 134.255Z" fill="#F2F1DA"/>
-</g>
-</svg>

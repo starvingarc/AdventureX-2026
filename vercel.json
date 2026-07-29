@@ -1,8 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "npm --prefix backend install",
-  "buildCommand": "echo 'Omo serverless build ready'",
-  "outputDirectory": "docs",
+  "buildCommand": "echo 'Omo API ready'",
   "rewrites": [
     {
       "source": "/(.*)",
@@ -11,7 +10,6 @@
   ],
   "functions": {
     "api/index.js": {
-      "includeFiles": "{docs/**,backend/content/**}",
       "maxDuration": 60
     }
   }

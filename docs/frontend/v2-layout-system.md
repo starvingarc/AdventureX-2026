@@ -1,64 +1,29 @@
-# V2 Layout System
+# Omo iOS 布局与动效系统
 
-## Goal
+当前界面以“抽取、主动回忆、揭示、反馈、收好”作为一条连续视觉叙事。动效服务于状态因果，不承担业务判断。
 
-V2 page layout should be driven by design-system tokens and shared scaffolds, not by page-by-page hardcoded margins. The intent is that page-level spacing can be adjusted from one place while component-internal spacing stays stable.
+## 视觉来源
 
-## Core Tokens
+- `OmoTheme` 保存颜色、页面边距和圆角等语义 token。
+- 同族卡片共享表面、圆角、阴影和内容节奏。
+- 主要操作使用统一按钮样式，触控区域不小于 44pt。
+- 页面通过 safe area 组织顶部和底部导航，不使用散落的设备坐标补丁。
 
-Source: `Omo/Omo/V2/DesignSystem/V2DesignSystem.swift`
+## 动效层
 
-- `V2Layout.pageHorizontalInset`
-  - Page-level horizontal inset from the physical screen edge.
-  - Use this for page containers, popover clamping, and floating page actions.
-- `V2Layout.pageContentMaxWidth`
-  - Maximum width of the main readable/actionable page column.
-  - Most cards, progress bars, and primary buttons should align to this column.
-- `V2Layout.topBarTopPadding`
-  - Shared top chrome vertical placement.
-- `V2Layout.topBarHeight`
-  - Shared top chrome height.
-- `V2Layout.floatingActionTrailingInset`
-  - Page-level trailing inset for floating controls that visually align with page content.
+- 首页卡堆：低频呼吸和分层漂浮。
+- 召回过场：奔跑、翻找、叼回、卡片落定的逐帧图集。
+- 主动回忆：Canvas 刮除涂层，揭示前不向可见界面泄露答案。
+- 反馈与完成：姿态切换、触觉、粒子和轨道光效。
+- `Reduce Motion` 开启时使用静态首帧和短淡入淡出，跳过长过场。
 
-`V2Spacing.screenMargin` remains only as a legacy alias. New page-level layout should use `V2Layout.pageHorizontalInset`.
+## 验证
 
-## Shared Modifiers
+UI 改动至少检查常见 iPhone Simulator、Dynamic Type 风险、VoiceOver 文案、浅色模式、触控尺寸、滚动和 Reduce Motion。编译成功不替代实际页面检查。
 
-- `v2PageContentWidth()`
-  - Centers content and caps it to `V2Layout.pageContentMaxWidth`.
-- `v2PageHorizontalInset()`
-  - Applies `V2Layout.pageHorizontalInset`.
-- `v2PageColumn()`
-  - Applies both page content width and horizontal inset.
-  - Prefer this for normal scroll content inside page scaffolds.
+## 相关文档
 
-## Scaffold Rules
-
-- Tab pages should use `V2TabScaffold`.
-- Review-flow pages should use `V2FlowScreen`.
-- Top circular buttons should be placed through `V2TopChrome` and `V2FlowTopBar`, not manually offset per page.
-- Primary bottom actions should use `V2PrimaryActionButton` and align to `V2Layout.primaryActionWidth`.
-
-## What Not To Tokenize
-
-Do not blindly replace all numeric layout values. These should remain component-owned unless a layout bug proves otherwise:
-
-- Figma/SVG canvas sizes.
-- Mascot/IP illustration sizes and offsets.
-- Card internal padding.
-- Icon sizes.
-- Matching/quiz grid internal spacing.
-- Text offsets inside highly specific card drawings.
-
-## New Page Checklist
-
-When adding a new V2 page:
-
-1. Pick the correct scaffold first: `V2TabScaffold` or `V2FlowScreen`.
-2. Place scroll content inside `v2PageColumn()`.
-3. Use `V2Layout.pageContentMaxWidth` for page-level cards and progress bars.
-4. Use component-local `Metrics` enums for internal card spacing.
-5. Avoid hardcoded page margins such as `.padding(.horizontal, 24)`.
-6. If a new layout value is page-level and reusable, add it to `V2Layout` with a semantic name.
-
+- [[docs/frontend/v2-frontend-architecture]]
+- [[docs/product-principles]]
+- [[docs/asset-provenance]]
+- [[docs/quality-baseline]]

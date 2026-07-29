@@ -1,22 +1,17 @@
 {
-  "name": "omo-generation-demo",
-  "version": "0.2.0",
+  "name": "omo-api",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node src/server.js",
-    "start": "node src/start.js",
-    "worker": "node src/worker.js",
-    "start:web": "GENERATION_WORKER_DISABLED=1 node src/server.js",
-    "check": "node scripts/check-source.mjs",
-    "check:v2": "node scripts/check-source.mjs --scope=src/v2",
+    "dev": "node --env-file-if-exists=../.env src/server.js",
+    "start": "node src/server.js",
+    "check": "node --check src/server.js && node --check src/cardService.js && node --check src/sourceVerifier.js && node --check src/store.js",
     "docs:check": "node ../tools/check-wikilinks.mjs",
-    "check:video-source": "node --test src/media/extractVideoLearningSource.test.js src/media/platformSubtitles.test.js src/media/learningSource.test.js src/media/videoExtractionCache.test.js",
-    "smoke:v2:queue": "node scripts/smoke-v2-queue.mjs",
-    "image-flow": "node src/flow/cli.mjs",
-    "test:all": "node scripts/check-source.mjs --tests-only",
-    "fixtures:capture-gallery": "node test-fixtures/capture-gallery/generate.mjs"
+    "test": "node --test",
+    "test:all": "node --test"
   },
-  "engines": {"node": ">=20"},
-  "dependencies": {"pg": "^8.20.0", "playwright": "^1.60.0"}
+  "engines": {
+    "node": ">=20"
+  }
 }

@@ -21,10 +21,19 @@ struct RecallHomeView: View {
             onOpenSettings: onOpenSettings
         ) {
             if isRoundActive {
-                RecallRoundView(
-                    cards: deck,
-                    onAssess: assess,
-                    onComplete: finishRound
+                ZStack(alignment: .topLeading) {
+                    RecallRoundView(
+                        cards: deck,
+                        onAssess: assess,
+                        onComplete: finishRound
+                    )
+
+                    persistentHomeActions
+                }
+                .frame(
+                    width: RecallHomeMetrics.referenceSize.width,
+                    height: RecallHomeMetrics.referenceSize.height,
+                    alignment: .topLeading
                 )
             } else if store.cards.isEmpty {
                 firstLaunchContent
@@ -81,19 +90,30 @@ struct RecallHomeView: View {
                     .accessibilityHidden(true)
             }
 
-            Button(action: onOpenLibrary) {
-                Image("FirstLaunchFolder")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: RecallHomeMetrics.folderFrame.width, height: RecallHomeMetrics.folderFrame.height)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .position(x: RecallHomeMetrics.folderFrame.midX, y: RecallHomeMetrics.folderFrame.midY)
-            .accessibilityLabel("打开知识库")
-
-            uploadPicker(label: "上传新的知识截屏")
+            persistentHomeActions
         }
+    }
+
+    @ViewBuilder
+    private var persistentHomeActions: some View {
+        Button(action: onOpenLibrary) {
+            Image("FirstLaunchFolder")
+                .resizable()
+                .scaledToFit()
+                .frame(
+                    width: RecallHomeMetrics.folderFrame.width,
+                    height: RecallHomeMetrics.folderFrame.height
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .position(
+            x: RecallHomeMetrics.folderFrame.midX,
+            y: RecallHomeMetrics.folderFrame.midY
+        )
+        .accessibilityLabel("打开知识库")
+
+        uploadPicker(label: "上传新的知识截屏")
     }
 
     @ViewBuilder

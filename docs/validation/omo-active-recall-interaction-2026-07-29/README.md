@@ -12,6 +12,7 @@
 - 向右拖到记住了后，服务端收到 `remembered`，卡片只前进一次，下一张重新封住。
 - 向左完整拖回取消区后，滑块保持值 `0`、当前卡不切换，服务端 `reviewCount` 不增加。
 - 卡片右上入口展开完整上下文，关闭后不改变当前揭示状态。
+- 做题期间收藏夹和上传入口仍显示并可操作；从收藏夹进入知识库后可返回首页待机态。
 
 ## 环境
 
@@ -30,6 +31,7 @@
 - `iphone17-next-card-covered.jpg`：提交 remembered 后下一张重新封住。
 - `iphone-se-revealed-cancel.jpg`：边界尺寸下的揭示与滑条布局。
 - `iphone-se-rating-brand-color.png`：实际拖到最右节点并模拟保存失败后，滑块仍保持品牌青绿色；失败态让所选节点停留，便于检查视觉状态。
+- `iphone17-round-persistent-actions.png`：做题态保留左下收藏夹与右下上传入口。
 
 ## 自动验证
 

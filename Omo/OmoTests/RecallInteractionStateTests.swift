@@ -52,4 +52,28 @@ final class RecallInteractionStateTests: XCTestCase {
         XCTAssertEqual(RecallRatingScale.nearestAssessment(at: 0.62), .fuzzy)
         XCTAssertEqual(RecallRatingScale.nearestAssessment(at: 1), .remembered)
     }
+
+    func testKnowledgeSegmentsSupportBeginningMiddleAndEndMatches() {
+        XCTAssertEqual(
+            RecallKnowledgeSegments.make(coreKnowledge: "主动提取能够暴露遗忘", hiddenSemantic: "主动提取"),
+            RecallKnowledgeSegments(prefix: "", semantic: "主动提取", suffix: "能够暴露遗忘")
+        )
+        XCTAssertEqual(
+            RecallKnowledgeSegments.make(coreKnowledge: "熟悉感不等于真正掌握", hiddenSemantic: "不等于"),
+            RecallKnowledgeSegments(prefix: "熟悉感", semantic: "不等于", suffix: "真正掌握")
+        )
+        XCTAssertEqual(
+            RecallKnowledgeSegments.make(coreKnowledge: "关键机制是认知卸载", hiddenSemantic: "认知卸载"),
+            RecallKnowledgeSegments(prefix: "关键机制是", semantic: "认知卸载", suffix: "")
+        )
+    }
+
+    func testKnowledgeSegmentsUseFirstExactMatchAndRejectInvalidValues() {
+        XCTAssertEqual(
+            RecallKnowledgeSegments.make(coreKnowledge: "提取后核对，再次提取", hiddenSemantic: "提取"),
+            RecallKnowledgeSegments(prefix: "", semantic: "提取", suffix: "后核对，再次提取")
+        )
+        XCTAssertNil(RecallKnowledgeSegments.make(coreKnowledge: "认知卸载", hiddenSemantic: "认知  卸载"))
+        XCTAssertNil(RecallKnowledgeSegments.make(coreKnowledge: "认知卸载", hiddenSemantic: ""))
+    }
 }

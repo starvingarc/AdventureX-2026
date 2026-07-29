@@ -30,17 +30,24 @@ struct RecallRatingSlider: View {
         .frame(width: RecallRatingMetrics.trackWidth, height: RecallRatingMetrics.totalHeight)
         .accessibilityRepresentation {
             Slider(
-                value: Binding(
-                    get: { Double(accessibilitySelectionIndex) },
-                    set: updateAccessibilitySelection
-                ),
+                value: .constant(Double(accessibilitySelectionIndex)),
                 in: 0...3,
                 step: 1
             )
             .accessibilityIdentifier("memory-rating-slider")
-            .accessibilityLabel("记忆状态，\(accessibilityValue)")
-            .accessibilityValue(Text(accessibilityValue))
+            .accessibilityLabel("记忆状态")
+            .accessibilityValue(accessibilityValue)
             .accessibilityHint("调整到忘记了、没记清或记住了，然后确认")
+            .accessibilityAdjustableAction { direction in
+                switch direction {
+                case .increment:
+                    updateAccessibilitySelection(Double(accessibilitySelectionIndex + 1))
+                case .decrement:
+                    updateAccessibilitySelection(Double(accessibilitySelectionIndex - 1))
+                @unknown default:
+                    break
+                }
+            }
             .accessibilityAction(named: "确认当前记忆状态", confirmAccessibilityValue)
         }
     }

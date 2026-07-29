@@ -6,7 +6,7 @@
 
 | 计划 | 分支 | 负责人 | 状态 | 模式 | 进度 | 下一步 |
 |---|---|---|---|---|---:|---|
-| [[plans/review-pr-17-active-recall-interaction-v2]] | `review/pr-17-active-recall-interaction-v2` | Codex | `in_progress` | `manual` | 0% | 重建 #17 diff 并验证 |
+| [[plans/review-pr-17-active-recall-interaction-v2]] | `review/pr-17-active-recall-interaction-v2` | Codex | `completed` | `manual` | 100% | 退役计划并创建 review PR |
 
 ## 使用规则
 

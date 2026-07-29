@@ -17,9 +17,10 @@
 ```json
 {
   "id": "card-...",
-  "coreKnowledge": "值得记住的核心知识",
+  "coreKnowledge": "截图可能削弱记忆，因为它会触发认知卸载。",
+  "hiddenSemantic": "认知卸载",
   "recallCue": "主动回忆提示",
-  "answer": "揭晓答案",
+  "answer": "认知卸载",
   "explanation": "简短解释",
   "sourceTitle": "【巫师】财经跨年：中国财经年度盘点Top10",
   "sourceAccount": "巫师财经",
@@ -38,7 +39,11 @@
 }
 ```
 
-`sourceStatus` 为 `verified` 时表示 TickHub 候选的标题与作者均通过严格匹配；`screenshot_only` 表示没有可靠来源，只使用截图证据。服务端内部保存调度步数和反馈幂等标识，但不暴露给 iOS。R / SR / SSR 不参与调度。
+`hiddenSemantic` 是 `coreKnowledge` 中非空、逐字一致的连续子串，也是主动回忆卡唯一被遮住的承重语义。`answer` 只作为旧客户端兼容镜像，与新卡的 `hiddenSemantic` 保持相同，不再驱动当前刮开交互。
+
+服务端首次收到不满足连续子串约束的模型结果时，会使用同一截图和校验错误修复一次；第二次仍不合法则返回 502 且不持久化卡片。iOS 不从 `answer` 或正文猜测承重语义。旧记录缺少合法 `hiddenSemantic` 时仍能解码并留在知识库，但不会进入主动回忆牌组。
+
+`sourceStatus` 为 `verified` 时表示 TickHub 候选的标题与作者均通过严格匹配；`screenshot_only` 表示没有可靠来源，只使用截图证据，并固定为 R。来源失败不等于语义合同失败：前者仍可生成截图证据卡，后者阻止错误卡片进入系统。服务端内部保存调度步数和反馈幂等标识，但不暴露给 iOS。R / SR / SSR 不参与调度。
 
 ## 掌握阶段状态机
 

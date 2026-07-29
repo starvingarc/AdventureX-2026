@@ -53,18 +53,18 @@ Issue #31 已把这次工作限定为视觉层级恢复；PR #28 可能改动相
 
 ## 任务
 
-- [ ] 修订 Issue #31 的并行整合说明，并把 Roadmap 状态更新为 In progress。
-- [ ] 将 `ProfileView` 拆为独立文件并实现响应式身份卡、真实统计和待召回概览。
-- [ ] 更新稳定布局文档，记录页面结构、数据边界与响应式规则。
-- [ ] 完成静态检查、iOS 构建与测试。
-- [ ] 在常见和小尺寸 Simulator 上检查默认与大号字体、VoiceOver、Reduce Motion、滚动、安全区和横向溢出并记录证据。
+- [x] 修订 Issue #31 的并行整合说明，并把 Roadmap 状态更新为 In progress。
+- [x] 将 `ProfileView` 拆为独立文件并实现响应式身份展示区、真实统计和待召回概览。
+- [x] 更新稳定布局文档，记录页面结构、数据边界与响应式规则。
+- [x] 完成静态检查、iOS 构建与测试。
+- [x] 在选定的 iPhone 17e Simulator 上检查默认布局、VoiceOver 语义、无动画依赖、滚动、安全区和横向溢出并记录证据。
 - [ ] 完成、退役计划，推送主题分支并创建面向 `main` 的 Ready-for-review PR。
 
 ## 验收标准
 
 - “我的”页在不增加账号能力的前提下，具有清楚的标题、身份、统计与状态层级。
 - 页面所有数字均由当前 Store 派生；空数据和大数字不会制造错误状态或破坏布局。
-- 常见与较小 iPhone 尺寸均可完整滚动，无裁切、横向溢出或底部导航遮挡。
+- 选定的 iPhone 17e 可在默认场景首屏完整呈现核心内容；兜底滚动无裁切、横向溢出或底部导航遮挡。
 - 大号 Dynamic Type 下内容保持可读；VoiceOver 能读出统计名称、值和单位；Reduce Motion 下不依赖动画理解内容。
 - 生产代码不含旧版头像持久化键、Fixture 统计、账号按钮、未登记素材或后端合同变化。
 - PR 仅关闭 #31，并引用父 Issue #9；#9 保持未完成。
@@ -74,9 +74,24 @@ Issue #31 已把这次工作限定为视觉层级恢复；PR #28 可能改动相
 - `npm --prefix backend run docs:check`
 - `git diff --check`
 - 使用 Xcode 构建工具构建 `Omo/Omo.xcodeproj`、Scheme `Omo` 并运行 `OmoTests`。
-- Simulator：至少一个常见 iPhone 和一个更小 iPhone，实际打开“我的”页。
+- Simulator：只使用 iPhone 17e，实际打开“我的”页；暂不并行启动第二种机型，避免本机持续高负载。
 - UI 场景：真实空数据；使用明确隔离的 Debug 预览或启动参数检查大数字，不把 Fixture 当成真实服务证据。
 - 可访问性：默认与大号 Dynamic Type、VoiceOver 语义、Reduce Motion、滚动与安全区。
+
+已执行证据（2026-07-30）：
+
+- `npm --prefix backend run docs:check`：17 个 Markdown、145 个双链全部通过。
+- `git diff --check`：通过。
+- XcodeBuildMCP `build_run_sim`：
+  - iPhone 17e / iOS 26.5 / Debug：成功，无 warning / error；
+  - iPhone 17e 使用 `-OmoProfileLargeFixture`：修正一次 getter 显式 `return` 后重新构建成功，无 warning / error。
+- XcodeBuildMCP `test_sim`：iPhone 17e / iOS 26.5，`OmoTests` 1/1 通过（`APIClientDecodingTests.testMemoryCardDecodesFromMinimalAPIContract`）。
+- 用户反馈后的紧凑化复验：iPhone 17e 默认字号下实际打开“我的”页，标题、身份展示区、两项零值统计和完整召回面板均在首屏呈现；底栏不遮挡内容，也不需要为查看核心内容而拖动。
+- Simulator 大数字：iPhone 17e 使用显式 Debug Fixture `123,456 / 987,654 / 4,321`，统计值与召回面板无截断；极端内容可通过一次短滚动完整查看，该 Fixture 未改变 Store / API。
+- Dynamic Type：iPhone 17 使用 `accessibility-extra-extra-extra-large` 实际打开页面；身份区和统计切换为纵向/通栏，内容保持可滚动。全局底栏随系统字号显著增高是现有导航行为，不属于本页新入口；本页未用固定设备宽度规避它。
+- VoiceOver 语义：运行时可访问性快照确认页面阅读顺序为身份 → 记忆卡 → 已召回 → 今日状态；源码将身份、统计、状态分别合并并提供 label / value / hint，装饰图形隐藏。
+- Reduce Motion：本页没有动画、时间线或依赖动效的状态，开启与否不改变信息和操作语义。
+- 外部服务：本地 API 未启动，Simulator 显示既有“无法连接服务器”提示；空数据和 Debug Fixture 只验证 UI，不证明真实服务或生产数据。
 
 ## 原则检验
 
@@ -91,12 +106,17 @@ Issue #31 已把这次工作限定为视觉层级恢复；PR #28 可能改动相
 - 2026-07-30：历史基线采用当时默认入口 `V2ProfileTabView`，而不是未启用的旧 `SettingsViews.ProfileView`。
 - 2026-07-30：只恢复视觉层级与当前可证实数据；账号、头像与跨设备持久化继续留在父 Issue #9。
 - 2026-07-30：PR #28 不是依赖；使用独立页面文件和最小入口改动降低后续整合冲突。
+- 2026-07-30：按用户要求由 Kimi Code K3「极致」在既有 Kimi workspace 中重写 `ProfileView.swift`；主 Agent 保持唯一整合者并负责 Xcode / Simulator 验收。
+- 2026-07-30：视觉方向采用 Atlas 的日式清新、白盒画廊、有机亲自然、可爱极简、斯堪的纳维亚和便当网格线索；不复制外部代码或素材。
+- 2026-07-30：增加仅 Debug 可用的 `-OmoProfileLargeFixture`，只覆盖本页派生数字以检查极端布局，不写入 Store、API 或生产构建。
+- 2026-07-30：用户要求界面更紧凑、不要为了拖动而拖动；继续沿用同一 Kimi workspace 收紧间距、舞台、卡片与状态面板，并删除重复标题和装饰性脚注。默认字号首屏呈现全部核心内容，滚动仅保留为适配兜底。
+- 2026-07-30：按用户的设备负载要求，后续 Simulator 验收只保留 iPhone 17e；已关闭其余已启动 Simulator，不再并行测试第二种机型。
 
 ## 阻塞与恢复
 
 - 当前阻塞：无。
 - 解除条件：不适用。
-- 下一位 Agent 从哪里继续：检查本计划任务、`git log` 与 `git status`；若 `origin/main` 已变化，先在本分支同步并审查 `ContentView.swift` 冲突。
+- 下一位 Agent 从哪里继续：实现与视觉验证已完成；先检查本计划证据与 diff，提交实现阶段，再完成/退役计划并创建 PR。若 `origin/main` 已变化，先在本分支同步并审查 `ContentView.swift` 冲突。
 
 ## 相关文档
 

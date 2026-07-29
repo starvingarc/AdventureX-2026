@@ -6,7 +6,7 @@
 
 | 计划 | 分支 | 负责人 | 状态 | 模式 | 进度 | 下一步 |
 |---|---|---|---|---|---:|---|
-| [[plans/feat-profile-visual-hierarchy]] | `feat/profile-visual-hierarchy` | Codex | `in_progress` | `manual` | 0/6 | 修订 Issue / Roadmap 后实现页面 |
+| [[plans/feat-profile-visual-hierarchy]] | `feat/profile-visual-hierarchy` | Codex | `in_progress` | `manual` | 5/6 | 提交实现与证据，随后完成并退役 |
 
 ## 使用规则
 

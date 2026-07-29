@@ -18,6 +18,7 @@ Omo 采用“代码、稳定文档、临时计划同步演进”的协作方式�
 - 素材来源与授权：[[docs/asset-provenance]]
 - 隐私政策：[[docs/privacy-policy-zh]]
 - 工程质量与验证：[[docs/quality-baseline]]
+- Issue 管理与全局排期：[[docs/issue-management-workflow]]
 - 文档维护规范：[[docs/documentation-guide]]
 - 重大决定：[[docs/decision-log]]
 - 当前 checkout 的活跃计划：[[PLANS]]
@@ -95,6 +96,13 @@ Omo 采用“代码、稳定文档、临时计划同步演进”的协作方式�
 - 优先让每个并行 Agent 使用独立 Git worktree 和独立主题分支。不得让多个 Agent 在同一工作树同时改写文件。
 - 开工前检查 `git status --short --branch`。现有未提交改动属于用户或其他 Agent；不要覆盖、回退、暂存或顺手整理。
 - 每个分支原则上只有一个主计划和一个明确负责人。可独立评审、独立验证或独立回滚的范围应拆成不同分支。
+
+### Issue、Project 与 Plan 边界
+
+- GitHub Issue 保存长期问题、范围、验收与依赖；Omo Roadmap Project 保存跨分支状态、优先级与迭代。
+- 复杂任务开工后仍必须使用当前主题分支的临时 Plan；Issue 或 Project 不替代 `plans/<branch-slug>.md`。
+- Issue 完整验收时 PR 使用 `Closes #N`；只覆盖部分范围时使用 `Refs #N`，合入后缩小原 Issue 或创建剩余子 Issue。
+- 分诊、标签、Milestone、Ready / Done 门槛和父子任务规则见 [[docs/issue-management-workflow]]。
 
 ### 交付与集成
 

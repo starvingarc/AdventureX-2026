@@ -6,7 +6,7 @@
 
 | 计划 | 分支 | 负责人 | 状态 | 模式 | 进度 | 下一步 |
 |---|---|---|---|---|---:|---|
-| 无 | — | — | — | — | — | — |
+| [[plans/fix-production-config-fail-closed]] | `fix/production-config-fail-closed` | Codex | `in_progress` | `manual` | 0% | 集中配置校验并移除默认演示成功 |
 
 ## 使用规则
 

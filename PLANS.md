@@ -6,7 +6,6 @@
 
 | 计划 | 分支 | 负责人 | 状态 | 模式 | 进度 | 下一步 |
 |---|---|---|---|---|---:|---|
-| [[plans/feat-profile-visual-hierarchy]] | `feat/profile-visual-hierarchy` | Codex | `completed` | `manual` | 6/6 | 退役计划并创建 PR |
 
 ## 使用规则
 

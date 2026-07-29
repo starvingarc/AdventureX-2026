@@ -6,7 +6,7 @@
 
 | 计划 | 分支 | 负责人 | 状态 | 模式 | 进度 | 下一步 |
 |---|---|---|---|---|---:|---|
-| [[plans/codex-figma-active-recall-home]] | `codex/figma-active-recall-home` | Codex | `in_progress` | `auto` | 0% | 对比最新主线与既有 UI 原型 |
+| [[plans/codex-figma-active-recall-home]] | `codex/figma-active-recall-home` | Codex | `in_progress` | `auto` | 85% | 最终门禁、计划完成与 PR |
 
 ## 使用规则
 

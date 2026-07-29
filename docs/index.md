@@ -13,6 +13,8 @@
 
 - [[docs/frontend/v2-frontend-architecture]]：当前精简 SwiftUI 视图、状态与 API 边界。
 - [[docs/frontend/v2-layout-system]]：当前布局 Token、召回动效和 UI 验证要求。
+- [[docs/frontend/v2-first-launch-empty-home]]：首次无卡片首页与第一次截图上传入口。
+- [[docs/frontend/v2-active-recall-home]]：有卡首页、默认十连抽、刮开与三档自评。
 - [[docs/asset-provenance]]：App 素材来源、授权、处理方式与哈希。
 
 ## 工程与协作

@@ -58,7 +58,6 @@ final class OmoStore: ObservableObject {
     func assess(_ card: MemoryCard, as assessment: MemoryAssessment) async throws -> MemoryCard {
         let updated = try await api.assess(card, as: assessment)
         upsert(updated)
-        presentedCard = updated
         return updated
     }
 

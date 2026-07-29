@@ -6,6 +6,7 @@
 
 - [[docs/product-principles]]：产品北极星、证据、召回、隐私与体验护栏。
 - [[docs/ios-api-data-contract-zh]]：当前截图主链、iOS 模型、API、兼容与失败语义。
+- [[docs/superpowers/specs/2026-07-29-active-recall-interaction-correction-design]]：恢复句内承重语义刮开与四层滑动自评的已确认修正规格。
 - [[docs/privacy-policy-zh]]：面向用户的隐私政策。
 - [[docs/support-zh]]：面向用户的支持说明。
 

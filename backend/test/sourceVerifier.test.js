@@ -28,3 +28,51 @@ test("normalizes TikHub Bilibili APP search results", async () => {
   assert.equal(source.status, "verified");
   assert.equal(source.url, "https://www.bilibili.com/video/av123");
 });
+
+test("missing TikHub configuration remains screenshot-only with an explicit reason", async () => {
+  const source = await verifyScreenshotSource({
+    platform: "bilibili",
+    sourceTitle: "标题",
+    sourceAccount: "作者"
+  }, { apiKey: "" });
+
+  assert.equal(source.status, "screenshot_only");
+  assert.equal(source.reason, "provider_missing");
+});
+
+test("TikHub timeout never becomes a verified source", async () => {
+  const fetchImpl = async () => {
+    throw Object.assign(new Error("provider secret"), { name: "TimeoutError" });
+  };
+  const source = await verifyScreenshotSource({
+    platform: "bilibili",
+    sourceTitle: "标题",
+    sourceAccount: "作者"
+  }, {
+    apiKey: "test-key",
+    baseURL: "https://tikhub.example",
+    timeoutMs: 10,
+    fetchImpl
+  });
+
+  assert.equal(source.status, "screenshot_only");
+  assert.equal(source.reason, "provider_timeout");
+});
+
+test("TikHub upstream rejection remains screenshot-only and does not expose its body", async () => {
+  const fetchImpl = async () => new Response("upstream-secret", { status: 503 });
+  const source = await verifyScreenshotSource({
+    platform: "bilibili",
+    sourceTitle: "标题",
+    sourceAccount: "作者"
+  }, {
+    apiKey: "test-key",
+    baseURL: "https://tikhub.example",
+    timeoutMs: 10,
+    fetchImpl
+  });
+
+  assert.equal(source.status, "screenshot_only");
+  assert.equal(source.reason, "provider_unavailable");
+  assert.equal(JSON.stringify(source).includes("upstream-secret"), false);
+});

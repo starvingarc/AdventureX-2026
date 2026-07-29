@@ -1,23 +1,38 @@
-const TIKHUB_ROOT = "https://api.tikhub.io";
+import { readRuntimeConfig } from "./runtimeConfig.js";
 
 export async function verifyScreenshotSource(identity, {
-  apiKey = process.env.TICKHUB_API_KEY || "",
+  apiKey,
+  baseURL,
+  timeoutMs,
   fetchImpl = fetch
 } = {}) {
+  const runtime = readRuntimeConfig();
+  const providerConfig = {
+    apiKey: apiKey ?? runtime.tikhub.apiKey,
+    baseURL: baseURL ?? runtime.tikhub.baseURL,
+    timeoutMs: timeoutMs ?? runtime.tikhub.timeoutMs
+  };
   const platform = String(identity?.platform || "").toLowerCase();
   const title = clean(identity?.sourceTitle);
   const account = clean(identity?.sourceAccount);
-  if (!apiKey || platform !== "bilibili" || !title || !account) {
-    return unresolved(platform, apiKey ? "identity_incomplete" : "provider_missing");
+  if (!providerConfig.apiKey || platform !== "bilibili" || !title || !account) {
+    return unresolved(
+      platform,
+      providerConfig.apiKey ? "identity_incomplete" : "provider_missing"
+    );
   }
 
   const queries = [...new Set([title, `${account} ${title}`])].slice(0, 2);
   const candidates = [];
-  for (const query of queries) {
-    const results = await searchBilibili(query, { apiKey, fetchImpl });
-    candidates.push(...results);
-    const match = pickStrictCandidate(candidates, { title, account });
-    if (match) return { ...match, status: "verified", provider: "tikhub" };
+  try {
+    for (const query of queries) {
+      const results = await searchBilibili(query, { ...providerConfig, fetchImpl });
+      candidates.push(...results);
+      const match = pickStrictCandidate(candidates, { title, account });
+      if (match) return { ...match, status: "verified", provider: "tikhub", reason: "" };
+    }
+  } catch (error) {
+    return unresolved(platform, sourceFailureReason(error));
   }
   return unresolved(platform, "strict_match_not_found");
 }
@@ -42,19 +57,39 @@ export function pickStrictCandidate(candidates, identity) {
     .sort((left, right) => right.confidence - left.confidence)[0] || null;
 }
 
-async function searchBilibili(keyword, { apiKey, fetchImpl }) {
-  const endpoint = new URL(`${process.env.TIKHUB_BASE_URL || TIKHUB_ROOT}/api/v1/bilibili/app/fetch_search_by_type`);
+async function searchBilibili(keyword, { apiKey, baseURL, timeoutMs, fetchImpl }) {
+  let endpoint;
+  try {
+    endpoint = new URL("/api/v1/bilibili/app/fetch_search_by_type", `${baseURL}/`);
+  } catch {
+    throw sourceError("provider_config_invalid");
+  }
   endpoint.searchParams.set("keyword", keyword);
   endpoint.searchParams.set("search_type", "video");
   endpoint.searchParams.set("page_size", "20");
   endpoint.searchParams.set("order", "0");
 
-  const response = await fetchImpl(endpoint, {
-    headers: { authorization: `Bearer ${apiKey}`, accept: "application/json" },
-    signal: AbortSignal.timeout(Number(process.env.TIKHUB_TIMEOUT_MS || 15_000))
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || ![undefined, 0, 200].includes(payload.code)) return [];
+  let response;
+  try {
+    response = await fetchImpl(endpoint, {
+      headers: { authorization: `Bearer ${apiKey}`, accept: "application/json" },
+      signal: AbortSignal.timeout(timeoutMs)
+    });
+  } catch (error) {
+    if (isTimeout(error)) throw sourceError("provider_timeout");
+    throw sourceError("provider_unavailable");
+  }
+  if (!response.ok) throw sourceError("provider_unavailable");
+
+  let payload;
+  try {
+    payload = await response.json();
+  } catch {
+    throw sourceError("provider_invalid_response");
+  }
+  if (![undefined, 0, 200].includes(payload.code)) {
+    throw sourceError("provider_rejected");
+  }
   const items = payload?.data?.data?.items || payload?.data?.items || [];
   return items.map((item) => {
     const video = item?.av || item?.video || item;
@@ -72,6 +107,18 @@ async function searchBilibili(keyword, { apiKey, fetchImpl }) {
 
 function unresolved(platform, reason) {
   return { status: "screenshot_only", provider: "tikhub", platform: platform || "unknown", reason };
+}
+
+function sourceFailureReason(error) {
+  return error?.sourceCode || (isTimeout(error) ? "provider_timeout" : "provider_unavailable");
+}
+
+function sourceError(sourceCode) {
+  return Object.assign(new Error("Source verification failed."), { sourceCode });
+}
+
+function isTimeout(error) {
+  return ["AbortError", "TimeoutError"].includes(error?.name);
 }
 
 function similarity(left, right) {

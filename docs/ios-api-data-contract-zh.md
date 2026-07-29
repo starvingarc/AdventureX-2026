@@ -6,7 +6,8 @@
 
 | 方法 | 路径 | 用途 |
 | --- | --- | --- |
-| GET | `/api/health` | 服务与模型配置状态 |
+| GET | `/api/health` | Liveness；只证明服务进程可响应 |
+| GET | `/api/readiness` | 模型、来源服务与存储依赖状态 |
 | GET | `/api/memory-cards` | 获取当前设备的全部卡片 |
 | POST | `/api/sources/image-flow` | 上传 Base64 截图并生成一张卡 |
 | POST | `/api/memory-cards/:id/assessments` | 提交 remembered / fuzzy / forgot |
@@ -17,6 +18,7 @@
 ```json
 {
   "id": "card-...",
+  "generationMode": "qwen",
   "coreKnowledge": "值得记住的核心知识",
   "recallCue": "主动回忆提示",
   "answer": "揭晓答案",
@@ -27,6 +29,7 @@
   "sourceUrl": "https://www.bilibili.com/video/av115774081537379",
   "sourceStatus": "verified",
   "sourceProvider": "tikhub",
+  "sourceReason": "",
   "sourceConfidence": 1,
   "rarity": "R",
   "createdAt": "2026-07-29T00:00:00.000Z",
@@ -38,7 +41,63 @@
 }
 ```
 
-`sourceStatus` 为 `verified` 时表示 TickHub 候选的标题与作者均通过严格匹配；`screenshot_only` 表示没有可靠来源，只使用截图证据。服务端内部保存调度步数和反馈幂等标识，但不暴露给 iOS。R / SR / SSR 不参与调度。
+`generationMode` 为 `qwen` 时表示来自模型 Adapter，为 `fixture` 时表示非生产环境显式开启的固定测试结果。`sourceStatus` 为 `verified` 时表示 TikHub 候选的标题与作者均通过严格匹配；`screenshot_only` 表示没有可靠来源，只使用截图证据。`sourceReason` 使用 `provider_missing`、`provider_timeout`、`provider_unavailable`、`provider_invalid_response`、`provider_rejected`、`identity_incomplete` 或 `strict_match_not_found` 区分原因；任何失败都不能返回 `verified`。服务端内部保存调度步数和反馈幂等标识，但不暴露给 iOS。R / SR / SSR 不参与调度。
+
+## Liveness、readiness 与运行模式
+
+`GET /api/health` 固定返回进程级 liveness，不包含密钥或“生产已就绪”结论：
+
+```json
+{
+  "ok": true,
+  "service": "omo-api",
+  "status": "live"
+}
+```
+
+`GET /api/readiness` 使用 HTTP 200 / 503 表达整体状态，并只返回安全的依赖名称与阻塞码：
+
+```json
+{
+  "ready": false,
+  "service": "omo-api",
+  "mode": "production",
+  "checks": {
+    "model": { "required": true, "ready": true, "provider": "qwen" },
+    "source": { "required": true, "ready": true, "provider": "tikhub" },
+    "storage": { "required": true, "ready": false, "driver": "json", "durable": false }
+  },
+  "blockers": ["durable_storage_unavailable"],
+  "warnings": []
+}
+```
+
+生产环境中 Qwen、TikHub 或耐久存储任一未就绪时，所有业务路由返回：
+
+```json
+{
+  "code": "service_not_ready",
+  "message": "生产依赖尚未就绪。",
+  "blockers": ["durable_storage_unavailable"]
+}
+```
+
+非生产环境也不会因缺少 `QWEN_API` 自动生成演示卡；默认返回 `503 model_not_configured`。只有显式设置 `OMO_DEMO_MODE=1` 或 `true` 才使用本地 Fixture，且其结果必须标记为 Fixture。生产环境设置该开关会返回 `demo_mode_forbidden`。
+
+模型错误使用稳定码：配置缺失/无效为 `model_not_configured` / `model_config_invalid`，网络失败为 `model_unavailable`，上游非成功响应为 `model_upstream_error`，超时为 `model_timeout`，无效 Schema 为 `model_invalid_response`。服务端不向客户端返回上游正文、截图 Base64、密钥或完整模型载荷。
+
+## 环境变量合同
+
+| 能力 | Canonical 环境变量 |
+|---|---|
+| 运行模式 | `NODE_ENV`、`OMO_DEMO_MODE` |
+| Qwen | `QWEN_API`、`QWEN_BASE_URL`、`QWEN_MODEL`、`QWEN_TIMEOUT_MS` |
+| TikHub | `TIKHUB_API_KEY`、`TIKHUB_BASE_URL`、`TIKHUB_TIMEOUT_MS` |
+| 本地 JSON Store | `CARD_STORE_PATH` |
+
+`BASE_URL`、`AI_MODEL`、`MODEL_REQUEST_TIMEOUT_MS` 和误拼的 `TICKHUB_API_KEY` 只作为迁移期兼容别名，新的部署与文档不得继续使用。当前 `CARD_STORE_PATH` 指向的 JSON Store 不属于耐久生产存储；不得把 `DATABASE_URL` 等尚未接入的变量写成已支持。
+
+如果运行时仍检测到兼容别名，readiness 的 `warnings` 会返回 `deprecated_environment_variable:<NAME>`；它只包含变量名，不包含变量值。
 
 ## 掌握阶段状态机
 

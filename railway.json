@@ -6,7 +6,7 @@
   },
   "deploy": {
     "startCommand": "npm --prefix backend start",
-    "healthcheckPath": "/api/health",
+    "healthcheckPath": "/api/readiness",
     "healthcheckTimeout": 60
   }
 }

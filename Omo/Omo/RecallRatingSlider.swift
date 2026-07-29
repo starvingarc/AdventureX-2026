@@ -57,7 +57,7 @@ struct RecallRatingSlider: View {
             Capsule().fill(RecallPalette.card)
 
             LinearGradient(
-                colors: [RecallPalette.card, activeColor.opacity(0.8)],
+                colors: [RecallPalette.card, RecallPalette.teal.opacity(0.8)],
                 startPoint: .leading,
                 endPoint: .trailing
             )
@@ -66,7 +66,7 @@ struct RecallRatingSlider: View {
 
             ForEach(RecallRatingScale.nodes, id: \.assessment) { node in
                 Circle()
-                    .fill(node.assessment == activeAssessment ? activeColor : RecallPalette.teal)
+                    .fill(RecallPalette.teal)
                     .frame(
                         width: RecallRatingMetrics.nodeDiameter,
                         height: RecallRatingMetrics.nodeDiameter
@@ -78,8 +78,8 @@ struct RecallRatingSlider: View {
             }
         }
         .frame(width: width, height: RecallRatingMetrics.trackHeight)
-        .overlay(Capsule().stroke(activeColor, lineWidth: 1))
-        .shadow(color: activeColor.opacity(0.25), radius: 4, y: 4)
+        .overlay(Capsule().stroke(RecallPalette.teal, lineWidth: 1))
+        .shadow(color: RecallPalette.ink.opacity(0.2), radius: 4, y: 4)
         .offset(y: 1.75)
     }
 
@@ -88,9 +88,7 @@ struct RecallRatingSlider: View {
             ForEach(RecallRatingScale.nodes, id: \.assessment) { node in
                 Text(node.assessment.sliderTitle)
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(
-                        node.assessment == activeAssessment ? activeColor : RecallPalette.teal
-                    )
+                    .foregroundStyle(RecallPalette.teal)
                     .frame(width: 48)
                     .position(
                         x: nodeCenter(for: node.assessment, travel: travel),
@@ -106,12 +104,12 @@ struct RecallRatingSlider: View {
         ZStack {
             Capsule()
                 .fill(RecallPalette.drawer)
-                .overlay(Capsule().stroke(activeColor, lineWidth: 1))
-                .shadow(color: activeColor.opacity(0.3), radius: 5, y: 3)
+                .overlay(Capsule().stroke(RecallPalette.teal, lineWidth: 1))
+                .shadow(color: RecallPalette.ink.opacity(0.27), radius: 5, y: 3)
 
             Image(systemName: "arrow.right")
                 .font(.system(size: 16, weight: .bold))
-                .foregroundStyle(activeColor)
+                .foregroundStyle(RecallPalette.teal)
         }
         .frame(width: RecallRatingMetrics.knobSize.width, height: RecallRatingMetrics.knobSize.height)
         .offset(x: CGFloat(position) * travel)
@@ -162,15 +160,6 @@ struct RecallRatingSlider: View {
     private func nodeCenter(for assessment: MemoryAssessment, travel: CGFloat) -> CGFloat {
         RecallRatingMetrics.knobSize.width / 2
             + CGFloat(RecallRatingScale.position(for: assessment)) * travel
-    }
-
-    private var activeColor: Color {
-        switch activeAssessment {
-        case .forgot: RecallPalette.coral
-        case .fuzzy: Color(red: 0.82, green: 0.61, blue: 0.28)
-        case .remembered: RecallPalette.teal
-        case nil: RecallPalette.teal
-        }
     }
 
     private var accessibilityValue: String {

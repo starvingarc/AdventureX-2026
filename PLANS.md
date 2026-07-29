@@ -6,7 +6,7 @@
 
 | 计划 | 分支 | 负责人 | 状态 | 模式 | 进度 | 下一步 |
 |---|---|---|---|---|---:|---|
-| 无 | — | — | — | — | — | — |
+| [[plans/agent-issue-management-workflow]] | `agent/issue-management-workflow` | Codex | `in_progress` | `manual` | 0/7 | 创建 Issue Forms 与稳定文档 |
 
 ## 使用规则
 

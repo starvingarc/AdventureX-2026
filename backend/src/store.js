@@ -24,17 +24,28 @@ export class CardStore {
   }
 
   save(owner, card) {
-    this.cards.set(key(owner, card.id), { owner, card: structuredClone(card) });
-    this.persist();
+    const cardKey = key(owner, card.id);
+    const previous = this.cards.get(cardKey);
+    this.cards.set(cardKey, { owner, card: structuredClone(card) });
+    try {
+      this.persist();
+    } catch (error) {
+      if (previous) this.cards.set(cardKey, previous);
+      else this.cards.delete(cardKey);
+      throw error;
+    }
     return publicCard(card);
   }
 
   assess(owner, cardId, assessment, attemptId) {
-    if (!assessments.has(assessment)) throw httpError(422, "反馈只能是记得、模糊或忘记。 ");
-    if (!attemptId) throw httpError(422, "缺少反馈幂等标识。 ");
+    if (!assessments.has(assessment)) {
+      throw httpError(422, "assessment_invalid", "反馈只能是记得、模糊或忘记。");
+    }
+    if (!attemptId) throw httpError(422, "attempt_id_required", "缺少反馈幂等标识。");
     const entry = this.cards.get(key(owner, cardId));
     if (!entry) return null;
     const card = entry.card;
+    const previous = structuredClone(card);
     card.attemptIds ||= [];
     if (card.attemptIds.includes(attemptId)) return publicCard(card);
 
@@ -52,14 +63,27 @@ export class CardStore {
         ? Math.max(1, currentStep - 1)
         : Math.min(intervals.length - 1, currentStep + 1);
     card.nextReviewAt = new Date(Date.now() + intervals[card.stepIndex] * 86_400_000).toISOString();
-    this.persist();
+    try {
+      this.persist();
+    } catch (error) {
+      entry.card = previous;
+      throw error;
+    }
     return publicCard(card);
   }
 
   delete(owner, cardId) {
-    const deleted = this.cards.delete(key(owner, cardId));
-    if (deleted) this.persist();
-    return deleted;
+    const cardKey = key(owner, cardId);
+    const previous = this.cards.get(cardKey);
+    if (!previous) return false;
+    this.cards.delete(cardKey);
+    try {
+      this.persist();
+    } catch (error) {
+      this.cards.set(cardKey, previous);
+      throw error;
+    }
+    return true;
   }
 
   persist() {
@@ -67,8 +91,8 @@ export class CardStore {
     try {
       mkdirSync(dirname(this.filePath), { recursive: true });
       writeFileSync(this.filePath, JSON.stringify([...this.cards.values()], null, 2));
-    } catch (error) {
-      console.warn(`Omo store is running in memory: ${error.message}`);
+    } catch {
+      throw httpError(503, "storage_unavailable", "记忆卡存储暂时不可用。");
     }
   }
 }
@@ -102,6 +126,10 @@ function key(owner, cardId) {
   return `${owner}:${cardId}`;
 }
 
-function httpError(statusCode, message) {
-  return Object.assign(new Error(message), { statusCode });
+function httpError(statusCode, code, message) {
+  return Object.assign(new Error(message), {
+    statusCode,
+    code,
+    expose: true
+  });
 }

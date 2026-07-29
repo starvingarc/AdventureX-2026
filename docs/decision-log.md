@@ -130,11 +130,46 @@ Omo 的开放 Issue 缺少统一标签、Milestone、验收和依赖；部分 Is
 
 当维护 Project 的成本高于带来的全局可见性，或 GitHub 原生字段与自动化能力发生重大变化时，复审字段数量和自动化范围；不得退回到 Issue、Plan 和 PR 三处复制同一进度。
 
+## 2026-07-29：生产依赖缺失时使用 readiness 与业务双重 fail closed
+
+- 状态：accepted
+- 决策者：Project owner / Codex
+- 相关计划：`plans/fix-production-config-fail-closed.md`
+
+### 背景
+
+后端曾在 `QWEN_API` 缺失时自动返回本地演示卡，`/api/health` 无条件成功，JSON Store 写入失败时继续以内存状态响应。该组合会把模型、来源或存储依赖缺失误报为可用，并让 Fixture、本地能力和生产证据混在一起。
+
+### 决定
+
+- `/api/health` 仅表示进程存活；`/api/readiness` 负责模型、来源服务与存储依赖。
+- 生产 readiness 不通过时，业务路由同步返回 `service_not_ready`。
+- 缺失 Qwen 默认失败；Fixture 只能在非生产环境通过 `OMO_DEMO_MODE` 显式开启。
+- 当前 JSON Store 明确为本地能力，在接入耐久 Adapter 前不满足生产 readiness。
+- 上游错误只返回稳定码和安全消息；来源服务失败只能形成带原因的 `screenshot_only`，不能形成 `verified`。
+
+### 理由
+
+只依靠部署探针不能阻止仍被直接访问的实例返回伪成功；只拦业务请求又无法让编排平台停止导流。双重门禁同时保护部署和请求边界，并让 Fixture、降级证据与真实生产能力可区分。
+
+### 后果
+
+- Railway 健康检查改为 `/api/readiness`。
+- 现有 JSON Store 的生产部署会保持未就绪，这是有意的安全状态，不是生产可用声明。
+- 新部署使用 canonical Qwen / TikHub 变量；旧别名仅保留迁移兼容。
+- 耐久存储、真实凭据 smoke 与目标环境 readback 必须由对应后续工作提供，不能由本计划的 Mock/本地测试替代。
+
+### 验证或复审条件
+
+接入并验证耐久存储 Adapter 后，更新 storage readiness 的实现与部署证据；若 TikHub 不再是生产必需依赖，必须先明确新的来源证据合同，再调整其 required 状态。
+
 ## 相关文档
 
 - [[AGENTS]]
 - [[docs/index]]
 - [[docs/issue-management-workflow]]
 - [[docs/documentation-guide]]
+- [[docs/ios-api-data-contract-zh]]
+- [[docs/quality-baseline]]
 - [[plans/README]]
 - [[PLANS]]

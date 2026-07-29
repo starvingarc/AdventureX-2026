@@ -1,19 +1,10 @@
 import assert from "node:assert/strict";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
-import { createMemoryCard } from "../src/cardService.js";
 import { CardStore, nextMasteryStage } from "../src/store.js";
-
-test("creates an explicit demo card when Qwen is not configured", async () => {
-  const previous = process.env.QWEN_API;
-  delete process.env.QWEN_API;
-  const card = await createMemoryCard({ imageBase64: "aGVsbG8=" });
-  if (previous) process.env.QWEN_API = previous;
-
-  assert.equal(card.rarity, "R");
-  assert.equal(card.sourceTitle, "本地演示卡");
-  assert.equal(card.masteryStage, "sealed");
-});
 
 test("stores cards and applies idempotent review feedback", () => {
   const store = new CardStore("");
@@ -59,6 +50,43 @@ test("a forgotten sealed card remains sealed in persisted store state", () => {
   assert.equal(updated.lastAssessment, "forgot");
   assert.equal(updated.reviewCount, 1);
   assert.equal(updated.successfulRecallCount, 0);
+});
+
+test("rolls back a card instead of reporting success when persistence fails", (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "omo-store-"));
+  context.after(() => rmSync(directory, { recursive: true, force: true }));
+  const unwritableFile = join(directory, "cards-as-directory");
+  mkdirSync(unwritableFile);
+  const store = new CardStore(unwritableFile);
+  const card = memoryCard();
+
+  assert.throws(
+    () => store.save("device-a", card),
+    (error) => error.statusCode === 503 && error.code === "storage_unavailable"
+  );
+  assert.equal(store.get("device-a", card.id), null);
+});
+
+test("rolls back assessment and deletion when persistence fails", (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "omo-store-"));
+  context.after(() => rmSync(directory, { recursive: true, force: true }));
+  const unwritableFile = join(directory, "cards-as-directory");
+  mkdirSync(unwritableFile);
+  const store = new CardStore("");
+  const card = memoryCard();
+  store.save("device-a", card);
+  store.filePath = unwritableFile;
+
+  assert.throws(
+    () => store.assess("device-a", card.id, "remembered", "attempt-failing"),
+    (error) => error.code === "storage_unavailable"
+  );
+  assert.equal(store.get("device-a", card.id).reviewCount, 0);
+  assert.throws(
+    () => store.delete("device-a", card.id),
+    (error) => error.code === "storage_unavailable"
+  );
+  assert.equal(store.get("device-a", card.id).id, card.id);
 });
 
 function memoryCard() {

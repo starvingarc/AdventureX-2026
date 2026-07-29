@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node --env-file-if-exists=../.env src/server.js",
     "start": "node src/server.js",
-    "check": "node --check src/server.js && node --check src/cardService.js && node --check src/sourceVerifier.js && node --check src/store.js",
+    "check": "node --check src/server.js && node --check src/runtimeConfig.js && node --check src/cardService.js && node --check src/sourceVerifier.js && node --check src/store.js",
     "docs:check": "node ../tools/check-wikilinks.mjs",
     "test": "node --test",
     "test:all": "node --test"

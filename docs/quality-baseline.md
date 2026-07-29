@@ -60,10 +60,15 @@ npm --prefix backend run smoke:v2:queue
 要求：
 
 - 新行为有成功、失败、超时/取消、重试和幂等测试。
+- 生产配置默认 fail closed：`/api/health` 仅作 liveness，部署探针和业务可用性使用 `/api/readiness`。
+- Fixture 必须通过非生产环境的 `OMO_DEMO_MODE` 显式开启；缺失 `QWEN_API` 不得自动返回演示成功。
+- canonical 提供方变量统一为 `QWEN_BASE_URL` / `QWEN_MODEL` / `QWEN_TIMEOUT_MS` 与 `TIKHUB_API_KEY` / `TIKHUB_BASE_URL` / `TIKHUB_TIMEOUT_MS`；兼容别名不得进入新部署配置。
+- readiness、错误响应与日志只包含安全状态和稳定码，不包含密钥、截图 Base64、上游正文或完整模型载荷。
 - 改变 `capture_memory_card_2` 时覆盖 1–3 卡、数组/单数镜像、证据引用、语义去重和无卡 disposition。
 - 改变持久化时覆盖重复 capture、canonical group 顺序、单卡 assessment、删除、任务恢复和 stale write fencing。
 - 修改平台 Adapter 时覆盖严格平台匹配、歧义拒绝、资源上限、取消和敏感日志。
 - Fixture provider 必须保持 `NODE_ENV=test` 等显式隔离，未知输入不能被映射为虚构成功。
+- JSON / 内存 Store 不得标记为生产就绪；写入失败必须让请求失败并回滚进程内状态。
 
 ## 数据库与后台任务
 
@@ -159,6 +164,8 @@ xcodebuild \
 | HTML Demo | 后端相关测试 + Playwright/浏览器窄屏和桌面 |
 | 素材 | 资源引用/哈希/许可证 + App 构建 + 实际页面 |
 | 部署配置 | 本地门禁 + 目标部署 + 健康检查 + 业务 smoke |
+
+部署配置只完成本地门禁而没有目标环境 readback 时，报告必须明确为“配置变更已验证、真实部署未验证”，不得把本地 `/api/readiness` Fixture 结果写成生产验证。
 
 ## 交付证据模板
 

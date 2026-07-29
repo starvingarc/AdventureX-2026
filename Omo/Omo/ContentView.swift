@@ -19,7 +19,6 @@ struct ContentView: View {
     @EnvironmentObject private var store: OmoStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showsAdd = false
-    @State private var showsSettings = false
     @State private var showsLaunch = !ProcessInfo.processInfo.arguments.contains("-OmoSkipLaunch")
 
     var body: some View {
@@ -28,6 +27,11 @@ struct ContentView: View {
             currentPage
                 .id(store.selectedTab)
                 .transition(.opacity.combined(with: .scale(scale: 0.985)))
+        }
+        .safeAreaInset(edge: .bottom) {
+            OmoTabBar(selection: $store.selectedTab)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 8)
         }
         .task {
             await store.load()
@@ -41,9 +45,6 @@ struct ContentView: View {
             AddScreenshotView()
                 .environmentObject(store)
         }
-        .sheet(isPresented: $showsSettings) {
-            SettingsView()
-        }
         .onChange(of: showsAdd) { _, isPresented in
             guard !isPresented, let card = store.pendingCard else { return }
             store.pendingCard = nil
@@ -53,10 +54,11 @@ struct ContentView: View {
             }
         }
         .fullScreenCover(item: $store.presentedCard) { card in
-            LibraryCardDetailView(card: card)
+            RecallView(card: card)
+                .environmentObject(store)
         }
         .overlay(alignment: .top) {
-            if !store.message.isEmpty, store.selectedTab != .today {
+            if !store.message.isEmpty {
                 Text(store.message)
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(OmoTheme.ink)
@@ -86,11 +88,7 @@ struct ContentView: View {
     private var currentPage: some View {
         switch store.selectedTab {
         case .today:
-            RecallHomeView(
-                onOpenLibrary: { store.selectedTab = .library },
-                onOpenProfile: { store.selectedTab = .profile },
-                onOpenSettings: { showsSettings = true }
-            )
+            TodayView(onAdd: { showsAdd = true })
         case .library:
             LibraryView(onAdd: { showsAdd = true })
         case .profile:
@@ -223,17 +221,8 @@ private struct LibraryView: View {
             .background(OmoTheme.background)
             .navigationTitle("知识库")
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        store.selectedTab = .today
-                    } label: {
-                        Label("返回首页", systemImage: "chevron.left")
-                    }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(action: onAdd) { Image(systemName: "plus") }
-                        .accessibilityLabel("添加截图")
-                }
+                Button(action: onAdd) { Image(systemName: "plus") }
+                    .accessibilityLabel("添加截图")
             }
         }
     }
@@ -272,70 +261,14 @@ private struct MemoryCardRow: View {
     }
 }
 
-private struct LibraryCardDetailView: View {
-    let card: MemoryCard
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    HStack {
-                        RarityBadge(value: card.rarity)
-                        Spacer()
-                        Text("掌握 · \(card.masteryTitle)")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(OmoTheme.primary)
-                    }
-                    Text(card.coreKnowledge)
-                        .font(.title3.bold())
-                        .foregroundStyle(OmoTheme.ink)
-                    Text(card.answer)
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(OmoTheme.ink)
-                    Text(card.explanation)
-                        .foregroundStyle(OmoTheme.muted)
-                    Divider()
-                    Text(card.sourceTitle)
-                        .font(.subheadline.weight(.semibold))
-                    if card.sourceIsVerified,
-                       let value = card.sourceUrl,
-                       let url = URL(string: value) {
-                        Link(destination: url) {
-                            Label("查看原文", systemImage: "arrow.up.right.square")
-                                .frame(minHeight: 44)
-                        }
-                    }
-                }
-                .padding(OmoTheme.pageInset)
-            }
-            .background(OmoTheme.background)
-            .navigationTitle("完整知识")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                Button("完成") { dismiss() }
-            }
-        }
-    }
-}
-
 private struct ProfileView: View {
     @EnvironmentObject private var store: OmoStore
 
     var body: some View {
         VStack(spacing: 24) {
-            HStack {
-                Button {
-                    store.selectedTab = .today
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .frame(width: 44, height: 44)
-                }
-                .accessibilityLabel("返回首页")
-                Text("我的")
-                    .font(.system(size: 26, weight: .bold))
-                Spacer()
-            }
+            Text("我的")
+                .font(.system(size: 26, weight: .bold))
+                .frame(maxWidth: .infinity, alignment: .leading)
             Image("OmoPoseHeart")
                 .resizable()
                 .scaledToFit()
@@ -352,25 +285,6 @@ private struct ProfileView: View {
         }
         .foregroundStyle(OmoTheme.ink)
         .padding(OmoTheme.pageInset)
-    }
-}
-
-private struct SettingsView: View {
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            List {
-                Section("复习") {
-                    Label("默认每轮最多 10 张", systemImage: "rectangle.stack")
-                    Label("刮开 80% 后进行自评", systemImage: "hand.draw")
-                }
-            }
-            .navigationTitle("Settings")
-            .toolbar {
-                Button("完成") { dismiss() }
-            }
-        }
     }
 }
 

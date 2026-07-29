@@ -43,7 +43,6 @@ enum MemoryAssessment: String, Codable, CaseIterable, Identifiable {
 struct MemoryCard: Codable, Identifiable, Equatable {
     let id: String
     let coreKnowledge: String
-    let hiddenSemantic: String?
     let recallCue: String
     let answer: String
     let explanation: String
@@ -85,35 +84,6 @@ struct MemoryCard: Codable, Identifiable, Equatable {
     }
 
     var sourceIsVerified: Bool { sourceStatus == "verified" && sourceUrl?.isEmpty == false }
-
-    var knowledgeSegments: RecallKnowledgeSegments? {
-        RecallKnowledgeSegments.make(
-            coreKnowledge: coreKnowledge,
-            hiddenSemantic: hiddenSemantic
-        )
-    }
-
-    var isRecallEligible: Bool { knowledgeSegments != nil }
-}
-
-struct RecallKnowledgeSegments: Equatable {
-    let prefix: String
-    let semantic: String
-    let suffix: String
-
-    static func make(coreKnowledge: String, hiddenSemantic: String?) -> Self? {
-        let semantic = hiddenSemantic?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !semantic.isEmpty,
-              let range = coreKnowledge.range(of: semantic) else {
-            return nil
-        }
-        return Self(
-            prefix: String(coreKnowledge[..<range.lowerBound]),
-            semantic: semantic,
-            suffix: String(coreKnowledge[range.upperBound...])
-        )
-    }
 }
 
 struct CardsResponse: Decodable {

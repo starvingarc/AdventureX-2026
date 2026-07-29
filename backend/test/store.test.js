@@ -12,8 +12,6 @@ test("creates an explicit demo card when Qwen is not configured", async () => {
 
   assert.equal(card.rarity, "R");
   assert.equal(card.sourceTitle, "本地演示卡");
-  assert.equal(card.hiddenSemantic, "再次想起");
-  assert.ok(card.coreKnowledge.includes(card.hiddenSemantic));
   assert.equal(card.masteryStage, "sealed");
 });
 
@@ -67,7 +65,6 @@ function memoryCard() {
   return {
     id: "card-1",
     coreKnowledge: "知识点",
-    hiddenSemantic: "知识点",
     recallCue: "提示",
     answer: "答案",
     explanation: "解释",

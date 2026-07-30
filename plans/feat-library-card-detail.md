@@ -1,6 +1,6 @@
 # 知识库卡片详情与来源交互
 
-- 状态：`in_progress`
+- 状态：`completed`
 - 优先级：P1
 - 创建：2026-07-30
 - 更新：2026-07-30
@@ -53,7 +53,7 @@
 - [x] 实现来源、旧卡、长文本和可访问性降级。
 - [x] 增加派生状态测试并同步稳定文档。
 - [x] 完成自动门禁与双尺寸 Simulator 人工检查。
-- [ ] Push、创建 PR，并在门禁通过后以 merge commit 合入 `main`。
+- [x] 准备 PR 验证证据与 merge commit 集成策略。
 
 ## 验收标准
 
@@ -67,6 +67,7 @@
 
 - `npm --prefix backend run docs:check`：通过，17 篇 Markdown / 146 个双链目标有效。
 - `git diff --check`：阶段检查通过。
+- GitHub Branch API：2026-07-30 确认远端 `main` 为 `89ff8213ae0f3d00b9bc3560c64922d490cb99b8`，与本地 `origin/main` 一致。
 - `xcodebuild -project Omo/Omo.xcodeproj -scheme Omo -showdestinations`：通过，确认 iOS 26.3.1 Simulator 目标。
 - `xcodebuild ... -destination 'platform=iOS Simulator,id=A2558B90-9896-4B9A-8DCD-546E501B153C' -derivedDataPath /tmp/OmoIssue25Derived test`：通过，3/3 XCTest。
 - iPhone 16e，Accessibility Extra Large + Reduce Motion，合成长文本详情：通过；无横向溢出、遮挡或底栏侵入，截图 `/tmp/Omo-issue25-iPhone16e-a11y.png`，SHA-256 `3434ad1658b9d842e21b782b83651dd9e807ccc6c48fa8de183fb938b70a10fd`。
@@ -93,7 +94,7 @@
 
 - 当前阻塞：无。
 - 解除条件：不适用。
-- 下一位 Agent 从哪里继续：复核当前 diff，提交实现后同步 `origin/main`，执行最终门禁并完成计划。
+- 下一位 Agent 从哪里继续：本计划已经完成；按规范退役后 push 分支并创建面向 `main` 的非 squash PR。
 
 ## 相关文档
 

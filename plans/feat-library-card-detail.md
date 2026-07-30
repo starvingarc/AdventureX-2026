@@ -49,10 +49,10 @@
 
 ## 任务
 
-- [ ] 实现知识库详情导航和信息层级。
-- [ ] 实现来源、旧卡、长文本和可访问性降级。
-- [ ] 增加派生状态测试并同步稳定文档。
-- [ ] 完成自动门禁与双尺寸 Simulator 人工检查。
+- [x] 实现知识库详情导航和信息层级。
+- [x] 实现来源、旧卡、长文本和可访问性降级。
+- [x] 增加派生状态测试并同步稳定文档。
+- [x] 完成自动门禁与双尺寸 Simulator 人工检查。
 - [ ] Push、创建 PR，并在门禁通过后以 merge commit 合入 `main`。
 
 ## 验收标准
@@ -65,11 +65,15 @@
 
 ## 验证
 
-- `npm --prefix backend run docs:check`
-- `git diff --check`
-- `xcodebuild -project Omo/Omo.xcodeproj -scheme Omo -showdestinations`
-- 在实际可用的两个 iPhone Simulator 目标执行 build/test、安装、启动和截图。
-- UI 路径：`-OmoSkipLaunch -OmoOpenLibrary`，检查知识库列表、详情、返回、长文本和缺失来源。
+- `npm --prefix backend run docs:check`：通过，17 篇 Markdown / 146 个双链目标有效。
+- `git diff --check`：阶段检查通过。
+- `xcodebuild -project Omo/Omo.xcodeproj -scheme Omo -showdestinations`：通过，确认 iOS 26.3.1 Simulator 目标。
+- `xcodebuild ... -destination 'platform=iOS Simulator,id=A2558B90-9896-4B9A-8DCD-546E501B153C' -derivedDataPath /tmp/OmoIssue25Derived test`：通过，3/3 XCTest。
+- iPhone 16e，Accessibility Extra Large + Reduce Motion，合成长文本详情：通过；无横向溢出、遮挡或底栏侵入，截图 `/tmp/Omo-issue25-iPhone16e-a11y.png`，SHA-256 `3434ad1658b9d842e21b782b83651dd9e807ccc6c48fa8de183fb938b70a10fd`。
+- iPhone 17 Pro Max，标准字号，已核验详情：通过；完整信息层级与来源入口可见，截图 `/tmp/Omo-issue25-iPhone17ProMax.png`，SHA-256 `731f95941927c97d2b64fe878601529d168e6dee54ecf980c157225d3fcedbb1`。
+- iPhone 17 Pro Max，仅截图来源：通过；无外链或核验措辞，截图 `/tmp/Omo-issue25-screenshot-only.png`。
+- iPhone 17 Pro Max，不可连接 API：通过；显示明确可重试错误而非空库，截图 `/tmp/Omo-issue25-error.png`，SHA-256 `927b77085c4db8937b66ca57bf7a08acbe2fb7056d42f0dff7b02b2e5b245b73`。
+- 以上 UI 使用显式 Debug Fixture 或不可连接本地地址，只证明受测 Simulator 的布局与状态映射，不证明真实 Qwen / TikHub 或生产服务。
 
 ## 原则检验
 
@@ -82,12 +86,14 @@
 
 - 2026-07-30：使用独立 `NavigationLink` 详情而非复用 `RecallView`，保证知识库浏览与主动召回语义分离。
 - 2026-07-30：不修改后端合同；旧卡兼容只在现有可选来源字段边界内实现。
+- 2026-07-30：新增高对比度 `primaryInk` 作为强调文字 token，保留原 `primary` 用于面积和装饰角色。
+- 2026-07-30：知识库加载和连接失败使用独立状态；已有卡片时保留列表并通过全局消息报告刷新失败。
 
 ## 阻塞与恢复
 
 - 当前阻塞：无。
 - 解除条件：不适用。
-- 下一位 Agent 从哪里继续：读取本计划、Issue #25、`ContentView.swift` 与 `OmoModels.swift`。
+- 下一位 Agent 从哪里继续：复核当前 diff，提交实现后同步 `origin/main`，执行最终门禁并完成计划。
 
 ## 相关文档
 

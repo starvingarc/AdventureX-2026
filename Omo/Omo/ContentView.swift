@@ -5,6 +5,7 @@ enum OmoTheme {
     static let background = Color(red: 0.93, green: 0.94, blue: 0.73)
     static let surface = Color(red: 1.00, green: 0.98, blue: 0.92)
     static let primary = Color(red: 0.58, green: 0.65, blue: 0.27)
+    static let primaryInk = Color(red: 0.34, green: 0.40, blue: 0.12)
     static let ink = Color(red: 0.24, green: 0.24, blue: 0.21)
     static let muted = Color(red: 0.49, green: 0.49, blue: 0.43)
     static let warning = Color(red: 0.88, green: 0.49, blue: 0.36)
@@ -20,6 +21,7 @@ struct ContentView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showsAdd = false
     @State private var showsLaunch = !ProcessInfo.processInfo.arguments.contains("-OmoSkipLaunch")
+    @State private var hidesTabBar = false
 
     var body: some View {
         ZStack {
@@ -29,9 +31,11 @@ struct ContentView: View {
                 .transition(.opacity.combined(with: .scale(scale: 0.985)))
         }
         .safeAreaInset(edge: .bottom) {
-            OmoTabBar(selection: $store.selectedTab)
-                .padding(.horizontal, 20)
-                .padding(.bottom, 8)
+            if !hidesTabBar {
+                OmoTabBar(selection: $store.selectedTab)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 8)
+            }
         }
         .task {
             await store.load()
@@ -77,6 +81,8 @@ struct ContentView: View {
             }
         }
         .animation(reduceMotion ? .none : .easeInOut(duration: 0.25), value: store.selectedTab)
+        .animation(reduceMotion ? .none : .easeInOut(duration: 0.2), value: hidesTabBar)
+        .onChange(of: store.selectedTab) { _, _ in hidesTabBar = false }
         .task {
             guard showsLaunch else { return }
             try? await Task.sleep(for: .milliseconds(reduceMotion ? 180 : 1250))
@@ -90,7 +96,7 @@ struct ContentView: View {
         case .today:
             TodayView(onAdd: { showsAdd = true })
         case .library:
-            LibraryView(onAdd: { showsAdd = true })
+            LibraryView(hidesTabBar: $hidesTabBar, onAdd: { showsAdd = true })
         case .profile:
             ProfileView()
         }
@@ -187,12 +193,28 @@ private struct TodayView: View {
 
 private struct LibraryView: View {
     @EnvironmentObject private var store: OmoStore
+    @State private var path: [MemoryCard] = []
+    @Binding var hidesTabBar: Bool
     let onAdd: () -> Void
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             Group {
-                if store.cards.isEmpty {
+                if store.isLoading {
+                    ProgressView("正在加载知识库")
+                        .tint(OmoTheme.primaryInk)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if store.cards.isEmpty, !store.message.isEmpty {
+                    ContentUnavailableView {
+                        Label("知识库暂时无法加载", systemImage: "wifi.exclamationmark")
+                    } description: {
+                        Text("请检查服务连接后重试。")
+                    } actions: {
+                        Button("重新加载") { Task { await store.load() } }
+                            .buttonStyle(.borderedProminent)
+                            .tint(OmoTheme.primaryInk)
+                    }
+                } else if store.cards.isEmpty {
                     ContentUnavailableView(
                         "知识库还是空的",
                         systemImage: "rectangle.stack.badge.plus",
@@ -201,12 +223,9 @@ private struct LibraryView: View {
                 } else {
                     List {
                         ForEach(store.cards) { card in
-                            Button {
-                                store.presentedCard = card
-                            } label: {
+                            NavigationLink(value: card) {
                                 MemoryCardRow(card: card)
                             }
-                            .buttonStyle(.plain)
                             .listRowBackground(OmoTheme.surface)
                             .swipeActions {
                                 Button("删除", role: .destructive) {
@@ -220,11 +239,28 @@ private struct LibraryView: View {
             }
             .background(OmoTheme.background)
             .navigationTitle("知识库")
+            .navigationDestination(for: MemoryCard.self) { card in
+                LibraryCardDetailView(card: card)
+            }
             .toolbar {
                 Button(action: onAdd) { Image(systemName: "plus") }
                     .accessibilityLabel("添加截图")
             }
         }
+        .onAppear { openFixtureDetailIfRequested(store.cards) }
+        .onChange(of: path) { _, path in hidesTabBar = !path.isEmpty }
+        .onChange(of: store.cards) { _, cards in
+            openFixtureDetailIfRequested(cards)
+        }
+    }
+
+    private func openFixtureDetailIfRequested(_ cards: [MemoryCard]) {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-OmoOpenLibraryDetail"),
+           path.isEmpty, let card = cards.first {
+            path = [card]
+        }
+        #endif
     }
 }
 
@@ -237,7 +273,7 @@ private struct MemoryCardRow: View {
                 RarityBadge(value: card.rarity)
                 Text("掌握 · \(card.masteryTitle)")
                     .font(.caption)
-                    .foregroundStyle(OmoTheme.primary)
+                    .foregroundStyle(OmoTheme.primaryInk)
                 Spacer()
                 Text(card.nextReviewText)
                     .font(.caption)
@@ -254,10 +290,199 @@ private struct MemoryCardRow: View {
             if card.sourceIsVerified {
                 Label("TickHub 已核验", systemImage: "checkmark.seal.fill")
                     .font(.caption2.weight(.semibold))
-                    .foregroundStyle(OmoTheme.primary)
+                    .foregroundStyle(OmoTheme.primaryInk)
             }
         }
         .padding(.vertical, 8)
+    }
+}
+
+private enum LibraryDetailMetrics {
+    static let sectionSpacing: CGFloat = 30
+    static let contentSpacing: CGFloat = 12
+    static let mascotSize: CGFloat = 108
+    static let metadataSpacing: CGFloat = 8
+    static let bottomInset: CGFloat = 44
+}
+
+private struct LibraryCardDetailView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var mascotRaised = false
+    let card: MemoryCard
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: LibraryDetailMetrics.sectionSpacing) {
+                hero
+                knowledgeSection
+                answerSection
+                sourceSection
+                metadataSection
+            }
+            .padding(.horizontal, OmoTheme.pageInset)
+            .padding(.bottom, LibraryDetailMetrics.bottomInset)
+        }
+        .background(OmoTheme.background.ignoresSafeArea())
+        .foregroundStyle(OmoTheme.ink)
+        .navigationTitle("记忆详情")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            guard !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
+                mascotRaised = true
+            }
+        }
+    }
+
+    private var hero: some View {
+        HStack(alignment: .center, spacing: OmoTheme.pageInset) {
+            VStack(alignment: .leading, spacing: LibraryDetailMetrics.contentSpacing) {
+                RarityBadge(value: card.rarity)
+                Text("一段被找回的知识")
+                    .font(.title2.bold())
+                    .accessibilityAddTraits(.isHeader)
+                Text("掌握 · \(card.masteryTitle)")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(OmoTheme.primaryInk)
+            }
+            Spacer(minLength: 0)
+            Image("OmoPoseSmirk")
+                .resizable()
+                .scaledToFit()
+                .frame(width: LibraryDetailMetrics.mascotSize, height: LibraryDetailMetrics.mascotSize)
+                .offset(y: mascotRaised ? -5 : 3)
+                .accessibilityHidden(true)
+        }
+        .padding(.top, LibraryDetailMetrics.contentSpacing)
+    }
+
+    private var knowledgeSection: some View {
+        detailSection(title: "核心知识", symbol: "sparkles") {
+            Text(card.coreKnowledge)
+                .font(.title3.weight(.semibold))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var answerSection: some View {
+        detailSection(title: "答案与解释", symbol: "text.book.closed") {
+            VStack(alignment: .leading, spacing: LibraryDetailMetrics.contentSpacing) {
+                Text(card.answer)
+                    .font(.body.weight(.semibold))
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(card.explanation)
+                    .foregroundStyle(OmoTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var sourceSection: some View {
+        detailSection(title: "来源", symbol: "link") {
+            VStack(alignment: .leading, spacing: LibraryDetailMetrics.contentSpacing) {
+                Text(card.sourceTitle.isEmpty ? "未记录来源标题" : card.sourceTitle)
+                    .font(.body.weight(.semibold))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let attribution = sourceAttribution {
+                    Text(attribution)
+                        .font(.subheadline)
+                        .foregroundStyle(OmoTheme.muted)
+                }
+
+                switch card.sourcePresentation {
+                case .verified(let url):
+                    Link(destination: url) {
+                        Label("打开已核验来源", systemImage: "arrow.up.right.square")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(OmoTheme.primaryInk)
+                            .frame(minHeight: 44)
+                    }
+                    .accessibilityHint("将在浏览器中打开原始内容")
+                case .screenshotOnly:
+                    sourceStatus(
+                        title: "仅依据截图",
+                        detail: "暂时没有足够证据核验原始内容。",
+                        symbol: "photo"
+                    )
+                case .fixture:
+                    sourceStatus(
+                        title: "演示数据",
+                        detail: "这不是可追溯的真实来源。",
+                        symbol: "testtube.2"
+                    )
+                case .unavailable:
+                    sourceStatus(
+                        title: "来源暂不可追溯",
+                        detail: "来源信息缺失或链接无效。",
+                        symbol: "link.badge.plus"
+                    )
+                }
+            }
+        }
+    }
+
+    private var metadataSection: some View {
+        detailSection(title: "记忆状态", symbol: "clock.arrow.circlepath") {
+            VStack(alignment: .leading, spacing: LibraryDetailMetrics.metadataSpacing) {
+                metadataRow(title: "掌握阶段", value: card.masteryTitle)
+                metadataRow(title: "复习次数", value: "\(card.reviewCount)")
+                metadataRow(title: "下次召回", value: card.nextReviewText)
+                if let createdAt = card.createdAtText {
+                    metadataRow(title: "创建时间", value: createdAt)
+                }
+            }
+        }
+    }
+
+    private var sourceAttribution: String? {
+        let values: [String] = [card.sourcePlatformTitle, card.sourceAccount]
+            .compactMap { (value: String?) -> String? in
+                guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      !value.isEmpty else { return nil }
+                return value
+            }
+        return values.isEmpty ? nil : values.joined(separator: " · ")
+    }
+
+    private func detailSection<Content: View>(
+        title: String,
+        symbol: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: LibraryDetailMetrics.contentSpacing) {
+            Label(title, systemImage: symbol)
+                .font(.headline)
+                .foregroundStyle(OmoTheme.primaryInk)
+                .accessibilityAddTraits(.isHeader)
+            content()
+            Divider().overlay(OmoTheme.ink.opacity(0.12))
+        }
+    }
+
+    private func sourceStatus(title: String, detail: String, symbol: String) -> some View {
+        Label {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(.subheadline.weight(.semibold))
+                Text(detail).font(.caption).foregroundStyle(OmoTheme.muted)
+            }
+        } icon: {
+            Image(systemName: symbol).foregroundStyle(OmoTheme.muted)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func metadataRow(title: String, value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: LibraryDetailMetrics.contentSpacing) {
+            Text(title).foregroundStyle(OmoTheme.muted)
+            Spacer(minLength: LibraryDetailMetrics.contentSpacing)
+            Text(value)
+                .fontWeight(.semibold)
+                .multilineTextAlignment(.trailing)
+        }
+        .font(.subheadline)
+        .accessibilityElement(children: .combine)
     }
 }
 

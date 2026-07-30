@@ -24,7 +24,7 @@ enum OmoTab: String, CaseIterable, Identifiable {
     }
 }
 
-enum MemoryAssessment: String, Codable, CaseIterable, Identifiable {
+enum MemoryAssessment: String, Codable, CaseIterable, Identifiable, Hashable {
     case remembered
     case fuzzy
     case forgot
@@ -40,8 +40,16 @@ enum MemoryAssessment: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-struct MemoryCard: Codable, Identifiable, Equatable {
+enum MemorySourcePresentation: Equatable {
+    case verified(URL)
+    case screenshotOnly
+    case fixture
+    case unavailable
+}
+
+struct MemoryCard: Codable, Identifiable, Equatable, Hashable {
     let id: String
+    let generationMode: String?
     let coreKnowledge: String
     let recallCue: String
     let answer: String
@@ -52,6 +60,7 @@ struct MemoryCard: Codable, Identifiable, Equatable {
     let sourceUrl: String?
     let sourceStatus: String?
     let sourceProvider: String?
+    let sourceReason: String?
     let sourceConfidence: Double?
     let rarity: String
     let createdAt: String
@@ -83,7 +92,44 @@ struct MemoryCard: Codable, Identifiable, Equatable {
         return date.formatted(date: .abbreviated, time: .omitted) + " 再见"
     }
 
-    var sourceIsVerified: Bool { sourceStatus == "verified" && sourceUrl?.isEmpty == false }
+    var sourcePresentation: MemorySourcePresentation {
+        if generationMode == "fixture" { return .fixture }
+        if sourceStatus == "verified", let sourceURL { return .verified(sourceURL) }
+        if sourceStatus == "screenshot_only" { return .screenshotOnly }
+        return .unavailable
+    }
+
+    var sourceURL: URL? {
+        guard let value = sourceUrl?.trimmingCharacters(in: .whitespacesAndNewlines),
+              let url = URL(string: value),
+              ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+              url.host?.isEmpty == false else { return nil }
+        return url
+    }
+
+    var sourceIsVerified: Bool {
+        if case .verified = sourcePresentation { return true }
+        return false
+    }
+
+    var sourcePlatformTitle: String? {
+        guard let platform = sourcePlatform?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !platform.isEmpty, platform != "unknown" else { return nil }
+        switch platform.lowercased() {
+        case "bilibili": return "Bilibili"
+        case "douyin": return "抖音"
+        case "xiaohongshu": return "小红书"
+        case "wechat": return "微信"
+        case "zhihu": return "知乎"
+        case "youtube": return "YouTube"
+        default: return platform
+        }
+    }
+
+    var createdAtText: String? {
+        guard let date = ISO8601DateFormatter().date(from: createdAt) else { return nil }
+        return date.formatted(date: .abbreviated, time: .omitted)
+    }
 }
 
 struct CardsResponse: Decodable {

@@ -261,33 +261,6 @@ private struct MemoryCardRow: View {
     }
 }
 
-private struct ProfileView: View {
-    @EnvironmentObject private var store: OmoStore
-
-    var body: some View {
-        VStack(spacing: 24) {
-            Text("我的")
-                .font(.system(size: 26, weight: .bold))
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Image("OmoPoseHeart")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 190, height: 190)
-            Text("Omo")
-                .font(.title.bold())
-            Text("你负责截图，Omo 负责让它回来。")
-                .foregroundStyle(OmoTheme.muted)
-            HStack(spacing: 12) {
-                StatView(value: store.cards.count, label: "记忆卡")
-                StatView(value: store.cards.reduce(0) { $0 + $1.reviewCount }, label: "已召回")
-            }
-            Spacer()
-        }
-        .foregroundStyle(OmoTheme.ink)
-        .padding(OmoTheme.pageInset)
-    }
-}
-
 private struct AddScreenshotView: View {
     @EnvironmentObject private var store: OmoStore
     @Environment(\.dismiss) private var dismiss
@@ -959,20 +932,5 @@ private struct OmoLaunchScene: View {
             }
         }
         .accessibilityElement(children: .combine)
-    }
-}
-
-private struct StatView: View {
-    let value: Int
-    let label: String
-
-    var body: some View {
-        VStack(spacing: 6) {
-            Text(value, format: .number).font(.title.bold())
-            Text(label).font(.caption).foregroundStyle(OmoTheme.muted)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(20)
-        .background(OmoTheme.surface, in: RoundedRectangle(cornerRadius: OmoTheme.radius))
     }
 }

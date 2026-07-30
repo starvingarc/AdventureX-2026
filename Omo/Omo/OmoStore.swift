@@ -25,15 +25,6 @@ final class OmoStore: ObservableObject {
         guard !isLoading else { return }
         isLoading = true
         defer { isLoading = false }
-        #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-OmoLibraryDetailFixture") {
-            cards = ProcessInfo.processInfo.arguments.contains("-OmoLibraryDetailScreenshotOnly")
-                ? Array(Self.libraryDetailFixtures.reversed())
-                : Self.libraryDetailFixtures
-            message = ""
-            return
-        }
-        #endif
         do {
             cards = try await api.cards()
             message = ""
@@ -103,59 +94,6 @@ final class OmoStore: ObservableObject {
         return jpeg
     }
 }
-
-#if DEBUG
-private extension OmoStore {
-    static let libraryDetailFixtures = [
-        MemoryCard(
-            id: "library-detail-verified",
-            generationMode: "qwen",
-            coreKnowledge: "传统搜索依赖精确关键词，而视觉模型可以先从截图恢复标题、作者与内容位置，再用受限来源查询核对候选内容。",
-            recallCue: "如何从一张社媒截图恢复可靠来源？",
-            answer: "先识别截图中的身份线索，再对候选来源进行标题与作者的严格匹配。",
-            explanation: "只有候选内容与截图证据一致时才标记为已核验；匹配不足时应保留为截图来源，不能补造链接或作者。这里使用较长文本检查详情页在小屏和大字号下的换行、滚动与阅读顺序。",
-            sourceTitle: "告别信息差，AI + 投行分析框架",
-            sourceAccount: "Xuan_酱",
-            sourcePlatform: "bilibili",
-            sourceUrl: "https://www.bilibili.com/video/BV1fixture",
-            sourceStatus: "verified",
-            sourceProvider: "tikhub",
-            sourceReason: nil,
-            sourceConfidence: 0.98,
-            rarity: "SR",
-            createdAt: "2026-07-30T08:00:00Z",
-            masteryStage: "awakened",
-            nextReviewAt: "2026-08-01T08:00:00Z",
-            reviewCount: 2,
-            successfulRecallCount: 1,
-            lastAssessment: .fuzzy
-        ),
-        MemoryCard(
-            id: "library-detail-screenshot",
-            generationMode: "qwen",
-            coreKnowledge: "证据不足时，卡片只能诚实地保留截图内容。",
-            recallCue: "来源没有核验成功时应该怎样展示？",
-            answer: "显示仅依据截图，不提供伪造的原文入口。",
-            explanation: "这张合成 Fixture 专门验证缺失来源的降级表现。",
-            sourceTitle: "截图内容",
-            sourceAccount: nil,
-            sourcePlatform: "unknown",
-            sourceUrl: nil,
-            sourceStatus: "screenshot_only",
-            sourceProvider: "tikhub",
-            sourceReason: "strict_match_not_found",
-            sourceConfidence: 0,
-            rarity: "R",
-            createdAt: "2026-07-29T08:00:00Z",
-            masteryStage: "sealed",
-            nextReviewAt: "2026-07-30T08:00:00Z",
-            reviewCount: 0,
-            successfulRecallCount: 0,
-            lastAssessment: nil
-        )
-    ]
-}
-#endif
 
 private enum ImageError: LocalizedError {
     case invalid

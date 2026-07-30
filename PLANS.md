@@ -6,7 +6,7 @@
 
 | 计划 | 分支 | 负责人 | 状态 | 模式 | 进度 | 下一步 |
 |---|---|---|---|---|---:|---|
-| [[plans/feat-library-card-detail]] | `feat/library-card-detail` | Codex | `completed` | `auto` | 100% | 退役计划并创建 PR |
+| 无 | — | — | — | — | — | — |
 
 ## 使用规则
 

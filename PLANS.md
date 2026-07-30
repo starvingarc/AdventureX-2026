@@ -6,7 +6,7 @@
 
 | 计划 | 分支 | 负责人 | 状态 | 模式 | 进度 | 下一步 |
 |---|---|---|---|---|---:|---|
-| 无 | — | — | — | — | — | — |
+| [[plans/feat-library-card-detail]] | `feat/library-card-detail` | Codex | `in_progress` | `auto` | 0% | 实现知识库详情导航与来源降级 |
 
 ## 使用规则
 

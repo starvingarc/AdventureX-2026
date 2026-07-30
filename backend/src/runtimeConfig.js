@@ -3,6 +3,9 @@ const DEFAULT_QWEN_MODEL = "qwen3-vl-plus";
 const DEFAULT_QWEN_TIMEOUT_MS = 60_000;
 const DEFAULT_TIKHUB_BASE_URL = "https://api.tikhub.io";
 const DEFAULT_TIKHUB_TIMEOUT_MS = 15_000;
+const DEFAULT_DATABASE_POOL_MAX = 10;
+const DEFAULT_DATABASE_CONNECT_TIMEOUT_MS = 5_000;
+const DEFAULT_DATABASE_IDLE_TIMEOUT_MS = 30_000;
 
 export function readRuntimeConfig(env = process.env) {
   const nodeEnv = clean(env.NODE_ENV || "development").toLowerCase();
@@ -39,6 +42,17 @@ export function readRuntimeConfig(env = process.env) {
     env.TIKHUB_TIMEOUT_MS || String(DEFAULT_TIKHUB_TIMEOUT_MS)
   );
   const qwenApiKey = clean(env.QWEN_API);
+  const databaseURL = clean(env.DATABASE_URL);
+  const databaseURLValid = !databaseURL || isPostgresURL(databaseURL);
+  const databasePoolMax = parsePositiveInteger(
+    env.DATABASE_POOL_MAX || String(DEFAULT_DATABASE_POOL_MAX)
+  );
+  const databaseConnectTimeout = parsePositiveInteger(
+    env.DATABASE_CONNECT_TIMEOUT_MS || String(DEFAULT_DATABASE_CONNECT_TIMEOUT_MS)
+  );
+  const databaseIdleTimeout = parsePositiveInteger(
+    env.DATABASE_IDLE_TIMEOUT_MS || String(DEFAULT_DATABASE_IDLE_TIMEOUT_MS)
+  );
   const deprecatedEnvironmentVariables = [
     qwenBaseURL.legacyName,
     qwenModel.legacyName,
@@ -71,16 +85,27 @@ export function readRuntimeConfig(env = process.env) {
       timeoutMs: tikhubTimeoutValue.value,
       timeoutValid: tikhubTimeoutValue.valid
     },
+    database: {
+      connectionString: databaseURL,
+      configured: Boolean(databaseURL),
+      urlValid: databaseURLValid,
+      poolMax: databasePoolMax.value,
+      poolMaxValid: databasePoolMax.valid,
+      connectTimeoutMs: databaseConnectTimeout.value,
+      connectTimeoutValid: databaseConnectTimeout.valid,
+      idleTimeoutMs: databaseIdleTimeout.value,
+      idleTimeoutValid: databaseIdleTimeout.valid
+    },
     storage: {
-      driver: "json",
-      durable: false,
+      driver: databaseURL ? "postgres" : "json",
+      durable: Boolean(databaseURL),
       filePath: clean(env.CARD_STORE_PATH)
     },
     deprecatedEnvironmentVariables
   };
 }
 
-export function buildReadiness(config) {
+export function buildReadiness(config, runtime = {}) {
   const blockers = [];
   const demoForbidden = config.production && config.demo.requested;
   const modelProvider = config.qwen.configured
@@ -94,7 +119,15 @@ export function buildReadiness(config) {
   const sourceReady = config.tikhub.configured
     && config.tikhub.baseURLValid
     && config.tikhub.timeoutValid;
-  const storageReady = !config.production || config.storage.durable;
+  const storageRequired = config.production || config.database.configured;
+  const storageStatus = runtime.storage || {
+    ready: !storageRequired && config.storage.driver === "json",
+    driver: config.storage.driver,
+    durable: config.storage.durable,
+    reason: storageRequired ? "storage_not_checked" : ""
+  };
+  const storageReady = Boolean(storageStatus.ready)
+    && (!storageRequired || Boolean(storageStatus.durable));
 
   if (!config.demo.valid) blockers.push("demo_mode_invalid");
   if (demoForbidden) blockers.push("demo_mode_forbidden");
@@ -111,7 +144,28 @@ export function buildReadiness(config) {
     if (config.tikhub.configured && !config.tikhub.timeoutValid) {
       blockers.push("tikhub_timeout_invalid");
     }
-    if (!config.storage.durable) blockers.push("durable_storage_unavailable");
+  }
+  if (!config.database.configured && config.production) {
+    blockers.push("durable_storage_unavailable");
+  }
+  if (config.database.configured && !config.database.urlValid) {
+    blockers.push("database_url_invalid");
+  }
+  if (config.database.configured && !config.database.poolMaxValid) {
+    blockers.push("database_pool_max_invalid");
+  }
+  if (config.database.configured && !config.database.connectTimeoutValid) {
+    blockers.push("database_connect_timeout_invalid");
+  }
+  if (config.database.configured && !config.database.idleTimeoutValid) {
+    blockers.push("database_idle_timeout_invalid");
+  }
+  const databaseReady = databaseConfigValid(config.database);
+  if (storageRequired && config.database.configured && databaseReady && !storageReady) {
+    blockers.push(
+      storageStatus.reason
+      || (storageStatus.durable ? "storage_unavailable" : "durable_storage_unavailable")
+    );
   }
 
   return {
@@ -130,10 +184,13 @@ export function buildReadiness(config) {
         provider: "tikhub"
       },
       storage: {
-        required: config.production,
+        required: storageRequired,
         ready: storageReady,
-        driver: config.storage.driver,
-        durable: config.storage.durable
+        driver: storageStatus.driver || config.storage.driver,
+        durable: Boolean(storageStatus.durable),
+        reason: storageStatus.reason || "",
+        appliedVersions: storageStatus.appliedVersions || [],
+        pendingVersions: storageStatus.pendingVersions || []
       }
     },
     blockers,
@@ -141,6 +198,13 @@ export function buildReadiness(config) {
       (name) => `deprecated_environment_variable:${name}`
     )
   };
+}
+
+export function databaseConfigValid(database) {
+  return database.urlValid
+    && database.poolMaxValid
+    && database.connectTimeoutValid
+    && database.idleTimeoutValid;
 }
 
 function resolveEnvironmentValue(env, canonicalName, legacyName, fallback) {
@@ -180,6 +244,17 @@ function parseHTTPURL(value) {
     return { value: parsed.toString().replace(/\/$/, ""), valid: true };
   } catch {
     return { value: "", valid: false };
+  }
+}
+
+function isPostgresURL(value) {
+  try {
+    const parsed = new URL(value);
+    return ["postgres:", "postgresql:"].includes(parsed.protocol)
+      && Boolean(parsed.hostname)
+      && Boolean(parsed.pathname.replace(/\//g, ""));
+  } catch {
+    return false;
   }
 }
 

@@ -163,11 +163,45 @@ Omo 的开放 Issue 缺少统一标签、Milestone、验收和依赖；部分 Is
 
 接入并验证耐久存储 Adapter 后，更新 storage readiness 的实现与部署证据；若 TikHub 不再是生产必需依赖，必须先明确新的来源证据合同，再调整其 required 状态。
 
+## 2026-07-29：PostgreSQL 使用显式顺序 migration 与过渡 owner 合同
+
+- 状态：accepted
+- 决策者：Project owner / Codex
+- 相关计划：`plans/feat-postgres-persistence.md`
+
+### 背景
+
+生产 fail-closed 已明确拒绝 JSON Store，但直接在服务启动时自动建表、静默导入本地 JSON 或提前把 `X-Device-Id` 当账号，会混淆 migration 授权、数据来源和 #19 的身份边界。
+
+### 决定
+
+- `DATABASE_URL` 显式选择 PostgreSQL；配置存在但错误时不回退 JSON。
+- migration 只通过显式 CLI 顺序执行，记录 checksum，并用 advisory lock 串行化；服务与 readiness 不自动修改 Schema。
+- 当前 owner 是不透明的 `device` 过渡键，不是认证；#19 再定义账号、会话和旧 owner 迁移。
+- 重复卡片保留首次 canonical 状态，assessment 使用数据库唯一 attempt 与版本 fencing。
+- JSON 导入只能显式 dry-run／确认授权；生产恢复使用新数据库验证后切换，不提供破坏性 down migration。
+
+### 理由
+
+显式 migration 把生产副作用留在人工授权的发布步骤；checksum 和锁使多人／多实例执行可复核。过渡 owner 让存储先落地，同时避免把可伪造请求头误写成已完成账号体系。
+
+### 后果
+
+- 后端 Store 调用统一为可等待合同，非生产 JSON 仍兼容。
+- PostgreSQL readiness 同时检查连接、版本和 checksum。
+- #19 必须在现有 owner 合同上增加认证映射，不能把 `X-Device-Id` 直接升级为可信账号。
+- #20 负责真实 Railway migration、连接池容量、备份权限、发布停止条件和部署 readback。
+
+### 验证或复审条件
+
+当 #19 冻结认证 subject 或 #20 确认 Railway/Postgres 网络与备份能力时，复审 owner 映射、TLS、连接池和迁移发布步骤；任何生产数据操作仍需新的 manual 授权。
+
 ## 相关文档
 
 - [[AGENTS]]
 - [[docs/index]]
 - [[docs/issue-management-workflow]]
+- [[docs/postgres-persistence]]
 - [[docs/documentation-guide]]
 - [[docs/ios-api-data-contract-zh]]
 - [[docs/quality-baseline]]

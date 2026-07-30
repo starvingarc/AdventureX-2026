@@ -18,6 +18,14 @@
 - Debug 构建可用显式启动参数 `-OmoProfileLargeFixture` 检查大数字布局；该 Fixture 不改变生产 Store、API 或展示值。
 - 页面只使用当前已登记的 Omo 素材；历史 Profile 素材没有来源记录时不恢复。
 
+## 知识库详情层级
+
+- 知识库卡片使用独立导航详情，不复用召回、刮开或自评流程；返回时保留列表浏览语境。
+- 详情按“角色与掌握状态 → 核心知识 → 答案与解释 → 来源 → 记忆状态”组织为单一阅读流，各段用共享间距和分隔线组织，不嵌套装饰卡片。
+- 只有非 Fixture、`sourceStatus` 为 `verified` 且 URL 是有效 HTTP(S) 地址时才显示可打开的核验来源；截图来源、Fixture、缺失或无效链接使用明确静态降级。
+- 页面使用系统文字样式、可换行内容和 `ScrollView` 支持长文本与 Dynamic Type；Omo 角色只做低频漂浮，Reduce Motion 下保持静态。
+- Debug 构建可用显式启动参数 `-OmoLibraryDetailFixture -OmoOpenLibrary -OmoOpenLibraryDetail` 检查合成长文本详情；该 Fixture 不进入生产数据或来源结论。
+
 ## 动效层
 
 - 首页卡堆：低频呼吸和分层漂浮。

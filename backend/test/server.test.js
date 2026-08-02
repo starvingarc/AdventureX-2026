@@ -19,6 +19,7 @@ test("health is liveness while explicit local fixture mode can become ready", as
       body: JSON.stringify({ imageBase64: "aGVsbG8=" })
     });
     const imageFlowBody = await imageFlow.json();
+    const cards = await fetch(`${baseURL}/api/memory-cards`);
 
     assert.equal(health.status, 200);
     assert.deepEqual(healthBody, {
@@ -32,6 +33,7 @@ test("health is liveness while explicit local fixture mode can become ready", as
     assert.equal(imageFlow.status, 200);
     assert.equal(imageFlowBody.card.hiddenSemantic, "再次想起");
     assert.equal(imageFlowBody.card.answer, imageFlowBody.card.hiddenSemantic);
+    assert.equal(cards.headers.get("cache-control"), "no-store");
   });
 });
 

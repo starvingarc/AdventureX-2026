@@ -13,6 +13,8 @@
 | POST | `/api/memory-cards/:id/assessments` | 提交 remembered / fuzzy / forgot |
 | DELETE | `/api/memory-cards/:id` | 删除卡片 |
 
+所有 JSON 响应均返回 `Cache-Control: no-store`；iOS 客户端也使用忽略本地缓存的请求策略，避免上传或自评后继续读取旧卡片列表。
+
 ## MemoryCard
 
 ```json

@@ -158,9 +158,17 @@ Simulator 通过 Debug-only `KnowledgeLibrarySpeechTranscribing` mock 注入最�
 ## 9. 数据合同
 
 ```swift
+struct KnowledgeLibrarySearchDocument: Equatable, Sendable {
+    let id: String
+    let coreKnowledge: String
+    let recallCue: String
+    let explanation: String
+    let sourceTitle: String
+}
+
 struct KnowledgeLibrarySearchRequest: Equatable, Sendable {
     let query: String
-    let cardIDs: [String]
+    let candidates: [KnowledgeLibrarySearchDocument]
 }
 
 struct KnowledgeLibrarySearchResponse: Equatable, Sendable {
@@ -173,7 +181,7 @@ protocol KnowledgeLibrarySearching: Sendable {
 }
 ```
 
-UI 只向搜索器提供当前用户已加载卡片的 ID 边界，响应也只接受这些 ID。映射时过滤未知、重复或已经删除的 ID。后续真实服务至少需要：
+UI 只向搜索器提供当前用户已加载卡片构成的候选边界；真实后端 Adapter 只需发送候选 ID，本地 Debug mock 则可读取合成候选文字。响应只接受这些候选中的 ID，映射时过滤未知、重复或已经删除的 ID。后续真实服务至少需要：
 
 - 在鉴权用户范围内检索；
 - 索引新增、更新和删除与卡片持久化一致；
@@ -246,4 +254,3 @@ Simulator 截图至少包含：全部卡片、多页第二页、文字结果、�
 - [[docs/frontend/v2-layout-system]]
 - [[docs/asset-provenance]]
 - [[plans/codex-knowledge-library-search]]
-

@@ -42,4 +42,3 @@
 - [[docs/frontend/v2-frontend-architecture]]
 - [[docs/frontend/v2-layout-system]]
 - [[docs/quality-baseline]]
-- [[plans/codex-knowledge-library-search]]

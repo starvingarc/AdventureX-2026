@@ -131,4 +131,3 @@ iOS 依赖 `KnowledgeLibrarySearching`，输入是查询与当前用户已加载
 - [[docs/frontend/v2-layout-system]]
 - [[docs/knowledge-library-validation]]
 - [[docs/superpowers/specs/2026-08-03-knowledge-library-search-design]]
-- [[plans/codex-knowledge-library-search]]

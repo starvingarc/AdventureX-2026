@@ -253,4 +253,3 @@ Simulator 截图至少包含：全部卡片、多页第二页、文字结果、�
 - [[docs/frontend/v2-frontend-architecture]]
 - [[docs/frontend/v2-layout-system]]
 - [[docs/asset-provenance]]
-- [[plans/codex-knowledge-library-search]]

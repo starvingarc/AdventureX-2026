@@ -7,6 +7,7 @@
 - [[docs/product-principles]]：产品北极星、证据、召回、隐私与体验护栏。
 - [[docs/ios-api-data-contract-zh]]：当前截图主链、iOS 模型、API、兼容与失败语义。
 - [[docs/superpowers/specs/2026-08-02-active-recall-selective-reintegration-design]]：以团队最新主线为基准，选择性恢复已验收首页与主动回忆交互的实施规格。
+- [[docs/superpowers/specs/2026-08-03-knowledge-library-search-design]]：知识库完整卡片浏览、文字／语音输入、分页与可替换搜索层的设计规格。
 - [[docs/privacy-policy-zh]]：面向用户的隐私政策。
 - [[docs/support-zh]]：面向用户的支持说明。
 

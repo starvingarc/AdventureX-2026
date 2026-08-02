@@ -34,6 +34,7 @@ struct ContentView: View {
             #if DEBUG
             let arguments = ProcessInfo.processInfo.arguments
             if arguments.contains("-OmoOpenLibrary") { store.selectedTab = .library }
+            store.applyKnowledgeLibraryDebugArguments(arguments)
             #endif
         }
         .sheet(isPresented: $showsAdd) {
@@ -91,98 +92,18 @@ struct ContentView: View {
                 onOpenSettings: { showsSettings = true }
             )
         case .library:
-            LibraryView(onAdd: { showsAdd = true })
+            KnowledgeLibraryView(
+                cards: store.cards,
+                onBack: { store.selectedTab = .today },
+                onAdd: { showsAdd = true },
+                onOpenCard: { store.presentedCard = $0 }
+            )
         case .profile:
             ProfileView(onBack: { store.selectedTab = .today })
         }
     }
 }
 
-
-private struct LibraryView: View {
-    @EnvironmentObject private var store: OmoStore
-    let onAdd: () -> Void
-
-    var body: some View {
-        NavigationStack {
-            Group {
-                if store.cards.isEmpty {
-                    ContentUnavailableView(
-                        "知识库还是空的",
-                        systemImage: "rectangle.stack.badge.plus",
-                        description: Text("添加截图后，记忆卡会出现在这里。")
-                    )
-                } else {
-                    List {
-                        ForEach(store.cards) { card in
-                            Button {
-                                store.presentedCard = card
-                            } label: {
-                                MemoryCardRow(card: card)
-                            }
-                            .buttonStyle(.plain)
-                            .listRowBackground(OmoTheme.surface)
-                            .swipeActions {
-                                Button("删除", role: .destructive) {
-                                    Task { await store.delete(card) }
-                                }
-                            }
-                        }
-                    }
-                    .scrollContentBackground(.hidden)
-                }
-            }
-            .background(OmoTheme.background)
-            .navigationTitle("知识库")
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        store.selectedTab = .today
-                    } label: {
-                        Label("返回首页", systemImage: "chevron.left")
-                    }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(action: onAdd) { Image(systemName: "plus") }
-                        .accessibilityLabel("添加截图")
-                }
-            }
-        }
-    }
-}
-
-private struct MemoryCardRow: View {
-    let card: MemoryCard
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                RarityBadge(value: card.rarity)
-                Text("掌握 · \(card.masteryTitle)")
-                    .font(.caption)
-                    .foregroundStyle(OmoTheme.primary)
-                Spacer()
-                Text(card.nextReviewText)
-                    .font(.caption)
-                    .foregroundStyle(OmoTheme.muted)
-            }
-            Text(card.coreKnowledge)
-                .font(.body.weight(.semibold))
-                .foregroundStyle(OmoTheme.ink)
-                .multilineTextAlignment(.leading)
-            Text(card.sourceTitle)
-                .font(.caption)
-                .foregroundStyle(OmoTheme.muted)
-                .lineLimit(1)
-            if card.sourceIsVerified {
-                Label("TickHub 已核验", systemImage: "checkmark.seal.fill")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(OmoTheme.primary)
-            }
-        }
-        .padding(.vertical, 8)
-    }
-}
 
 private struct LibraryCardDetailView: View {
     let card: MemoryCard

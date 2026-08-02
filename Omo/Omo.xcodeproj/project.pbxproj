@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		FA70C00E2FC000000000000E /* APIClientDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA70C00F2FC000000000000F /* APIClientDecodingTests.swift */; };
 		FA70C0102FC0000000000010 /* RecallInteractionStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA70C0112FC0000000000011 /* RecallInteractionStateTests.swift */; };
+		FA70C0122FC0000000000012 /* KnowledgeLibrarySearchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA70C0132FC0000000000013 /* KnowledgeLibrarySearchTests.swift */; };
+		FA70C0142FC0000000000014 /* KnowledgeLibraryPaginationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA70C0152FC0000000000015 /* KnowledgeLibraryPaginationTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -26,6 +28,8 @@
 		FA70C0012FC0000000000001 /* OmoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OmoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		FA70C00F2FC000000000000F /* APIClientDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClientDecodingTests.swift; sourceTree = "<group>"; };
 		FA70C0112FC0000000000011 /* RecallInteractionStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecallInteractionStateTests.swift; sourceTree = "<group>"; };
+		FA70C0132FC0000000000013 /* KnowledgeLibrarySearchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeLibrarySearchTests.swift; sourceTree = "<group>"; };
+		FA70C0152FC0000000000015 /* KnowledgeLibraryPaginationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeLibraryPaginationTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -77,6 +81,8 @@
 			children = (
 				FA70C00F2FC000000000000F /* APIClientDecodingTests.swift */,
 				FA70C0112FC0000000000011 /* RecallInteractionStateTests.swift */,
+				FA70C0132FC0000000000013 /* KnowledgeLibrarySearchTests.swift */,
+				FA70C0152FC0000000000015 /* KnowledgeLibraryPaginationTests.swift */,
 			);
 			path = OmoTests;
 			sourceTree = "<group>";
@@ -199,6 +205,8 @@
 			files = (
 				FA70C00E2FC000000000000E /* APIClientDecodingTests.swift in Sources */,
 				FA70C0102FC0000000000010 /* RecallInteractionStateTests.swift in Sources */,
+				FA70C0122FC0000000000012 /* KnowledgeLibrarySearchTests.swift in Sources */,
+				FA70C0142FC0000000000014 /* KnowledgeLibraryPaginationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -40,7 +40,7 @@ enum MemoryAssessment: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-struct MemoryCard: Codable, Identifiable, Equatable {
+struct MemoryCard: Codable, Identifiable, Equatable, Sendable {
     let id: String
     let coreKnowledge: String
     let hiddenSemantic: String?

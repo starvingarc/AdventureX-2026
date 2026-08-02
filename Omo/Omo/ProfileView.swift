@@ -19,6 +19,11 @@ struct ProfileView: View {
     // MARK: - Environment
 
     @EnvironmentObject private var store: OmoStore
+    var onBack: (() -> Void)?
+
+    init(onBack: (() -> Void)? = nil) {
+        self.onBack = onBack
+    }
 
     // MARK: - 非 View 计算属性
 
@@ -60,9 +65,20 @@ struct ProfileView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("我的")
-                .font(.largeTitle.bold())
-                .accessibilityAddTraits(.isHeader)
+            HStack(spacing: 8) {
+                if let onBack {
+                    Button(action: onBack) {
+                        Image(systemName: "chevron.left")
+                            .frame(width: 44, height: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("返回首页")
+                }
+                Text("我的")
+                    .font(.largeTitle.bold())
+                    .accessibilityAddTraits(.isHeader)
+                Spacer()
+            }
             ProfileHairline()
         }
     }

@@ -75,6 +75,7 @@ struct APIClient {
         timeout: TimeInterval = 30
     ) async throws -> Response {
         var request = URLRequest(url: baseURL.appending(path: path))
+        request.cachePolicy = .reloadIgnoringLocalCacheData
         request.httpMethod = method
         request.timeoutInterval = timeout
         request.setValue("application/json", forHTTPHeaderField: "Accept")

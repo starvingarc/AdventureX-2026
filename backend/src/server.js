@@ -158,7 +158,10 @@ function send(response, status, body) {
     response.writeHead(status);
     return response.end();
   }
-  response.writeHead(status, { "content-type": "application/json; charset=utf-8" });
+  response.writeHead(status, {
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": "no-store"
+  });
   response.end(JSON.stringify(body));
 }
 

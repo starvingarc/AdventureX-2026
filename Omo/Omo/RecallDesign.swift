@@ -51,3 +51,27 @@ enum RecallRatingMetrics {
     static let labelTop: CGFloat = 42
     static let totalHeight: CGFloat = 66
 }
+
+enum KnowledgeLibraryMetrics {
+    static let referenceSize = CGSize(width: 402, height: 874)
+    static let backFrame = CGRect(x: 21, y: 43, width: 70, height: 70)
+    static let mascotFrame = CGRect(x: 226, y: 32, width: 154, height: 154)
+    static let panelFrame = CGRect(x: 13, y: 180, width: 376, height: 674)
+    static let searchFrame = CGRect(x: 21, y: 166, width: 356, height: 76)
+    static let pagerFrame = CGRect(x: 21, y: 258, width: 360, height: 466)
+    static let pageIndicatorFrame = CGRect(x: 126, y: 735, width: 150, height: 32)
+    static let folderFrame = CGRect(x: 10, y: 735, width: 105, height: 105)
+    static let uploadFrame = CGRect(x: 296, y: 752, width: 70, height: 73)
+
+    static let columnSpacing: CGFloat = 18
+    static let rowSpacing: CGFloat = 18
+    static let cardCornerRadius: CGFloat = 18
+    static let cardContentInset: CGFloat = 18
+    static let searchCornerRadius: CGFloat = 20
+    static let minimumControlSize: CGFloat = 44
+    static let cardRotationDegrees: [Double] = [-3.2, 2.5, 1.7, -1.2, 2.1, -2.4]
+
+    static func scale(for size: CGSize) -> CGFloat {
+        min(1, min(size.width / referenceSize.width, size.height / referenceSize.height))
+    }
+}

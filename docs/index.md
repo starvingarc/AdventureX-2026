@@ -18,6 +18,7 @@
 - [[docs/frontend/v2-frontend-architecture]]：当前精简 SwiftUI 视图、状态与 API 边界。
 - [[docs/frontend/v2-layout-system]]：当前布局 Token、召回动效和 UI 验证要求。
 - [[docs/asset-provenance]]：App 素材来源、授权、处理方式与哈希。
+- [[docs/knowledge-library-validation]]：知识库页面的 Simulator 路径、截图与未验证边界。
 
 ## 工程与协作
 

@@ -49,7 +49,7 @@
 - 卡片完整显示 `coreKnowledge`，不截断。
 - 合法 `hiddenSemantic` 可用字重和颜色强调，但绝不遮挡。
 - 稀有度仅用于视觉装饰，不代表相关度、抽取概率或掌握程度。
-- 卡片高度由实际 SwiftUI 排版测量决定，不按字数硬编码。
+- 卡片最终高度由实际 SwiftUI 排版测量决定，不按字数硬编码；首帧只用统一占位高度避免等待排版，实测值随后成为唯一分页依据。
 - 每页采用两列错落布局；按结果顺序放入较短列，放不下时进入下一页。
 - 查询、卡片、容器尺寸或 Dynamic Type 改变时重新分页并回到第一页。
 - 横向滑动切页；页点动态反映真实页数和当前位置。
@@ -129,6 +129,6 @@ iOS 依赖 `KnowledgeLibrarySearching`，输入是查询与当前用户已加载
 - [[docs/ios-api-data-contract-zh]]
 - [[docs/frontend/v2-frontend-architecture]]
 - [[docs/frontend/v2-layout-system]]
+- [[docs/knowledge-library-validation]]
 - [[docs/superpowers/specs/2026-08-03-knowledge-library-search-design]]
 - [[plans/codex-knowledge-library-search]]
-

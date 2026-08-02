@@ -110,6 +110,64 @@ final class KnowledgeLibrarySearchTests: XCTestCase {
         XCTAssertEqual(model.state, .results)
         XCTAssertEqual(model.visibleCards.map(\.id), ["a"])
     }
+
+    @MainActor
+    func testFinalVoiceTranscriptUpdatesQueryAndSubmitsExactlyOnce() async {
+        let attempts = AttemptCounter()
+        let speech = SpeechStub()
+        let model = KnowledgeLibraryViewModel(
+            cards: [testCard("a", "认知卸载")],
+            searcher: SearchStub { _ in
+                _ = await attempts.increment()
+                return .init(orderedCardIDs: ["a"])
+            },
+            speechTranscriber: speech
+        )
+
+        await model.startOrStopVoice()
+        speech.send(.transcript("如何避免认知卸载", isFinal: true))
+        await Task.yield()
+        await model.waitForSearchForTesting()
+
+        let attemptCount = await attempts.current
+        XCTAssertEqual(model.query, "如何避免认知卸载")
+        XCTAssertEqual(attemptCount, 1)
+        XCTAssertEqual(model.state, .results)
+    }
+
+    @MainActor
+    func testVoicePermissionFailureDoesNotEraseTypedQuery() async {
+        let speech = SpeechStub()
+        let model = KnowledgeLibraryViewModel(
+            cards: [testCard("a", "认知卸载")],
+            searcher: SearchStub { _ in .init(orderedCardIDs: []) },
+            speechTranscriber: speech
+        )
+        model.query = "已经输入的内容"
+
+        await model.startOrStopVoice()
+        speech.send(.denied)
+        await Task.yield()
+
+        XCTAssertEqual(model.query, "已经输入的内容")
+        XCTAssertEqual(model.speechState, .denied)
+    }
+
+    @MainActor
+    func testDisappearStopsListening() async {
+        let speech = SpeechStub()
+        let model = KnowledgeLibraryViewModel(
+            cards: [testCard("a", "认知卸载")],
+            searcher: SearchStub { _ in .init(orderedCardIDs: []) },
+            speechTranscriber: speech
+        )
+
+        await model.startOrStopVoice()
+        model.onDisappear()
+
+        XCTAssertEqual(speech.stopCount, 1)
+    }
+
 }
 
 private struct SearchStub: KnowledgeLibrarySearching {
@@ -130,6 +188,34 @@ private actor AttemptCounter {
     func increment() -> Int {
         value += 1
         return value
+    }
+
+    var current: Int { value }
+}
+
+@MainActor
+private final class SpeechStub: KnowledgeLibrarySpeechTranscribing {
+    let events: AsyncStream<KnowledgeLibrarySpeechEvent>
+    private var continuation: AsyncStream<KnowledgeLibrarySpeechEvent>.Continuation?
+    private(set) var stopCount = 0
+
+    init() {
+        var continuation: AsyncStream<KnowledgeLibrarySpeechEvent>.Continuation?
+        events = AsyncStream { continuation = $0 }
+        self.continuation = continuation
+    }
+
+    func start() async {
+        continuation?.yield(.listening)
+    }
+
+    func stop() {
+        stopCount += 1
+        continuation?.yield(.stopped)
+    }
+
+    func send(_ event: KnowledgeLibrarySpeechEvent) {
+        continuation?.yield(event)
     }
 }
 

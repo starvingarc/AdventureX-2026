@@ -14,20 +14,30 @@ final class KnowledgeLibraryViewModel: ObservableObject {
     @Published private(set) var state: KnowledgeLibraryResultsState = .all
     @Published private(set) var visibleCards: [MemoryCard]
     @Published var currentPage = 0
+    @Published private(set) var speechState: KnowledgeLibrarySpeechState = .idle
 
     private var allCards: [MemoryCard]
     private let searcher: any KnowledgeLibrarySearching
+    private let speechTranscriber: (any KnowledgeLibrarySpeechTranscribing)?
     private var searchTask: Task<Void, Never>?
+    private var speechEventsTask: Task<Void, Never>?
     private var requestGeneration = UUID()
 
-    init(cards: [MemoryCard], searcher: any KnowledgeLibrarySearching) {
+    init(
+        cards: [MemoryCard],
+        searcher: any KnowledgeLibrarySearching,
+        speechTranscriber: (any KnowledgeLibrarySpeechTranscribing)? = nil
+    ) {
         allCards = cards
         visibleCards = cards
         self.searcher = searcher
+        self.speechTranscriber = speechTranscriber
+        observeSpeechEvents()
     }
 
     deinit {
         searchTask?.cancel()
+        speechEventsTask?.cancel()
     }
 
     func updateCards(_ cards: [MemoryCard]) {
@@ -95,6 +105,23 @@ final class KnowledgeLibraryViewModel: ObservableObject {
         requestGeneration = UUID()
     }
 
+    func startOrStopVoice() async {
+        guard let speechTranscriber else {
+            speechState = .unavailable
+            return
+        }
+        if speechState == .listening {
+            speechTranscriber.stop()
+        } else {
+            await speechTranscriber.start()
+        }
+    }
+
+    func onDisappear() {
+        cancelSearch()
+        speechTranscriber?.stop()
+    }
+
     func waitForSearchForTesting() async {
         await searchTask?.value
     }
@@ -119,5 +146,38 @@ final class KnowledgeLibraryViewModel: ObservableObject {
         visibleCards = []
         state = .failed(message: message)
         currentPage = 0
+    }
+
+    private func observeSpeechEvents() {
+        guard let speechTranscriber else { return }
+        speechEventsTask = Task { [weak self] in
+            for await event in speechTranscriber.events {
+                guard !Task.isCancelled else { return }
+                self?.handleSpeechEvent(event)
+            }
+        }
+    }
+
+    private func handleSpeechEvent(_ event: KnowledgeLibrarySpeechEvent) {
+        switch event {
+        case .listening:
+            speechState = .listening
+        case .transcript(let value, let isFinal):
+            query = value
+            if isFinal {
+                speechState = .idle
+                if !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    submit()
+                }
+            }
+        case .denied:
+            speechState = .denied
+        case .unavailable:
+            speechState = .unavailable
+        case .failed(let message):
+            speechState = .failed(message)
+        case .stopped:
+            speechState = .idle
+        }
     }
 }

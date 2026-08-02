@@ -353,6 +353,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Omo;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "用语音描述你想找的知识。";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "把你的语音转成知识库搜索文字。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -381,6 +383,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Omo;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "用语音描述你想找的知识。";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "把你的语音转成知识库搜索文字。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

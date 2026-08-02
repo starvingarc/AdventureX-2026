@@ -13,6 +13,12 @@ test("health is liveness while explicit local fixture mode can become ready", as
     const healthBody = await health.json();
     const readiness = await fetch(`${baseURL}/api/readiness`);
     const readinessBody = await readiness.json();
+    const imageFlow = await fetch(`${baseURL}/api/sources/image-flow`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ imageBase64: "aGVsbG8=" })
+    });
+    const imageFlowBody = await imageFlow.json();
 
     assert.equal(health.status, 200);
     assert.deepEqual(healthBody, {
@@ -23,6 +29,9 @@ test("health is liveness while explicit local fixture mode can become ready", as
     assert.equal(readiness.status, 200);
     assert.equal(readinessBody.ready, true);
     assert.equal(readinessBody.checks.model.provider, "fixture");
+    assert.equal(imageFlow.status, 200);
+    assert.equal(imageFlowBody.card.hiddenSemantic, "再次想起");
+    assert.equal(imageFlowBody.card.answer, imageFlowBody.card.hiddenSemantic);
   });
 });
 
@@ -89,6 +98,36 @@ test("unknown server errors are sanitized", async () => {
       message: "服务器暂时无法处理请求。"
     });
     assert.equal(text.includes("secret model payload"), false);
+  }, { createCard });
+});
+
+test("invalid model-card errors expose only the stable sanitized response", async () => {
+  const createCard = async () => {
+    throw Object.assign(new Error("视觉模型返回的承重语义无法验证。"), {
+      statusCode: 502,
+      code: "model_invalid_response",
+      expose: true,
+      invalidCandidate: "private generated payload"
+    });
+  };
+
+  await withServer({
+    NODE_ENV: "development",
+    OMO_DEMO_MODE: "1"
+  }, async (baseURL) => {
+    const response = await fetch(`${baseURL}/api/sources/image-flow`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ imageBase64: "aGVsbG8=" })
+    });
+    const text = await response.text();
+
+    assert.equal(response.status, 502);
+    assert.deepEqual(JSON.parse(text), {
+      code: "model_invalid_response",
+      message: "视觉模型返回的承重语义无法验证。"
+    });
+    assert.equal(text.includes("private generated payload"), false);
   }, { createCard });
 });
 

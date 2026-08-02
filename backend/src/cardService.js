@@ -26,12 +26,30 @@ export async function createMemoryCard(
   const now = new Date().toISOString();
   const id = `card-${createHash("sha256").update(imageBase64).digest("hex").slice(0, 20)}`;
   const generationMode = config.qwen.configured ? "qwen" : "fixture";
-  const generated = config.qwen.configured
-    ? await callQwen(imageBase64, mimeType, { config, fetchImpl })
-    : config.demo.enabled
-      ? demoCard()
-      : failModelConfiguration();
+  let generated;
+  if (config.qwen.configured) {
+    generated = await callQwen(imageBase64, mimeType, {
+      config,
+      fetchImpl,
+      mode: "generate"
+    });
+    const validationError = generatedCardError(generated);
+    if (validationError) {
+      generated = await callQwen(imageBase64, mimeType, {
+        config,
+        fetchImpl,
+        mode: "repair",
+        invalidCandidate: generated,
+        validationError
+      });
+    }
+  } else {
+    generated = config.demo.enabled ? demoCard() : failModelConfiguration();
+  }
   validateGeneratedCard(generated);
+
+  const coreKnowledge = text(generated.coreKnowledge);
+  const hiddenSemantic = text(generated.hiddenSemantic);
 
   const source = await verifySourceImpl(generated, {
     apiKey: config.tikhub.apiKey,
@@ -48,9 +66,10 @@ export async function createMemoryCard(
   return {
     id,
     generationMode,
-    coreKnowledge: text(generated.coreKnowledge),
+    coreKnowledge,
+    hiddenSemantic,
     recallCue: text(generated.recallCue),
-    answer: text(generated.answer),
+    answer: hiddenSemantic,
     explanation: text(generated.explanation),
     sourceTitle: text(
       source.title || generated.sourceTitle,
@@ -63,7 +82,9 @@ export async function createMemoryCard(
     sourceProvider: source.provider,
     sourceReason: text(source.reason),
     sourceConfidence: Number(source.confidence || 0),
-    rarity: validRarities.has(generated.rarity) ? generated.rarity : "R",
+    rarity: source.status === "verified" && validRarities.has(generated.rarity)
+      ? generated.rarity
+      : "R",
     createdAt: now,
     masteryStage: "sealed",
     nextReviewAt: now,
@@ -75,11 +96,22 @@ export async function createMemoryCard(
   };
 }
 
-async function callQwen(imageBase64, mimeType, { config, fetchImpl }) {
+async function callQwen(
+  imageBase64,
+  mimeType,
+  {
+    config,
+    fetchImpl,
+    mode,
+    invalidCandidate,
+    validationError
+  }
+) {
   if (!config.qwen.baseURLValid || !config.qwen.timeoutValid || !config.qwen.model) {
     throw httpError(503, "model_config_invalid", "视觉模型配置无效。");
   }
 
+  const isRepair = mode === "repair";
   let response;
   try {
     response = await fetchImpl(`${config.qwen.baseURL}/chat/completions`, {
@@ -97,7 +129,8 @@ async function callQwen(imageBase64, mimeType, { config, fetchImpl }) {
             role: "system",
             content: [
               "你是 Omo 的记忆卡编辑器。只依据截图可见内容，提炼一个最值得长期记住的知识点。",
-              "输出 JSON：coreKnowledge、recallCue、answer、explanation、sourceTitle、sourceAccount、platform、rarity。",
+              "输出 JSON：coreKnowledge、hiddenSemantic、recallCue、explanation、sourceTitle、sourceAccount、platform、rarity。",
+              "hiddenSemantic 必须非空，并且必须是 coreKnowledge 中字符完全一致的连续子串；它应是删去后能形成真实回忆缺口的承重语义。",
               "sourceTitle 必须是当前主内容标题，sourceAccount 必须是当前发布者或 UP 主；忽略推荐列表、广告、画面字幕、合集名和状态栏。",
               "platform 只能是 bilibili、douyin、xiaohongshu、wechat、zhihu、youtube、unknown。",
               "rarity 只能是 R、SR、SSR；信息不足时保持谨慎，不补充截图外事实。"
@@ -106,7 +139,17 @@ async function callQwen(imageBase64, mimeType, { config, fetchImpl }) {
           {
             role: "user",
             content: [
-              { type: "text", text: "请把这张截图制作成一张简洁的中文记忆卡。" },
+              {
+                type: "text",
+                text: isRepair
+                  ? [
+                      "上一次结果违反记忆卡合同，请只依据同一张截图重新生成完整 JSON。",
+                      `校验错误：${validationError}`,
+                      `上一次结果：${JSON.stringify(repairContext(invalidCandidate))}`,
+                      "必须确保 hiddenSemantic 是 coreKnowledge 中逐字一致的连续子串。"
+                    ].join("\n")
+                  : "请把这张截图制作成一张简洁的中文记忆卡。"
+              },
               { type: "image_url", image_url: { url: `data:${mimeType};base64,${imageBase64}` } }
             ]
           }
@@ -153,8 +196,8 @@ async function callQwen(imageBase64, mimeType, { config, fetchImpl }) {
 function demoCard() {
   return {
     coreKnowledge: "截图只有在被再次想起时，才真正从收藏变成记忆。",
+    hiddenSemantic: "再次想起",
     recallCue: "保存一张截图之后，怎样才能让它不再积灰？",
-    answer: "把截图转成可召回的卡片，并在合适的时间主动回忆。",
     explanation: "这是通过 OMO_DEMO_MODE 显式开启的本地 Fixture，不代表真实模型结果。",
     sourceTitle: "本地 Fixture 卡",
     sourceAccount: "",
@@ -168,10 +211,41 @@ function failModelConfiguration() {
 }
 
 function validateGeneratedCard(generated) {
-  const required = ["coreKnowledge", "recallCue", "answer", "explanation"];
-  if (!generated || required.some((field) => !text(generated[field]))) {
-    throw httpError(502, "model_invalid_response", "视觉模型返回的记忆卡字段不完整。");
+  const error = generatedCardError(generated);
+  if (error) {
+    throw httpError(502, "model_invalid_response", "视觉模型返回的承重语义无法验证。");
   }
+}
+
+export function hasValidHiddenSemantic(value) {
+  const coreKnowledge = text(value?.coreKnowledge);
+  const hiddenSemantic = text(value?.hiddenSemantic);
+  return hiddenSemantic.length > 0 && coreKnowledge.includes(hiddenSemantic);
+}
+
+function generatedCardError(generated) {
+  const required = ["coreKnowledge", "hiddenSemantic", "recallCue", "explanation"];
+  if (!generated || required.some((field) => !text(generated[field]))) {
+    return "coreKnowledge、hiddenSemantic、recallCue 和 explanation 均不能为空。";
+  }
+  if (!hasValidHiddenSemantic(generated)) {
+    return "hiddenSemantic 必须是 coreKnowledge 中逐字一致的连续子串。";
+  }
+  return "";
+}
+
+function repairContext(candidate) {
+  const fields = [
+    "coreKnowledge",
+    "hiddenSemantic",
+    "recallCue",
+    "explanation",
+    "sourceTitle",
+    "sourceAccount",
+    "platform",
+    "rarity"
+  ];
+  return Object.fromEntries(fields.map((field) => [field, text(candidate?.[field])]));
 }
 
 function text(value, fallback = "") {

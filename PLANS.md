@@ -6,7 +6,7 @@
 
 | 计划 | 分支 | 负责人 | 状态 | 模式 | 进度 | 下一步 |
 |---|---|---|---|---|---:|---|
-| [[plans/codex-knowledge-library-search]] | `codex/knowledge-library-search` | Codex | `in_progress` | `auto` | 0% | 写入设计规格与实施计划 |
+| [[plans/codex-knowledge-library-search]] | `codex/knowledge-library-search` | Codex | `completed` | `auto` | 100% | 提交完成证据后退役计划并创建 PR |
 
 ## 使用规则
 

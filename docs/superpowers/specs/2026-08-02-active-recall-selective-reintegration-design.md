@@ -222,10 +222,10 @@ Simulator 人工验收：
 
 ## 相关文档
 
+- [[docs/superpowers/plans/2026-08-02-active-recall-selective-reintegration]]
 - [[docs/product-principles]]
 - [[docs/ios-api-data-contract-zh]]
 - [[docs/frontend/v2-frontend-architecture]]
 - [[docs/frontend/v2-layout-system]]
 - [[docs/quality-baseline]]
 - [[AGENTS]]
-

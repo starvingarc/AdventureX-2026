@@ -13,6 +13,7 @@
 - 文档检查：25 个 Markdown、185 个 wiki link，全部通过。
 - 未签名 Release device build：通过，并执行 App Store shallow validation。
 - Release 包检查：包含更新后的 `PrivacyInfo.xcprivacy`；不包含 localhost、旧生产域名或 Debug Fixture/通知注入字符串。
+- Export compliance：App 仅使用系统 HTTPS，Info.plist 声明不使用非豁免加密。
 
 ## Simulator 实际交互
 
@@ -38,3 +39,4 @@
 
 - 真实截图生成、持久化、搜索、assessment、删除和重启 readback：等待隔离 staging 的 Qwen/TikHub 专用密钥后执行。
 - 小屏、VoiceOver、语音权限与完整 TestFlight 安装：Task 6/7 后续。
+- App Store Connect：已安装 `asc 3.5.1`，本机无 ASC API 凭据；仅有 Apple Development 证书、无 Distribution profile，未访问或修改远端记录。

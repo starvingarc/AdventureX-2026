@@ -183,6 +183,7 @@ SwiftUI、PhotosUI、Speech、UserNotifications、XCTest、Node.js 20、`node:te
 - 2026-08-08：Task 4 完成。本机通知仅携带回忆问题与卡片 ID，点击后在首页当前层叠卡；生成／assessment／删除与通知时间同步。Simulator 实际验证刮擦、80% 揭示、自评和失败重试；iOS 35/35、Release build 与文档门禁通过，无 APNs entitlement 或 Debug/旧生产字符串。
 - 2026-08-08：Task 5 部分完成。已新建 `Omo TestFlight Staging` 与独立 `staging` 环境、`omo-api-staging` 和 Postgres；001/002 migration 已应用并验证 ready，临时 TCP proxy 已删除。新增 production 必须显式 `STORE_DRIVER=postgres` 的 fail-closed 门禁。backend 尚缺 staging 专用 `QWEN_API` 与 `TIKHUB_API_KEY`，因此未部署。
 - 2026-08-08：Task 6 本地发布审计阶段完成。iOS 36/36 与 backend 45 pass / 1 默认 skip，Release clean build 和隐私 manifest 包检查通过。Simulator 真实选图发现首页上传绕过 AI 许可，已修复并验证取消、同意、Settings 撤回和重新询问；同时移除 Release 二进制中的 localhost 字符串。未部署任何环境。
+- 2026-08-08：Task 7 本地探测开始。安装 `asc 3.5.1` 后确认本机没有 ASC API 凭据；Keychain 只有 Apple Development 身份且无 provisioning profile，因此没有访问、创建或修改远端 App／签名资产。App 仅使用系统 HTTPS，补充 `ITSAppUsesNonExemptEncryption=false`。
 
 ## 阻塞与恢复
 

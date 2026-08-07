@@ -4,18 +4,31 @@ import { resolve } from "node:path";
 
 import { createMemoryCard } from "./cardService.js";
 import { buildReadiness, readRuntimeConfig } from "./runtimeConfig.js";
-import { CardStore } from "./store.js";
+import { createCardStore } from "./storeFactory.js";
 
 export function createOmoServer(options = {}) {
   const env = options.env || process.env;
   const config = readRuntimeConfig(env);
-  const readiness = buildReadiness(config);
-  const store = options.store || new CardStore(
-    env.CARD_STORE_PATH || resolve(".runtime/cards.json")
-  );
+  const store = options.store || createCardStore(config, options.storeOptions);
   const createCard = options.createCard || createMemoryCard;
+  const currentReadiness = async () => {
+    let storage;
+    try {
+      storage = await store.readiness({ production: config.production });
+    } catch {
+      storage = {
+        ready: false,
+        driver: config.storage.driver,
+        durable: config.storage.durable,
+        reason: "storage_unavailable",
+        appliedVersions: [],
+        pendingVersions: []
+      };
+    }
+    return buildReadiness(config, { storage });
+  };
 
-  return createServer(async (request, response) => {
+  const httpServer = createServer(async (request, response) => {
     cors(response);
     if (request.method === "OPTIONS") return send(response, 204, null);
 
@@ -36,19 +49,26 @@ export function createOmoServer(options = {}) {
       }
 
       if (request.method === "GET" && url.pathname === "/api/readiness") {
+        const readiness = await currentReadiness();
         return send(response, readiness.ready ? 200 : 503, readiness);
       }
 
-      if (config.production && isBusinessRoute(url.pathname) && !readiness.ready) {
-        return send(response, 503, {
-          code: "service_not_ready",
-          message: "生产依赖尚未就绪。",
-          blockers: readiness.blockers
-        });
+      if (
+        (config.production || config.database.configured)
+        && isBusinessRoute(url.pathname)
+      ) {
+        const readiness = await currentReadiness();
+        if (!readiness.ready) {
+          return send(response, 503, {
+            code: "service_not_ready",
+            message: "服务依赖尚未就绪。",
+            blockers: readiness.blockers
+          });
+        }
       }
 
       if (request.method === "GET" && url.pathname === "/api/memory-cards") {
-        return send(response, 200, { cards: store.list(owner) });
+        return send(response, 200, { cards: await store.list(owner) });
       }
 
       if (request.method === "POST" && url.pathname === "/api/sources/image-flow") {
@@ -57,14 +77,14 @@ export function createOmoServer(options = {}) {
           imageBase64: body.imageBase64,
           mimeType: body.mimeType
         }, { config });
-        store.save(owner, card);
-        return send(response, 200, { card: store.get(owner, card.id) });
+        const storedCard = await store.save(owner, card);
+        return send(response, 200, { card: storedCard });
       }
 
       const assessment = url.pathname.match(/^\/api\/memory-cards\/([^/]+)\/assessments$/);
       if (request.method === "POST" && assessment) {
         const body = await readJSON(request);
-        const card = store.assess(
+        const card = await store.assess(
           owner,
           decodeURIComponent(assessment[1]),
           body.assessment,
@@ -81,7 +101,7 @@ export function createOmoServer(options = {}) {
       const deletion = url.pathname.match(/^\/api\/memory-cards\/([^/]+)$/);
       if (request.method === "DELETE" && deletion) {
         const cardId = decodeURIComponent(deletion[1]);
-        const deleted = store.delete(owner, cardId);
+        const deleted = await store.delete(owner, cardId);
         return send(response, deleted ? 200 : 404, {
           deleted,
           cardId,
@@ -100,6 +120,12 @@ export function createOmoServer(options = {}) {
       return send(response, safeErrorStatus(error), safeErrorBody(error));
     }
   });
+  if (!options.store) {
+    httpServer.on("close", () => {
+      void store.close?.();
+    });
+  }
+  return httpServer;
 }
 
 export const server = createOmoServer();

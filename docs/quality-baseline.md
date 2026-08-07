@@ -49,6 +49,14 @@ npm --prefix backend run check
 npm --prefix backend run test:all
 ```
 
+PostgreSQL / migration 变化追加：
+
+```bash
+npm --prefix backend run test:postgres
+```
+
+该命令必须使用临时或明确隔离的本地数据库与合成数据；不得把生产 `DATABASE_URL` 传给测试 harness。
+
 按范围追加：
 
 ```bash
@@ -75,10 +83,12 @@ npm --prefix backend run smoke:v2:queue
 数据库或 worker 变化必须：
 
 - 新增顺序 migration，不改写已发布 migration。
+- migration runner 必须检查版本与 checksum，并在并发执行时串行化；服务启动不得静默自动迁移生产库。
 - 在空数据库和从上一版本升级两条路径运行。
 - 验证重复投递、进程重启、锁竞争、删除竞争和回滚/停止策略。
 - 把本地内存 fallback 与 Postgres 结果分开报告。
 - 没有真实 Postgres 证据时不得声称持久任务已生产可用。
+- JSON 导入默认 dry-run；真实数据导入、生产 migration、恢复和连接切换必须使用 manual Plan 与人工授权。
 
 ## iOS 门禁
 

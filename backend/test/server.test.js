@@ -78,6 +78,63 @@ test("development image flow without Qwen returns a stable configuration error",
   });
 });
 
+test("configured PostgreSQL blocks development business routes until migrations are ready", async () => {
+  const store = {
+    async readiness() {
+      return {
+        ready: false,
+        driver: "postgres",
+        durable: true,
+        reason: "storage_migration_required",
+        appliedVersions: ["001"],
+        pendingVersions: ["002"]
+      };
+    },
+    async close() {}
+  };
+
+  await withServer({
+    NODE_ENV: "development",
+    OMO_DEMO_MODE: "1",
+    DATABASE_URL: "postgresql://omo:secret@db.example/omo"
+  }, async (baseURL) => {
+    const readiness = await fetch(`${baseURL}/api/readiness`);
+    const readinessText = await readiness.text();
+    const cards = await fetch(`${baseURL}/api/memory-cards`);
+    const cardsBody = await cards.json();
+
+    assert.equal(readiness.status, 503);
+    assert.equal(readinessText.includes("secret"), false);
+    assert.equal(cards.status, 503);
+    assert.equal(cardsBody.code, "service_not_ready");
+    assert.ok(cardsBody.blockers.includes("storage_migration_required"));
+  }, { store });
+});
+
+test("storage readiness failures are sanitized", async () => {
+  const store = {
+    async readiness() {
+      throw new Error("postgresql://user:secret@private-host/omo");
+    },
+    async close() {}
+  };
+
+  await withServer({
+    NODE_ENV: "development",
+    OMO_DEMO_MODE: "1",
+    DATABASE_URL: "postgresql://omo:secret@db.example/omo"
+  }, async (baseURL) => {
+    const response = await fetch(`${baseURL}/api/readiness`);
+    const text = await response.text();
+    const body = JSON.parse(text);
+
+    assert.equal(response.status, 503);
+    assert.ok(body.blockers.includes("storage_unavailable"));
+    assert.equal(text.includes("private-host"), false);
+    assert.equal(text.includes("secret"), false);
+  }, { store });
+});
+
 test("unknown server errors are sanitized", async () => {
   const createCard = async () => {
     throw new Error("secret model payload");
@@ -136,7 +193,7 @@ test("invalid model-card errors expose only the stable sanitized response", asyn
 async function withServer(env, run, options = {}) {
   const server = createOmoServer({
     env,
-    store: new CardStore(""),
+    store: options.store || new CardStore(""),
     ...options
   });
   await new Promise((resolve, reject) => {

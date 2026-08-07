@@ -6,12 +6,19 @@
   "scripts": {
     "dev": "node --env-file-if-exists=../.env src/server.js",
     "start": "node src/server.js",
-    "check": "node --check src/server.js && node --check src/runtimeConfig.js && node --check src/cardService.js && node --check src/sourceVerifier.js && node --check src/store.js",
+    "check": "node --check src/server.js && node --check src/runtimeConfig.js && node --check src/cardService.js && node --check src/sourceVerifier.js && node --check src/store.js && node --check src/storeFactory.js && node --check src/postgresStore.js && node --check src/migrations.js && node --check src/migrate.js && node --check src/importJsonStore.js && node --check tools/runPostgresTests.mjs",
     "docs:check": "node ../tools/check-wikilinks.mjs",
+    "db:migrate": "node src/migrate.js",
+    "db:check": "node src/migrate.js --check",
+    "db:import-json": "node src/importJsonStore.js",
     "test": "node --test",
-    "test:all": "node --test"
+    "test:all": "node --test",
+    "test:postgres": "node tools/runPostgresTests.mjs"
   },
   "engines": {
     "node": ">=20"
+  },
+  "dependencies": {
+    "pg": "8.22.0"
   }
 }

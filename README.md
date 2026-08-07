@@ -38,7 +38,24 @@ npm --prefix backend run dev
 
 截图处理先由 Qwen 提取当前内容的标题、作者与平台，再通过 TikHub 严格核对原来源。只有标题和作者同时匹配时才标记为“TikHub 已核验”；缺少配置、超时或上游失败都保留为带 `sourceReason` 的 `screenshot_only`，不会伪装成已核验。
 
-当前 JSON Store 只用于本地开发，不是耐久生产存储。因此 `NODE_ENV=production` 下 readiness 和业务接口会保持失败，直到接入通过验证的耐久存储 Adapter；本地测试通过不代表 Railway、Vercel 或真实提供方已经验证。
+当前 JSON Store 只用于本地开发，不是耐久生产存储。`NODE_ENV=production` 下缺少 `DATABASE_URL`、连接失败或 migration 未就绪时，readiness 和业务接口都会保持失败；本地测试通过不代表 Railway、Vercel 或真实提供方已经验证。
+
+## PostgreSQL
+
+设置 `DATABASE_URL` 后，后端使用 PostgreSQL Store，且不会回退到 JSON。首次使用先显式运行顺序 migration：
+
+```bash
+npm --prefix backend run db:migrate
+npm --prefix backend run db:check
+```
+
+本地完整数据库门禁会创建临时 PostgreSQL 集群并使用合成数据：
+
+```bash
+npm --prefix backend run test:postgres
+```
+
+服务不会在启动时自动迁移数据库。JSON 导入、备份恢复、owner 过渡合同和生产未验证边界见 [PostgreSQL 持久化合同](docs/postgres-persistence.md)。
 
 ## 检查
 

@@ -6,7 +6,7 @@
 
 | 计划 | 分支 | 负责人 | 状态 | 模式 | 进度 | 下一步 |
 |---|---|---|---|---|---:|---|
-| 无 | — | — | — | — | — | — |
+| [[plans/codex-testflight-staging-release]] | `codex/testflight-staging-release` | Codex `/root` | `in_progress` | `manual` | 0/7 | 整合 PR #36/#37/#30，保持生产完全隔离 |
 
 ## 使用规则
 

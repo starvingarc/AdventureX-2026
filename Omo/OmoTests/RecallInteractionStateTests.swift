@@ -88,10 +88,12 @@ final class RecallInteractionStateTests: XCTestCase {
 
         state.updateCoverage(0.79)
         XCTAssertFalse(state.showsRating)
+        XCTAssertFalse(state.showsContext)
         XCTAssertEqual(state.coverage, 0.79, accuracy: 0.001)
 
         state.updateCoverage(0.8)
         XCTAssertTrue(state.showsRating)
+        XCTAssertTrue(state.showsContext)
         XCTAssertEqual(state.coverage, 1)
     }
 

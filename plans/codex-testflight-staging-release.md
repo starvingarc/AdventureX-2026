@@ -132,7 +132,7 @@ SwiftUI、PhotosUI、Speech、UserNotifications、XCTest、Node.js 20、`node:te
 - [ ] 在 iPhone 17 Pro 跑空用户、上传、生成、首页、十连抽、不足十张、局部刮开、80% 揭示、自评取消／三档确认、卡间切换、库搜索、语音权限、详情、删除、错误恢复、通知点击。
 - [ ] 在一个小屏 iPhone 仅复核安全区、键盘、长文本、触控与滚动；默认字号与最大辅助字号已验证，知识库辅助字号双栏截断已最小修复，键盘与完整触控路径待复核；不做无关全机型重构。
 - [ ] 对每个缺陷执行：复现与根因证据 → 失败测试 → 最小修复 → 目标测试 → 全量回归 → Simulator 复验。
-- [ ] 检查 Dynamic Type、Reduce Motion 和 VoiceOver 揭示前不泄露答案；保存关键截图和步骤。
+- [ ] 检查 Dynamic Type、Reduce Motion 和 VoiceOver 揭示前不泄露答案；Dynamic Type 与运行时 Accessibility 快照已验证并修复上下文入口绕过，Reduce Motion 与 VoiceOver 实机朗读待复核；已保存关键截图和步骤。
 - [ ] 提交缺陷修复与验收证据。
 
 ### Task 7：签名、Archive 与 TestFlight 内测发布
@@ -184,6 +184,7 @@ SwiftUI、PhotosUI、Speech、UserNotifications、XCTest、Node.js 20、`node:te
 - 2026-08-08：Task 5 部分完成。已新建 `Omo TestFlight Staging` 与独立 `staging` 环境、`omo-api-staging` 和 Postgres；001/002 migration 已应用并验证 ready，临时 TCP proxy 已删除。新增 production 必须显式 `STORE_DRIVER=postgres` 的 fail-closed 门禁。backend 尚缺 staging 专用 `QWEN_API` 与 `TIKHUB_API_KEY`，因此未部署。
 - 2026-08-08：Task 6 本地发布审计阶段完成。iOS 36/36 与 backend 45 pass / 1 默认 skip，Release clean build 和隐私 manifest 包检查通过。Simulator 真实选图发现首页上传绕过 AI 许可，已修复并验证取消、同意、Settings 撤回和重新询问；同时移除 Release 二进制中的 localhost 字符串。未部署任何环境。
 - 2026-08-08：Task 6 小屏复核发现最大辅助字号下知识卡双列文本严重截断；以分页器可配置列数实现仅辅助字号单列，默认两列不变。新增失败测试后修复，全量 iOS XCTest 37/37 通过；未扩展为全机型适配。
+- 2026-08-08：Task 6 Accessibility 快照发现回顾卡可在刮开前通过“完整上下文”绕过答案遮挡；以回顾状态门禁将入口延后至 80% 揭示，目标测试与全量 37/37 通过。同期验证 Debug 合成搜索与语音拒绝恢复入口；未部署任何环境。
 - 2026-08-08：Task 7 本地探测开始。安装 `asc 3.5.1` 后确认本机没有 ASC API 凭据；Keychain 只有 Apple Development 身份且无 provisioning profile，因此没有访问、创建或修改远端 App／签名资产。App 仅使用系统 HTTPS，补充 `ITSAppUsesNonExemptEncryption=false`。
 
 ## 阻塞与恢复

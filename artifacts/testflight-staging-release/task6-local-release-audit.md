@@ -24,6 +24,8 @@
 5. 打开 Settings，确认存在隐私说明、联系支持和撤回许可入口。
 6. 点击撤回后，入口立即变为“下次上传截图时会询问 AI 处理许可”；再次选图会重新提示。
 7. 在 `Omo Verify iPhone SE 3` 复核知识库：默认字号保持两列；最大辅助字号下自动切为单列宽卡，长文本不再逐字竖排或被截断。
+8. 在 iPhone 17 Pro 使用 Debug 合成数据验证知识库文字搜索、语音权限拒绝提示及跳转 Settings 的恢复入口。
+9. 使用运行时 Accessibility 快照核对回顾卡：刮开前既不包含承重语义，也不提供“查看完整知识上下文”；达到 80% 后才同时出现完整语义、自评条与上下文入口。
 
 ## 本轮发现并修复
 
@@ -31,6 +33,7 @@
 - Debug localhost 判断仍残留在 Release 二进制。将整个本地 HTTP 分支收进 `#if DEBUG`，clean Release 重建后字符串门禁通过。
 - 隐私文档包含尚未实现的配额、反馈入口和诊断字段。已按当前代码实际行为收敛，并补齐 App 内可访问隐私说明。
 - 小屏最大辅助字号下，固定双列卡片会把正文压缩为逐字竖排。分页器新增显式列数，页面仅在辅助字号下切为单列；默认字号的两列 Figma 布局保持不变。
+- 回顾卡在刮开前已显示“查看完整知识上下文”，可绕过遮挡直接看到答案。入口现由回顾状态控制，仅在 80% 揭示后出现；知识库中的完整卡片查看保持不变。
 
 ## 证据
 
@@ -38,9 +41,12 @@
 - `privacy-settings-revoked.png`：Settings 中撤回后的状态与隐私入口。
 - `small-screen-library.png`：小屏默认字号的两列知识库布局。
 - `small-screen-library-axxxl.png`：小屏最大辅助字号的单列可读布局。
+- `speech-permission-denied.jpg`：语音权限拒绝后的可恢复提示。
+- `context-before-reveal.png`：刮开前无完整上下文入口。
+- `context-after-reveal.png`：达到揭示阈值后显示上下文入口与自评条。
 
 ## 尚未验证
 
 - 真实截图生成、持久化、搜索、assessment、删除和重启 readback：等待隔离 staging 的 Qwen/TikHub 专用密钥后执行。
-- 小屏键盘、VoiceOver、语音权限与完整 TestFlight 安装：Task 6/7 后续。
+- 小屏键盘、真实系统语音授权、Reduce Motion、VoiceOver 实机朗读与完整 TestFlight 安装：Task 6/7 后续。
 - App Store Connect：已安装 `asc 3.5.1`，本机无 ASC API 凭据；仅有 Apple Development 证书、无 Distribution profile，未访问或修改远端记录。

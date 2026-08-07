@@ -37,7 +37,8 @@ struct RecallRoundView: View {
                     currentIndex: state.currentIndex,
                     coverage: coverageBinding,
                     removalProgress: removalProgress,
-                    isScratchEnabled: state.canScratch
+                    isScratchEnabled: state.canScratch,
+                    allowsContext: state.showsContext
                 )
                 .id(card.id)
                 .scaleEffect(reduceMotion ? 1 : 0.9 + summonProgress * 0.1)

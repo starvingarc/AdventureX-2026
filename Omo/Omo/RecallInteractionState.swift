@@ -18,6 +18,7 @@ struct RecallRoundState: Equatable {
 
     var isComplete: Bool { currentIndex >= cardCount }
     var showsRating: Bool { phase == .revealed || isSubmissionFailure }
+    var showsContext: Bool { !canScratch }
     var canScratch: Bool { phase == .covered || phase == .scratching }
 
     private var isSubmissionFailure: Bool {

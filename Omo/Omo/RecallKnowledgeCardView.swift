@@ -7,6 +7,7 @@ struct RecallKnowledgeCardStack: View {
     @Binding var coverage: Double
     let removalProgress: CGFloat
     let isScratchEnabled: Bool
+    let allowsContext: Bool
 
     private var visibleCards: ArraySlice<MemoryCard> {
         let end = min(cards.count, currentIndex + RecallCardMetrics.visibleLayerCount)
@@ -20,7 +21,8 @@ struct RecallKnowledgeCardStack: View {
                     RecallKnowledgeCardView(
                         card: card,
                         coverage: $coverage,
-                        isScratchEnabled: isScratchEnabled
+                        isScratchEnabled: isScratchEnabled,
+                        allowsContext: allowsContext
                     )
                     .offset(x: removalProgress * 330, y: -removalProgress * 38)
                     .rotationEffect(.degrees(Double(removalProgress) * 8))
@@ -71,6 +73,7 @@ private struct RecallKnowledgeCardView: View {
     let card: MemoryCard
     @Binding var coverage: Double
     let isScratchEnabled: Bool
+    let allowsContext: Bool
 
     @State private var showsContext = false
 
@@ -94,16 +97,18 @@ private struct RecallKnowledgeCardView: View {
 
             knowledgeContent
 
-            Button { showsContext = true } label: {
-                Image(systemName: "line.3.horizontal")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(RecallPalette.teal)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
+            if allowsContext {
+                Button { showsContext = true } label: {
+                    Image(systemName: "line.3.horizontal")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(RecallPalette.teal)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("查看完整知识上下文")
+                .accessibilityHint("展开解释与来源，不改变当前刮开进度")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("查看完整知识上下文")
-            .accessibilityHint("展开解释与来源，不改变当前刮开进度")
         }
         .sheet(isPresented: $showsContext) {
             RecallContextView(card: card)

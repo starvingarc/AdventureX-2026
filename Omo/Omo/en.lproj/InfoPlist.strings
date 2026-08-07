@@ -1,2 +1,4 @@
 "CFBundleDisplayName" = "Omo";
 "CFBundleName" = "Omo";
+"NSMicrophoneUsageDescription" = "Use your voice to describe the knowledge you want to find.";
+"NSSpeechRecognitionUsageDescription" = "Turn your voice into a knowledge library search.";

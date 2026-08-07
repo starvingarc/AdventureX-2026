@@ -5,146 +5,60 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Omo 隐私政策</title>
   <style>
-    :root {
-      color-scheme: light;
-      --paper: #f2f4c9;
-      --surface: #fdf9ee;
-      --text: #44423d;
-      --muted: #777265;
-      --line: #ece3cc;
-      --accent: #969855;
-      --mark: #f5c84b;
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    body {
-      margin: 0;
-      background: var(--paper);
-      color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
-      line-height: 1.72;
-    }
-
-    main {
-      width: min(760px, calc(100% - 32px));
-      margin: 0 auto;
-      padding: 56px 0 72px;
-    }
-
-    article {
-      background: var(--surface);
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      box-shadow: 0 18px 48px rgba(75, 80, 42, 0.12);
-      padding: clamp(24px, 5vw, 48px);
-    }
-
-    h1 {
-      margin: 0 0 8px;
-      font-size: clamp(30px, 6vw, 44px);
-      line-height: 1.12;
-      letter-spacing: 0;
-    }
-
-    .updated {
-      margin: 0 0 28px;
-      color: var(--muted);
-      font-size: 14px;
-    }
-
-    h2 {
-      margin: 34px 0 12px;
-      color: var(--accent);
-      font-size: 21px;
-      line-height: 1.35;
-      letter-spacing: 0;
-    }
-
-    p {
-      margin: 0 0 14px;
-    }
-
-    ul {
-      margin: 0 0 16px;
-      padding-left: 1.3em;
-    }
-
-    li {
-      margin: 6px 0;
-    }
+    :root { color-scheme: light; --paper:#f2f4c9; --surface:#fdf9ee; --text:#44423d; --muted:#777265; --line:#ece3cc; --accent:#969855; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--paper); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",Arial,sans-serif; line-height:1.72; }
+    main { width:min(760px,calc(100% - 32px)); margin:0 auto; padding:56px 0 72px; }
+    article { background:var(--surface); border:1px solid var(--line); border-radius:18px; box-shadow:0 18px 48px rgba(75,80,42,.12); padding:clamp(24px,5vw,48px); }
+    h1 { margin:0 0 8px; font-size:clamp(30px,6vw,44px); line-height:1.12; }
+    .updated { margin:0 0 28px; color:var(--muted); font-size:14px; }
+    h2 { margin:34px 0 12px; color:var(--accent); font-size:21px; line-height:1.35; }
+    p { margin:0 0 14px; }
+    ul { margin:0 0 16px; padding-left:1.3em; }
+    li { margin:6px 0; }
   </style>
 </head>
 <body>
-  <main>
-    <article>
-      <h1>Omo 隐私政策</h1>
-      <p class="updated">更新日期：2026 年 8 月 8 日</p>
+  <main><article>
+    <h1>Omo 隐私政策</h1>
+    <p class="updated">更新日期：2026 年 8 月 8 日</p>
+    <p>Omo 把用户主动选择的截图转化为记忆卡，并通过主动回忆帮助用户再次想起内容。当前 TestFlight 版本不要求注册账号，使用随机生成的匿名设备标识区分不同设备的数据。</p>
 
-      <p>Omo 是一款把用户主动保存的截图或平台内容转化为有证据绑定的记忆卡，并通过主动回忆和复习调度帮助用户再次想起内容的 iOS 应用。当前版本不强制注册账号，主要使用匿名设备身份保存当前设备下的数据。后续如果提供 Apple 登录、跨设备同步、订阅或更多云端能力，本政策会同步更新。</p>
+    <h2>我们处理和保存的信息</h2>
+    <ul>
+      <li>用户主动选择的截图。截图会由 Omo 测试服务转发给第三方 AI 进行识别和生成；Omo 当前不在自己的数据库保存原截图。</li>
+      <li>生成后的核心知识、承重语义、回忆问题、解释和来源信息。</li>
+      <li>三档自评、复习次数和下次复习时间。</li>
+      <li>用于关联当前设备数据的随机匿名设备标识。</li>
+      <li>文字搜索词，以及语音搜索经 Apple 语音识别得到的文字。搜索词当前不保存到 Omo 数据库。</li>
+    </ul>
+    <p>当前版本不要求真实姓名、手机号、邮箱、通讯录、定位或广告标识符，不包含广告 SDK，也不进行跨 App 或网站追踪。</p>
 
-      <h2>我们收集哪些信息</h2>
-      <p>为了提供生成和学习功能，Omo 会收集和保存以下信息：</p>
-      <ul>
-        <li>用户主动提交的截图、平台链接、提取到的正文或字幕、标题、作者和来源信息。</li>
-        <li>系统生成的记忆卡、题目变式、解释、证据片段、反馈和复习时间。</li>
-        <li>学习记录，包括三档自评结果、复习次数和下次复习时间。</li>
-        <li>匿名设备 ID，用于区分不同设备下的数据。</li>
-        <li>服务端诊断信息，例如生成失败类型、请求状态、队列状态和必要的错误日志，用于排查生成和稳定性问题。</li>
-        <li>生成额度使用记录，用于执行每日免费生成次数限制和防止滥用。</li>
-      </ul>
-      <p>当前版本不主动收集真实姓名、手机号、通讯录、定位、相册、相机、麦克风、广告标识符或金融信息。</p>
+    <h2>使用目的</h2>
+    <p>上述信息只用于生成、保存、检索和复习记忆卡，以及维持服务的安全与可用性。Omo 不出售用户数据，也不会公开展示用户提交的内容。</p>
 
-      <h2>我们如何使用这些信息</h2>
-      <p>我们使用这些信息来：</p>
-      <ul>
-        <li>恢复截图或平台内容中的来源、上下文和核心记忆点。</li>
-        <li>生成一张有证据绑定的记忆卡、题目变式和解释。</li>
-        <li>保存记忆卡和复习进度。</li>
-        <li>在设备本地按卡片的下次复习时间安排问题通知。</li>
-        <li>执行每日免费生成额度，控制服务成本和异常滥用。</li>
-        <li>改进生成质量、学习流程和产品稳定性。</li>
-        <li>帮助用户在当前设备上继续未完成的学习。</li>
-      </ul>
-      <p>我们不会把用户提交内容用于广告追踪，不会向第三方出售用户数据，也不会把用户提交内容公开展示给其他用户。</p>
+    <h2>第三方 AI 与用户许可</h2>
+    <p>必要的截图、搜索词或卡片文本会被发送给第三方 AI 服务，用于理解截图、生成记忆卡和语义搜索。Omo 会在首次发送截图前说明处理方式并取得许可；用户可以取消，也可以在 App 的“Settings”中关闭后续新截图的 AI 处理许可。</p>
+    <p>请不要上传含密码、证件号码、金融信息、医疗信息或其他敏感个人信息的截图。第三方 AI 服务会依据其服务协议和数据处理约定处理请求。</p>
 
-      <h2>第三方 AI 模型处理</h2>
-      <p>为了理解截图并生成记忆卡，用户提交的图片、平台链接、提取到的正文或字幕和必要上下文可能会被发送给第三方 AI 模型服务进行处理。</p>
-      <p>Omo 会在用户首次进行真实 AI 生成前展示 AI 处理说明。用户可以选择同意后继续生成，也可以暂不生成。我们会尽量只发送完成生成所需的内容，并避免发送与生成无关的信息。</p>
-      <p>第三方 AI 模型服务可能根据其服务条款和隐私政策处理请求数据。</p>
+    <h2>语音输入</h2>
+    <p>语音搜索使用 Apple 的语音识别能力将语音转成文字。Omo 只把识别后的搜索文字发送给自己的测试服务，不在自己的服务器保存原始录音。用户也可以完全使用文字搜索。</p>
 
-      <h2>匿名设备身份和账号</h2>
-      <p>当前版本主要使用匿名设备 ID 区分用户数据，不要求注册或登录账号。匿名设备 ID 不是用户真实姓名或手机号，但它会用于关联当前设备下的记忆卡、复习记录和生成额度。</p>
-      <p>匿名设备方案有明确边界：同一台设备、同一 App 身份上下文下，数据可以持续保存；如果用户删除 App、换机、重装后 Keychain 数据不可用，或安装到不同 App 身份上下文，历史数据可能无法自动恢复。</p>
-      <p>如果未来支持账号创建，App 内会提供账号删除入口。删除账号会删除账号及其关联数据，除非法律或安全原因要求保留最小必要记录。</p>
+    <h2>数据保存和删除</h2>
+    <p>Omo 在隔离的 TestFlight 测试数据库中保存匿名设备标识、记忆卡和复习记录。当前版本未提供账号或跨设备恢复；卸载 App 后，新安装生成的设备标识可能无法再次访问旧数据。</p>
+    <p>如需删除当前匿名设备标识关联的云端数据，请通过下方邮箱联系。处理删除请求时，我们可能需要用户提供能定位匿名设备数据的必要信息。</p>
 
-      <h2>数据保存和删除</h2>
-      <p>Omo 会在云端保存当前匿名设备下的记忆卡、题目变式、复习记录、生成任务和必要诊断记录。</p>
-      <p>如果需要删除当前匿名设备身份下的云端数据，可以通过本政策中的联系邮箱提出请求。处理完成后，设备上的本机复习通知仍可由用户在 iOS 系统设置中关闭，或通过删除 App 移除。服务端可能保留最小必要的删除审计记录，用于证明删除动作和排查异常。</p>
-      <p>如果数据已经进入数据库备份，备份中的历史数据会按照我们的备份保留和恢复策略在后续备份轮换中被覆盖。我们不会主动从备份中恢复用户已删除的数据，除非为处理严重事故且符合法律和安全要求。</p>
+    <h2>通知</h2>
+    <p>如果用户允许通知，Omo 会在设备本地按复习时间安排提问通知。当前 TestFlight 版本不向服务端注册 APNs 推送令牌。用户可以随时在 iOS 系统设置中关闭通知。</p>
 
-      <h2>生成额度和防滥用</h2>
-      <p>Omo 当前可能对真实 AI 生成设置每日免费次数限制。额度记录用于判断当天是否还能继续生成，不用于广告追踪。</p>
-      <p>推荐好文等预置学习内容可能不计入用户真实 AI 生成额度，具体以 App 内实际提示为准。</p>
+    <h2>安全</h2>
+    <p>Omo 使用 HTTPS 传输 App 与测试服务之间的数据，模型密钥只保存在服务端，并将 TestFlight 数据与生产环境隔离。任何互联网服务都无法保证绝对安全；我们会持续减少收集范围并修复已知风险。</p>
 
-      <h2>通知</h2>
-      <p>如果用户允许系统通知，Omo 会在当前设备本地按复习时间安排提问通知。通知显示卡片的回忆问题，并仅用卡片 ID 在点击后找到对应卡片；不在通知中放入答案、解释或原截图。当前 TestFlight 版本不向服务端注册 APNs 推送 token。用户可以随时在 iOS 系统设置中关闭通知，关闭后仍可在 App 内查看和复习记忆卡。</p>
+    <h2>联系方式</h2>
+    <p>隐私问题和数据删除请求：mingyuhan0814@gmail.com</p>
 
-      <h2>追踪和广告</h2>
-      <p>Omo 当前不接入广告 SDK，不进行跨 App 或跨网站追踪，不出售用户数据。</p>
-
-      <h2>安全</h2>
-      <p>我们会采取合理措施保护用户数据，包括使用 HTTPS 传输数据、将模型 API Key 和生成逻辑保存在服务端、限制生成额度、记录必要审计事件，并尽量避免在日志中保存完整敏感内容。</p>
-
-      <h2>联系方式</h2>
-      <p>如果你对隐私政策或数据删除有疑问，可以通过以下方式联系：</p>
-      <p>邮箱：mingyuhan0814@gmail.com</p>
-
-      <h2>政策更新</h2>
-      <p>随着账号、订阅、更多 AI 能力或更多云端能力上线，本隐私政策可能会更新。我们会在必要时通过 App 或相关页面提示重要变化。</p>
-    </article>
-  </main>
+    <h2>政策更新</h2>
+    <p>如果数据处理方式发生实质变化，我们会更新本政策，并在需要时重新取得用户许可。</p>
+  </article></main>
 </body>
 </html>

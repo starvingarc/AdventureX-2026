@@ -8,9 +8,12 @@ struct RecallHomeView: View {
     let onOpenSettings: () -> Void
 
     @State private var selectedScreenshot: PhotosPickerItem?
+    @State private var pendingScreenshotData: Data?
+    @State private var showsAIConsent = false
     @State private var selectionError = ""
     @State private var deck: [MemoryCard] = []
     @State private var isRoundActive = false
+    @AppStorage(AIProcessingConsent.defaultsKey) private var allowsAIProcessing = false
 
     var body: some View {
         RecallHomeScaffold(
@@ -61,6 +64,20 @@ struct RecallHomeView: View {
         }
         .onChange(of: selectedScreenshot) { _, item in
             loadScreenshot(from: item)
+        }
+        .alert("允许 AI 处理这张截图？", isPresented: $showsAIConsent) {
+            Button("取消", role: .cancel) {
+                pendingScreenshotData = nil
+                selectedScreenshot = nil
+            }
+            Button("同意并生成") {
+                guard let data = pendingScreenshotData else { return }
+                allowsAIProcessing = true
+                pendingScreenshotData = nil
+                Task { await generate(from: data) }
+            }
+        } message: {
+            Text("截图会经 Omo 的测试服务发送给第三方 AI，用于识别内容并生成记忆卡。请不要上传含敏感个人信息的截图。")
         }
     }
 
@@ -173,9 +190,18 @@ struct RecallHomeView: View {
                 selectionError = "读取图片失败，请重新选择。"
                 return
             }
-            if await store.createCard(from: data) {
-                store.pendingCard = nil
+            if AIProcessingConsent.requiresPrompt(hasConsent: allowsAIProcessing) {
+                pendingScreenshotData = data
+                showsAIConsent = true
+            } else {
+                await generate(from: data)
             }
+        }
+    }
+
+    private func generate(from data: Data) async {
+        if await store.createCard(from: data) {
+            store.pendingCard = nil
         }
     }
 

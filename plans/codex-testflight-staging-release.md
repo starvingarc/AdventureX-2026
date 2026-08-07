@@ -128,7 +128,7 @@ SwiftUI、PhotosUI、Speech、UserNotifications、XCTest、Node.js 20、`node:te
 
 **Files:** 仅修改能够复现缺陷的最小代码与对应测试；证据写入 `artifacts/testflight-staging-release/`。
 
-- [ ] 先修复 CoreSimulator 无法启动／XCTest 未执行的环境问题，确认至少一个测试方法真实执行而非仅编译。
+- [x] 先修复 CoreSimulator 无法启动／XCTest 未执行的环境问题，确认至少一个测试方法真实执行而非仅编译；当前 iOS XCTest 36/36 实际通过。
 - [ ] 在 iPhone 17 Pro 跑空用户、上传、生成、首页、十连抽、不足十张、局部刮开、80% 揭示、自评取消／三档确认、卡间切换、库搜索、语音权限、详情、删除、错误恢复、通知点击。
 - [ ] 在一个小屏 iPhone 仅复核安全区、键盘、长文本、触控与滚动；不做无关全机型重构。
 - [ ] 对每个缺陷执行：复现与根因证据 → 失败测试 → 最小修复 → 目标测试 → 全量回归 → Simulator 复验。
@@ -182,6 +182,7 @@ SwiftUI、PhotosUI、Speech、UserNotifications、XCTest、Node.js 20、`node:te
 - 2026-08-08：Task 3 完成。新增 owner 隔离的 `POST /api/memory-cards/search` 与 Qwen 请求时语义重排；客户端只提交 query，服务端只返回稳定去重 ID。后端 44 项（43 pass / 1 PostgreSQL 默认 skip）、iOS 31/31、文档与 Release 包门禁通过。
 - 2026-08-08：Task 4 完成。本机通知仅携带回忆问题与卡片 ID，点击后在首页当前层叠卡；生成／assessment／删除与通知时间同步。Simulator 实际验证刮擦、80% 揭示、自评和失败重试；iOS 35/35、Release build 与文档门禁通过，无 APNs entitlement 或 Debug/旧生产字符串。
 - 2026-08-08：Task 5 部分完成。已新建 `Omo TestFlight Staging` 与独立 `staging` 环境、`omo-api-staging` 和 Postgres；001/002 migration 已应用并验证 ready，临时 TCP proxy 已删除。新增 production 必须显式 `STORE_DRIVER=postgres` 的 fail-closed 门禁。backend 尚缺 staging 专用 `QWEN_API` 与 `TIKHUB_API_KEY`，因此未部署。
+- 2026-08-08：Task 6 本地发布审计阶段完成。iOS 36/36 与 backend 45 pass / 1 默认 skip，Release clean build 和隐私 manifest 包检查通过。Simulator 真实选图发现首页上传绕过 AI 许可，已修复并验证取消、同意、Settings 撤回和重新询问；同时移除 Release 二进制中的 localhost 字符串。未部署任何环境。
 
 ## 阻塞与恢复
 

@@ -2,6 +2,12 @@ import XCTest
 @testable import Omo
 
 final class APIClientDecodingTests: XCTestCase {
+    func testAIProcessingConsentRequiresPromptUntilExplicitlyGranted() {
+        XCTAssertTrue(AIProcessingConsent.requiresPrompt(hasConsent: false))
+        XCTAssertFalse(AIProcessingConsent.requiresPrompt(hasConsent: true))
+        XCTAssertEqual(AIProcessingConsent.defaultsKey, "omo.ai-processing-consent.v1")
+    }
+
     func testKnowledgeLibrarySearchSendsOnlyQueryWithDeviceIDAndDecodesOrderedIDs() async throws {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [APIClientURLProtocolStub.self]

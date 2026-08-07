@@ -1,0 +1,40 @@
+# Task 6 本地发布与隐私流程验证
+
+- 日期：2026-08-08
+- 分支：`codex/testflight-staging-release`
+- Simulator：`Omo TestFlight iPhone 17 Pro`（iOS 26.5）
+- 外部环境：未部署 backend，未触碰生产环境
+
+## 自动化结果
+
+- iOS XCTest：36/36 通过，确认测试方法真实执行。
+- Backend：46 项，45 通过，1 项 PostgreSQL 集成测试在默认无数据库环境下跳过。
+- Backend syntax check：通过。
+- 文档检查：25 个 Markdown、185 个 wiki link，全部通过。
+- 未签名 Release device build：通过，并执行 App Store shallow validation。
+- Release 包检查：包含更新后的 `PrivacyInfo.xcprivacy`；不包含 localhost、旧生产域名或 Debug Fixture/通知注入字符串。
+
+## Simulator 实际交互
+
+1. 清除 App 测试安装并从空用户首页启动。
+2. 点击首页上传入口，进入系统照片选择器并选择一张照片。
+3. 确认截图离开设备前显示“允许 AI 处理这张截图？”；取消后不授权、不生成。
+4. 再次选图并点“同意并生成”，确认许可持久化；测试 backend 未部署时只显示连接失败，不伪造成功。
+5. 打开 Settings，确认存在隐私说明、联系支持和撤回许可入口。
+6. 点击撤回后，入口立即变为“下次上传截图时会询问 AI 处理许可”；再次选图会重新提示。
+
+## 本轮发现并修复
+
+- 初版许可提示只覆盖知识库次级上传页，首页主上传入口仍直接生成。通过真实系统照片选择器复现后，将相同许可门槛补到首页主入口。
+- Debug localhost 判断仍残留在 Release 二进制。将整个本地 HTTP 分支收进 `#if DEBUG`，clean Release 重建后字符串门禁通过。
+- 隐私文档包含尚未实现的配额、反馈入口和诊断字段。已按当前代码实际行为收敛，并补齐 App 内可访问隐私说明。
+
+## 证据
+
+- `ai-processing-consent.png`：首页真实选图后的首次 AI 处理许可。
+- `privacy-settings-revoked.png`：Settings 中撤回后的状态与隐私入口。
+
+## 尚未验证
+
+- 真实截图生成、持久化、搜索、assessment、删除和重启 readback：等待隔离 staging 的 Qwen/TikHub 专用密钥后执行。
+- 小屏、VoiceOver、语音权限与完整 TestFlight 安装：Task 6/7 后续。

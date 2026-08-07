@@ -155,6 +155,7 @@ private struct LibraryCardDetailView: View {
 
 private struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
+    @AppStorage(AIProcessingConsent.defaultsKey) private var allowsAIProcessing = false
 
     var body: some View {
         NavigationStack {
@@ -162,6 +163,24 @@ private struct SettingsView: View {
                 Section("复习") {
                     Label("默认每轮最多 10 张", systemImage: "rectangle.stack")
                     Label("刮开 80% 后进行自评", systemImage: "hand.draw")
+                }
+                Section {
+                    if allowsAIProcessing {
+                        Button("撤回 AI 处理许可") {
+                            allowsAIProcessing = false
+                        }
+                    } else {
+                        Text("下次上传截图时会询问 AI 处理许可")
+                            .foregroundStyle(.secondary)
+                    }
+                    NavigationLink("隐私说明") {
+                        OmoPrivacyView()
+                    }
+                    Link("联系支持", destination: URL(string: "mailto:mingyuhan0814@gmail.com")!)
+                } header: {
+                    Text("隐私")
+                } footer: {
+                    Text("撤回后，现有记忆卡不受影响；下次上传截图时会重新询问。")
                 }
             }
             .navigationTitle("Settings")
@@ -176,7 +195,10 @@ private struct AddScreenshotView: View {
     @EnvironmentObject private var store: OmoStore
     @Environment(\.dismiss) private var dismiss
     @State private var selection: PhotosPickerItem?
+    @State private var pendingImageData: Data?
+    @State private var showsAIConsent = false
     @State private var pulse = false
+    @AppStorage(AIProcessingConsent.defaultsKey) private var allowsAIProcessing = false
 
     var body: some View {
         let isCreating = store.isCreating
@@ -237,14 +259,62 @@ private struct AddScreenshotView: View {
                         store.message = "无法读取这张图片。"
                         return
                     }
-                    if await store.createCard(from: data) { dismiss() }
+                    if AIProcessingConsent.requiresPrompt(hasConsent: allowsAIProcessing) {
+                        pendingImageData = data
+                        showsAIConsent = true
+                    } else {
+                        await generate(from: data)
+                    }
+                }
+            }
+            .alert("允许 AI 处理这张截图？", isPresented: $showsAIConsent) {
+                Button("取消", role: .cancel) {
+                    pendingImageData = nil
                     selection = nil
                 }
+                Button("同意并生成") {
+                    guard let data = pendingImageData else { return }
+                    allowsAIProcessing = true
+                    pendingImageData = nil
+                    Task { await generate(from: data) }
+                }
+            } message: {
+                Text("截图会经 Omo 的测试服务发送给第三方 AI，用于识别内容并生成记忆卡。请不要上传含敏感个人信息的截图。")
             }
             .onAppear {
                 withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) { pulse = true }
             }
         }
+    }
+
+    private func generate(from data: Data) async {
+        if await store.createCard(from: data) { dismiss() }
+        selection = nil
+    }
+}
+
+private struct OmoPrivacyView: View {
+    var body: some View {
+        List {
+            Section("截图与 AI") {
+                Text("只有你主动选择的截图才会上传。截图经 Omo 测试服务发送给第三方 AI，用于提炼知识点；Omo 当前不在自己的数据库保存原截图。")
+            }
+            Section("保存的数据") {
+                Text("Omo 使用随机生成的匿名设备标识区分数据，并保存生成后的记忆卡、来源信息、自评结果和复习时间。")
+            }
+            Section("语音搜索") {
+                Text("语音由 Apple 的语音识别能力转成文字；搜索文字会发送给 Omo 测试服务和第三方 AI，用于返回相关卡片。")
+            }
+            Section("通知与追踪") {
+                Text("复习通知仅在设备本地安排。Omo 当前不包含广告 SDK，不进行跨 App 或网站追踪。")
+            }
+            Section("管理数据") {
+                Text("若要删除当前匿名设备标识关联的云端数据，请联系支持。")
+                Link("mingyuhan0814@gmail.com", destination: URL(string: "mailto:mingyuhan0814@gmail.com")!)
+            }
+        }
+        .navigationTitle("隐私说明")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

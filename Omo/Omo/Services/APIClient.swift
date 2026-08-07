@@ -64,11 +64,13 @@ enum AppEnvironment {
         }
 
         if scheme == "https" { return url }
+        #if DEBUG
         if allowsDebugLocalhostFallback,
            scheme == "http",
            ["127.0.0.1", "localhost"].contains(host) {
             return url
         }
+        #endif
         throw AppEnvironmentError.invalidAPIBaseURL
     }
 

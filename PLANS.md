@@ -6,7 +6,7 @@
 
 | 计划 | 分支 | 负责人 | 状态 | 模式 | 进度 | 下一步 |
 |---|---|---|---|---|---:|---|
-| [[plans/codex-testflight-staging-release]] | `codex/testflight-staging-release` | Codex `/root` | `in_progress` | `manual` | 2/7 | 实现真实用户隔离的知识库搜索 |
+| [[plans/codex-testflight-staging-release]] | `codex/testflight-staging-release` | Codex `/root` | `in_progress` | `manual` | 3/7 | 补齐截图、回顾与本机问题通知闭环 |
 
 ## 使用规则
 

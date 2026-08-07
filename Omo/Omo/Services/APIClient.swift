@@ -82,7 +82,7 @@ enum AppEnvironment {
     }
 }
 
-struct APIClient {
+struct APIClient: Sendable {
     private let baseURL: URL?
     private let session: URLSession
     private let deviceID: String
@@ -110,6 +110,15 @@ struct APIClient {
             timeout: 120
         )
         return response.card
+    }
+
+    func searchKnowledgeLibrary(query: String) async throws -> KnowledgeLibrarySearchResponse {
+        let response: KnowledgeLibrarySearchAPIResponse = try await request(
+            "/api/memory-cards/search",
+            method: "POST",
+            body: KnowledgeLibrarySearchAPIRequest(query: query)
+        )
+        return KnowledgeLibrarySearchResponse(orderedCardIDs: response.orderedCardIDs)
     }
 
     func assess(_ card: MemoryCard, as assessment: MemoryAssessment) async throws -> MemoryCard {
@@ -201,6 +210,14 @@ private extension AppEnvironment {
 
 private struct APIErrorBody: Decodable {
     let message: String
+}
+
+private struct KnowledgeLibrarySearchAPIRequest: Encodable {
+    let query: String
+}
+
+private struct KnowledgeLibrarySearchAPIResponse: Decodable {
+    let orderedCardIDs: [String]
 }
 
 enum APIError: LocalizedError {

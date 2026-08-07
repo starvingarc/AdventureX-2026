@@ -49,6 +49,18 @@ struct UnavailableKnowledgeLibrarySearcher: KnowledgeLibrarySearching {
     }
 }
 
+struct APIKnowledgeLibrarySearcher: KnowledgeLibrarySearching {
+    let client: APIClient
+
+    init(client: APIClient = APIClient()) {
+        self.client = client
+    }
+
+    func search(_ request: KnowledgeLibrarySearchRequest) async throws -> KnowledgeLibrarySearchResponse {
+        try await client.searchKnowledgeLibrary(query: request.query)
+    }
+}
+
 #if DEBUG
 struct DebugMockKnowledgeLibrarySearcher: KnowledgeLibrarySearching {
     enum Mode: Sendable {

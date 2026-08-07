@@ -9,6 +9,7 @@
 | GET | `/api/health` | Liveness；只证明服务进程可响应 |
 | GET | `/api/readiness` | 模型、来源服务与存储依赖状态 |
 | GET | `/api/memory-cards` | 获取当前设备的全部卡片 |
+| POST | `/api/memory-cards/search` | 在当前设备卡片内进行语义排序，返回卡片 ID |
 | POST | `/api/sources/image-flow` | 上传 Base64 截图并生成一张卡 |
 | POST | `/api/memory-cards/:id/assessments` | 提交 remembered / fuzzy / forgot |
 | DELETE | `/api/memory-cards/:id` | 删除卡片 |
@@ -48,9 +49,11 @@
 
 ## 知识库搜索客户端合同
 
-iOS 通过 `KnowledgeLibrarySearching` 提交查询和当前用户已加载卡片构成的候选文档，接收按相关性排序的卡片 ID。界面只映射仍存在、属于候选集合且未重复的 ID；空结果与请求失败是不同状态，新请求必须使旧响应失效。
+iOS 通过 `KnowledgeLibrarySearching` 向 `POST /api/memory-cards/search` 只提交 `{ "query": "..." }` 和既有 `X-Device-Id`。候选卡片不能由客户端提交；服务端必须先按 owner 从 Store 读取候选，再交给 Qwen 做语义相关性排序。接口只返回 `{ "orderedCardIDs": [...] }`，不得向客户端返回卡片正文、embedding、内部相似度或其他 owner 的 ID。
 
-当前没有生产搜索 Endpoint。Debug/test 可显式注入确定性合成匹配器用于页面验收；Release 使用不可用 Adapter 并显示可恢复错误，不得把本地匹配称为向量或语义搜索。未来后端接入时必须保证用户隔离、增删索引一致性、取消／超时、稳定排序，并且不向客户端返回 embedding、内部相似度或其他用户的卡片。
+当前 MVP 是请求时语义重排，不维护持久化向量索引，因此文案和埋点不得把它误称为本地向量数据库。服务端会过滤未知与重复 ID并保持模型给出的稳定顺序；空查询返回 `422 search_query_required`，模型未配置返回 `503 search_not_configured`，上游失败／超时／无效结果分别使用 `search_upstream_error`、`search_timeout`、`search_invalid_response` 等脱敏稳定码。界面只映射仍存在的卡片；空结果与请求失败是不同状态，新请求必须使旧响应失效，失败时不得残留旧结果。
+
+Debug/test 只有显式启动参数才使用确定性合成匹配器；普通 Debug 与所有 Archive/Release 均使用真实 API Adapter。
 
 语音入口只把 Apple Speech 的最终转写文本交给同一搜索合同，不保存原始音频。原始查询、转写文本和卡片全文不得直接进入分析事件。
 

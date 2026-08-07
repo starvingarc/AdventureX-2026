@@ -2,6 +2,39 @@ import XCTest
 @testable import Omo
 
 final class APIClientDecodingTests: XCTestCase {
+    func testKnowledgeLibrarySearchSendsOnlyQueryWithDeviceIDAndDecodesOrderedIDs() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [APIClientURLProtocolStub.self]
+        let session = URLSession(configuration: configuration)
+        APIClientURLProtocolStub.handler = { request in
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.url?.path, "/api/memory-cards/search")
+            XCTAssertFalse((request.value(forHTTPHeaderField: "X-Device-Id") ?? "").isEmpty)
+            let body = try requestBodyData(request)
+            let object = try XCTUnwrap(
+                JSONSerialization.jsonObject(with: body) as? [String: String]
+            )
+            XCTAssertEqual(object, ["query": "如何避免认知卸载"])
+            let response = try XCTUnwrap(
+                HTTPURLResponse(
+                    url: request.url!,
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: ["content-type": "application/json"]
+                )
+            )
+            return (response, #"{"orderedCardIDs":["card-b","card-a"]}"#.data(using: .utf8)!)
+        }
+        defer { APIClientURLProtocolStub.handler = nil }
+
+        let result = try await APIClient(
+            baseURL: URL(string: "https://omo-testflight-staging.example.com")!,
+            session: session
+        ).searchKnowledgeLibrary(query: "如何避免认知卸载")
+
+        XCTAssertEqual(result.orderedCardIDs, ["card-b", "card-a"])
+    }
+
     func testReleaseEnvironmentRejectsMissingAPIURLInsteadOfFallingBackToProduction() {
         XCTAssertThrowsError(
             try AppEnvironment.resolveAPIBaseURL(
@@ -119,4 +152,41 @@ final class APIClientDecodingTests: XCTestCase {
             from: JSONSerialization.data(withJSONObject: object)
         )
     }
+}
+
+private func requestBodyData(_ request: URLRequest) throws -> Data {
+    if let body = request.httpBody { return body }
+    let stream = try XCTUnwrap(request.httpBodyStream)
+    stream.open()
+    defer { stream.close() }
+    var data = Data()
+    var buffer = [UInt8](repeating: 0, count: 1_024)
+    while stream.hasBytesAvailable {
+        let count = stream.read(&buffer, maxLength: buffer.count)
+        if count < 0 { throw try XCTUnwrap(stream.streamError) }
+        if count == 0 { break }
+        data.append(buffer, count: count)
+    }
+    return data
+}
+
+private final class APIClientURLProtocolStub: URLProtocol, @unchecked Sendable {
+    static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        do {
+            let handler = try XCTUnwrap(Self.handler)
+            let (response, data) = try handler(request)
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: data)
+            client?.urlProtocolDidFinishLoading(self)
+        } catch {
+            client?.urlProtocol(self, didFailWithError: error)
+        }
+    }
+
+    override func stopLoading() {}
 }

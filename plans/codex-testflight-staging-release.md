@@ -95,12 +95,12 @@ SwiftUI、PhotosUI、Speech、UserNotifications、XCTest、Node.js 20、`node:te
 
 **Files:** `backend/src/searchService.js`、`backend/src/server.js`、`backend/src/runtimeConfig.js`、`backend/test/searchService.test.js`、`backend/test/server.test.js`、`Omo/Omo/KnowledgeLibrary/KnowledgeLibrarySearch.swift`、`Omo/OmoTests/KnowledgeLibrarySearchTests.swift`、`backend/.env.example`、`docs/ios-api-data-contract-zh.md`。
 
-- [ ] 先写失败后端测试：空查询拒绝、只搜索当前 owner 卡片、返回稳定去重 ID、模型失败返回安全错误、超时可恢复。
-- [ ] 运行目标 Node 测试并确认缺少 endpoint/service 而失败。
-- [ ] 实现服务端语义排序 Adapter，使用 staging Qwen 配置处理当前 owner 的候选卡片，永不返回卡片正文、embedding 或其他 owner ID。
-- [ ] 先写失败 XCTest：客户端请求携带设备 ID、正确解码 ID、取消旧请求、服务错误不保留旧结果。
-- [ ] 实现 Release `APIKnowledgeLibrarySearcher` 并注入知识库；Debug mock 仍需显式启动参数。
-- [ ] 运行 Node/iOS 目标测试与全量门禁，更新合同并提交。
+- [x] 先写失败后端测试：空查询拒绝、只搜索当前 owner 卡片、返回稳定去重 ID、模型失败返回安全错误、超时可恢复。
+- [x] 运行目标 Node 测试并确认缺少 endpoint/service 而失败。
+- [x] 实现服务端语义排序 Adapter，使用 staging Qwen 配置处理当前 owner 的候选卡片，永不返回卡片正文、embedding 或其他 owner ID。
+- [x] 先写失败 XCTest：客户端请求携带设备 ID、正确解码 ID、取消旧请求、服务错误不保留旧结果。
+- [x] 实现 Release `APIKnowledgeLibrarySearcher` 并注入知识库；Debug mock 仍需显式启动参数。
+- [x] 运行 Node/iOS 目标测试与全量门禁，更新合同并提交。
 
 ### Task 4：补齐截图、回顾与通知的真实闭环
 
@@ -179,12 +179,13 @@ SwiftUI、PhotosUI、Speech、UserNotifications、XCTest、Node.js 20、`node:te
 - 2026-08-08：选择从最新 `origin/main` 建 `codex/testflight-staging-release`，再保留历史地整合 PR #36/#37/#30。
 - 2026-08-08：Task 1 完成。后端 `check`、38 pass / 1 skipped 的默认门禁、独立 PostgreSQL 1 pass、文档检查与 iOS `build-for-testing` 通过；XCTest 运行仍留待 Task 6 修复 Simulator 启动后验证。
 - 2026-08-08：Task 2 完成。Release 缺少合法 HTTPS URL 时 fail closed，旧生产域名回退已删除，Mock 仅能由 Debug 显式启动参数开启；iOS 串行 XCTest 28/28 通过，Release Simulator 构建与包内 staging URL／禁用 Mock 字符串检查通过。
+- 2026-08-08：Task 3 完成。新增 owner 隔离的 `POST /api/memory-cards/search` 与 Qwen 请求时语义重排；客户端只提交 query，服务端只返回稳定去重 ID。后端 44 项（43 pass / 1 PostgreSQL 默认 skip）、iOS 31/31、文档与 Release 包门禁通过。
 
 ## 阻塞与恢复
 
 - 当前阻塞：无代码阻塞。App Store Connect 当前缺少 `asc` 和已确认的 Distribution 资产；先自动探测和尝试 Xcode 自动签名，只有确实缺权限时才请求用户。
 - 解除条件：若 Apple 权限不足，用户提供最小 App Store Connect API key（App Manager/Developer 适用角色）或在 Xcode 完成一次账号登录。
-- 下一位 Agent 从哪里继续：执行 Task 3 的用户隔离搜索 TDD；禁止连接 Railway 项目“拾贝”。
+- 下一位 Agent 从哪里继续：执行 Task 4 的本机问题通知与点击叠卡 TDD；禁止连接 Railway 项目“拾贝”。
 
 ## 相关文档
 

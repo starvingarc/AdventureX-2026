@@ -78,6 +78,66 @@ test("development image flow without Qwen returns a stable configuration error",
   });
 });
 
+test("memory-card search rejects an empty query before calling the model", async () => {
+  await withServer({ NODE_ENV: "development" }, async (baseURL) => {
+    const response = await fetch(`${baseURL}/api/memory-cards/search`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-device-id": "search-owner"
+      },
+      body: JSON.stringify({ query: "   " })
+    });
+
+    assert.equal(response.status, 422);
+    assert.deepEqual(await response.json(), {
+      code: "search_query_required",
+      message: "请输入要搜索的知识。"
+    });
+  });
+});
+
+test("memory-card search is isolated to the request owner and returns IDs only", async () => {
+  const store = new CardStore("");
+  await store.save("owner-a", searchCard("owner-a-card", "认知卸载"));
+  await store.save("owner-b", searchCard("owner-b-card", "private other owner content"));
+
+  await withServer({
+    NODE_ENV: "development",
+    QWEN_API: "test-qwen-key",
+    QWEN_BASE_URL: "https://qwen.example/v1",
+    QWEN_MODEL: "qwen-test"
+  }, async (baseURL) => {
+    const response = await fetch(`${baseURL}/api/memory-cards/search`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-device-id": "owner-a"
+      },
+      body: JSON.stringify({ query: "怎么避免忘记" })
+    });
+    const responseText = await response.text();
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(JSON.parse(responseText), {
+      orderedCardIDs: ["owner-a-card"]
+    });
+    assert.equal(responseText.includes("认知卸载"), false);
+    assert.equal(responseText.includes("private other owner content"), false);
+  }, {
+    store,
+    searchFetchImpl: async () => new Response(JSON.stringify({
+      choices: [{
+        message: {
+          content: JSON.stringify({
+            orderedCardIDs: ["owner-b-card", "owner-a-card"]
+          })
+        }
+      }]
+    }), { status: 200 })
+  });
+});
+
 test("configured PostgreSQL blocks development business routes until migrations are ready", async () => {
   const store = {
     async readiness() {
@@ -210,4 +270,15 @@ async function withServer(env, run, options = {}) {
       server.close((error) => error ? reject(error) : resolve());
     });
   }
+}
+
+function searchCard(id, coreKnowledge) {
+  return {
+    id,
+    coreKnowledge,
+    recallCue: "你还记得什么？",
+    explanation: "合成测试解释",
+    sourceTitle: "合成测试来源",
+    createdAt: "2026-08-08T00:00:00.000Z"
+  };
 }

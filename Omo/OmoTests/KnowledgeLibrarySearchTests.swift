@@ -2,6 +2,17 @@ import XCTest
 @testable import Omo
 
 final class KnowledgeLibrarySearchTests: XCTestCase {
+    @MainActor
+    func testDefaultDependencyUsesAPIWhileExplicitFixtureUsesMock() {
+        let live = KnowledgeLibraryDependencies.makeSearcher(arguments: ["Omo"])
+        let fixture = KnowledgeLibraryDependencies.makeSearcher(
+            arguments: ["Omo", "-OmoLibraryMockSearch"]
+        )
+
+        XCTAssertTrue(live is APIKnowledgeLibrarySearcher)
+        XCTAssertTrue(fixture is DebugMockKnowledgeLibrarySearcher)
+    }
+
     func testDebugMockSearchRequiresExplicitFixtureArgument() {
         XCTAssertFalse(KnowledgeLibraryDebugConfiguration.current(arguments: []).usesMockSearch)
         XCTAssertTrue(
@@ -94,6 +105,33 @@ final class KnowledgeLibrarySearchTests: XCTestCase {
 
         XCTAssertEqual(failed.state, .failed(message: "暂时无法搜索，请稍后重试。"))
         XCTAssertEqual(failed.query, "失败")
+    }
+
+    @MainActor
+    func testServiceFailureDoesNotLeavePreviousResultsVisible() async {
+        let attempts = AttemptCounter()
+        let card = testCard("a", "认知卸载")
+        let model = KnowledgeLibraryViewModel(
+            cards: [card],
+            searcher: SearchStub { _ in
+                if await attempts.increment() == 1 {
+                    return .init(orderedCardIDs: ["a"])
+                }
+                throw KnowledgeLibrarySearchError.unavailable
+            }
+        )
+
+        model.query = "第一次"
+        model.submit()
+        await model.waitForSearchForTesting()
+        XCTAssertEqual(model.visibleCards.map(\.id), ["a"])
+
+        model.query = "第二次"
+        model.submit()
+        await model.waitForSearchForTesting()
+
+        XCTAssertTrue(model.visibleCards.isEmpty)
+        XCTAssertEqual(model.state, .failed(message: "暂时无法搜索，请稍后重试。"))
     }
 
     @MainActor

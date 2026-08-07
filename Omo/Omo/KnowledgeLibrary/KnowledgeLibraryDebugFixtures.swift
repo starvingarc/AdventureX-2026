@@ -104,16 +104,16 @@ extension OmoStore {
 
 @MainActor
 enum KnowledgeLibraryDependencies {
-    static func makeSearcher() -> any KnowledgeLibrarySearching {
+    static func makeSearcher(
+        arguments: [String] = ProcessInfo.processInfo.arguments
+    ) -> any KnowledgeLibrarySearching {
         #if DEBUG
-        let configuration = KnowledgeLibraryDebugConfiguration.current()
+        let configuration = KnowledgeLibraryDebugConfiguration.current(arguments: arguments)
         if configuration.usesMockSearch {
             return DebugMockKnowledgeLibrarySearcher(mode: configuration.searchMode)
         }
-        return UnavailableKnowledgeLibrarySearcher()
-        #else
-        return UnavailableKnowledgeLibrarySearcher()
         #endif
+        return APIKnowledgeLibrarySearcher()
     }
 
     static func makeSpeechTranscriber() -> any KnowledgeLibrarySpeechTranscribing {

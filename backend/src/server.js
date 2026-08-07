@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 
 import { createMemoryCard } from "./cardService.js";
 import { buildReadiness, readRuntimeConfig } from "./runtimeConfig.js";
+import { searchMemoryCards } from "./searchService.js";
 import { createCardStore } from "./storeFactory.js";
 
 export function createOmoServer(options = {}) {
@@ -11,6 +12,7 @@ export function createOmoServer(options = {}) {
   const config = readRuntimeConfig(env);
   const store = options.store || createCardStore(config, options.storeOptions);
   const createCard = options.createCard || createMemoryCard;
+  const searchCards = options.searchCards || searchMemoryCards;
   const currentReadiness = async () => {
     let storage;
     try {
@@ -69,6 +71,18 @@ export function createOmoServer(options = {}) {
 
       if (request.method === "GET" && url.pathname === "/api/memory-cards") {
         return send(response, 200, { cards: await store.list(owner) });
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/memory-cards/search") {
+        const body = await readJSON(request);
+        const result = await searchCards({
+          query: body.query,
+          cards: await store.list(owner)
+        }, {
+          config,
+          fetchImpl: options.searchFetchImpl || fetch
+        });
+        return send(response, 200, result);
       }
 
       if (request.method === "POST" && url.pathname === "/api/sources/image-flow") {

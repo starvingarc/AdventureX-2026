@@ -106,12 +106,12 @@ SwiftUI、PhotosUI、Speech、UserNotifications、XCTest、Node.js 20、`node:te
 
 **Files:** `Omo/Omo/OmoStore.swift`、`Omo/Omo/OmoApp.swift`、`Omo/Omo/RecallHomeView.swift`、`Omo/Omo/RecallRoundView.swift`、`Omo/Omo/Services/RecallNotificationScheduler.swift`、对应 `OmoTests`、隐私／支持文档。
 
-- [ ] 先写失败测试：生成卡后调度不泄露答案的本机通知；点击通知后在首页当前层叠加对应卡；找不到卡时安全回首页；assessment 成功后按新 `nextReviewAt` 重排；失败不误切下一张。
-- [ ] 运行目标测试并确认缺少通知路由／调度实现而失败。
-- [ ] 实现本机通知权限教育、到期调度与点击路由；不添加 APNs entitlement，不向生产服务注册 token。
-- [ ] 验证相册选择、生成等待、抽取不足 10 张、80% 揭示、自评取消／确认、卡间切换、库内完整展示、详情与通知叠卡。
-- [ ] 更新隐私与支持文档，使其准确描述 TestFlight 的本机通知和匿名设备数据。
-- [ ] 运行相关测试并提交。
+- [x] 先写失败测试：生成卡后调度不泄露答案的本机通知；点击通知后在首页当前层叠加对应卡；找不到卡时安全回首页；assessment 成功后按新 `nextReviewAt` 重排；失败不误切下一张。
+- [x] 运行目标测试并确认缺少通知路由／调度实现而失败。
+- [x] 实现本机通知的系统权限请求、到期调度与点击路由；MVP 不新增独立权限教育页，不添加 APNs entitlement，不向任何服务注册 token。
+- [x] 验证相册选择、生成等待、抽取不足 10 张、80% 揭示、自评取消／确认、卡间切换、库内完整展示、详情与通知叠卡；本轮新增 Simulator 实际刮擦、阈值、自评提交失败重试证据，成功联调留待隔离 staging。
+- [x] 更新隐私与支持文档，使其准确描述 TestFlight 的本机通知和匿名设备数据。
+- [x] 运行相关测试并提交。
 
 ### Task 5：建立完全隔离的 Railway Staging
 
@@ -180,12 +180,13 @@ SwiftUI、PhotosUI、Speech、UserNotifications、XCTest、Node.js 20、`node:te
 - 2026-08-08：Task 1 完成。后端 `check`、38 pass / 1 skipped 的默认门禁、独立 PostgreSQL 1 pass、文档检查与 iOS `build-for-testing` 通过；XCTest 运行仍留待 Task 6 修复 Simulator 启动后验证。
 - 2026-08-08：Task 2 完成。Release 缺少合法 HTTPS URL 时 fail closed，旧生产域名回退已删除，Mock 仅能由 Debug 显式启动参数开启；iOS 串行 XCTest 28/28 通过，Release Simulator 构建与包内 staging URL／禁用 Mock 字符串检查通过。
 - 2026-08-08：Task 3 完成。新增 owner 隔离的 `POST /api/memory-cards/search` 与 Qwen 请求时语义重排；客户端只提交 query，服务端只返回稳定去重 ID。后端 44 项（43 pass / 1 PostgreSQL 默认 skip）、iOS 31/31、文档与 Release 包门禁通过。
+- 2026-08-08：Task 4 完成。本机通知仅携带回忆问题与卡片 ID，点击后在首页当前层叠卡；生成／assessment／删除与通知时间同步。Simulator 实际验证刮擦、80% 揭示、自评和失败重试；iOS 35/35、Release build 与文档门禁通过，无 APNs entitlement 或 Debug/旧生产字符串。
 
 ## 阻塞与恢复
 
 - 当前阻塞：无代码阻塞。App Store Connect 当前缺少 `asc` 和已确认的 Distribution 资产；先自动探测和尝试 Xcode 自动签名，只有确实缺权限时才请求用户。
 - 解除条件：若 Apple 权限不足，用户提供最小 App Store Connect API key（App Manager/Developer 适用角色）或在 Xcode 完成一次账号登录。
-- 下一位 Agent 从哪里继续：执行 Task 4 的本机问题通知与点击叠卡 TDD；禁止连接 Railway 项目“拾贝”。
+- 下一位 Agent 从哪里继续：执行 Task 5，仅创建新的 `Omo TestFlight Staging` 项目与独立 Postgres；禁止 link、读取或修改 Railway 项目“拾贝”。
 
 ## 相关文档
 

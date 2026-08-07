@@ -35,6 +35,10 @@ struct ContentView: View {
             let arguments = ProcessInfo.processInfo.arguments
             if arguments.contains("-OmoOpenLibrary") { store.selectedTab = .library }
             store.applyKnowledgeLibraryDebugArguments(arguments)
+            if let index = arguments.firstIndex(of: "-OmoNotificationCardID"),
+               arguments.indices.contains(index + 1) {
+                store.handleRecallNotification(cardID: arguments[index + 1])
+            }
             #endif
         }
         .sheet(isPresented: $showsAdd) {

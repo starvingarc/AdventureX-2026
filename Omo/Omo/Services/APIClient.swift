@@ -1,5 +1,12 @@
 import Foundation
 
+protocol OmoAPIProviding: Sendable {
+    func cards() async throws -> [MemoryCard]
+    func createCard(from imageData: Data) async throws -> MemoryCard
+    func assess(_ card: MemoryCard, as assessment: MemoryAssessment) async throws -> MemoryCard
+    func delete(_ card: MemoryCard) async throws
+}
+
 enum AppEnvironmentError: LocalizedError, Equatable {
     case missingAPIBaseURL
     case invalidAPIBaseURL
@@ -16,7 +23,9 @@ enum AppEnvironmentError: LocalizedError, Equatable {
 
 enum AppEnvironment {
     static let apiBaseURLInfoKey = "OmoAPIBaseURL"
+    #if DEBUG
     static let debugLocalhostURL = URL(string: "http://127.0.0.1:5174")!
+    #endif
 
     static func currentAPIBaseURL() throws -> URL {
         try resolveAPIBaseURL(
@@ -36,7 +45,9 @@ enum AppEnvironment {
             : nil
         let bundleValue = clean(infoDictionary[apiBaseURLInfoKey] as? String)
         guard let rawValue = environmentValue ?? bundleValue else {
+            #if DEBUG
             if allowsDebugLocalhostFallback { return debugLocalhostURL }
+            #endif
             throw AppEnvironmentError.missingAPIBaseURL
         }
         guard let components = URLComponents(string: rawValue),
@@ -77,8 +88,11 @@ enum AppEnvironment {
     }
 
     private static func isBlockedLegacyProductionHost(_ host: String) -> Bool {
-        host.split(separator: ".").map(String.init)
-            == ["shibei-production", "up", "railway", "app"]
+        // Keep the retired production endpoint out of distributable binaries while still
+        // rejecting it if it is accidentally supplied by a build configuration.
+        host.utf8.reduce(UInt64(5_381)) { hash, byte in
+            ((hash &* 33) ^ UInt64(byte))
+        } == 0x561b_bc0f_374f_6d64
     }
 }
 
@@ -196,6 +210,8 @@ struct APIClient: Sendable {
         return value
     }
 }
+
+extension APIClient: OmoAPIProviding {}
 
 private extension AppEnvironment {
     static var currentAPIBaseURLConfigurationError: Error {

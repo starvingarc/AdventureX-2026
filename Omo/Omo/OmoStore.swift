@@ -7,14 +7,21 @@ final class OmoStore: ObservableObject {
     @Published var selectedTab: OmoTab = .today
     @Published var presentedCard: MemoryCard?
     @Published var pendingCard: MemoryCard?
+    @Published var notificationRecallCard: MemoryCard?
+    @Published private(set) var pendingRecallCardID: String?
     @Published var isLoading = false
     @Published var isCreating = false
     @Published var message = ""
 
-    private let api: APIClient
+    private let api: any OmoAPIProviding
+    private let notificationScheduler: any RecallNotificationScheduling
 
-    init(api: APIClient = APIClient()) {
+    init(
+        api: any OmoAPIProviding = APIClient(),
+        notificationScheduler: any RecallNotificationScheduling = LocalRecallNotificationScheduler()
+    ) {
         self.api = api
+        self.notificationScheduler = notificationScheduler
     }
 
     var dueCards: [MemoryCard] {
@@ -33,6 +40,7 @@ final class OmoStore: ObservableObject {
         defer { isLoading = false }
         do {
             cards = try await api.cards()
+            resolvePendingRecallNotification()
             message = ""
         } catch {
             message = error.localizedDescription
@@ -43,6 +51,28 @@ final class OmoStore: ObservableObject {
         presentedCard = dueCards.first
     }
 
+    func handleRecallNotification(cardID: String) {
+        selectedTab = .today
+        presentedCard = nil
+        if let card = cards.first(where: { $0.id == cardID && $0.isRecallEligible }) {
+            notificationRecallCard = card
+            pendingRecallCardID = nil
+        } else {
+            notificationRecallCard = nil
+            pendingRecallCardID = cardID
+        }
+    }
+
+    func resolvePendingRecallNotification() {
+        guard let cardID = pendingRecallCardID else { return }
+        pendingRecallCardID = nil
+        guard let card = cards.first(where: { $0.id == cardID && $0.isRecallEligible }) else {
+            notificationRecallCard = nil
+            return
+        }
+        notificationRecallCard = card
+    }
+
     func createCard(from data: Data) async -> Bool {
         guard !isCreating else { return false }
         isCreating = true
@@ -51,6 +81,7 @@ final class OmoStore: ObservableObject {
             let image = try Self.preparedImage(data)
             let card = try await api.createCard(from: image)
             upsert(card)
+            try? await notificationScheduler.schedule(card)
             selectedTab = .today
             pendingCard = card
             message = ""
@@ -64,6 +95,7 @@ final class OmoStore: ObservableObject {
     func assess(_ card: MemoryCard, as assessment: MemoryAssessment) async throws -> MemoryCard {
         let updated = try await api.assess(card, as: assessment)
         upsert(updated)
+        try? await notificationScheduler.schedule(updated)
         return updated
     }
 
@@ -71,6 +103,7 @@ final class OmoStore: ObservableObject {
         do {
             try await api.delete(card)
             cards.removeAll { $0.id == card.id }
+            await notificationScheduler.cancel(cardID: card.id)
             message = ""
         } catch {
             message = error.localizedDescription

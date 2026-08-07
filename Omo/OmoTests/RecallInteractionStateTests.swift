@@ -1,7 +1,88 @@
 import XCTest
+import UIKit
 @testable import Omo
 
 final class RecallInteractionStateTests: XCTestCase {
+    func testNotificationPlanCarriesQuestionAndCardIDWithoutAnswerContent() {
+        let card = notificationTestCard()
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+
+        let plan = RecallNotificationPlan(card: card, now: now)
+
+        XCTAssertEqual(plan.title, "你还记得吗？")
+        XCTAssertEqual(plan.body, "为什么保存截图反而可能更难记住？")
+        XCTAssertEqual(plan.userInfo, ["cardID": "notification-card"])
+        XCTAssertGreaterThan(plan.triggerDate, now)
+        XCTAssertFalse(plan.title.contains(card.answer))
+        XCTAssertFalse(plan.body.contains(card.answer))
+        XCTAssertFalse(plan.userInfo.values.contains(card.answer))
+        XCTAssertFalse(plan.userInfo.values.contains(card.explanation))
+    }
+
+    @MainActor
+    func testNotificationRouteReturnsToTodayAndOverlaysTheMatchingCard() {
+        let card = notificationTestCard()
+        let store = OmoStore()
+        store.cards = [card]
+        store.selectedTab = .library
+        store.presentedCard = card
+
+        store.handleRecallNotification(cardID: card.id)
+
+        XCTAssertEqual(store.selectedTab, .today)
+        XCTAssertNil(store.presentedCard)
+        XCTAssertEqual(store.notificationRecallCard?.id, card.id)
+        XCTAssertNil(store.pendingRecallCardID)
+    }
+
+    @MainActor
+    func testNotificationRouteWaitsForCardsThenSafelyDropsAnUnknownID() {
+        let card = notificationTestCard()
+        let store = OmoStore()
+
+        store.handleRecallNotification(cardID: card.id)
+        XCTAssertEqual(store.pendingRecallCardID, card.id)
+        XCTAssertNil(store.notificationRecallCard)
+
+        store.cards = [card]
+        store.resolvePendingRecallNotification()
+        XCTAssertEqual(store.notificationRecallCard?.id, card.id)
+
+        store.notificationRecallCard = nil
+        store.handleRecallNotification(cardID: "missing-card")
+        store.resolvePendingRecallNotification()
+        XCTAssertNil(store.notificationRecallCard)
+        XCTAssertNil(store.pendingRecallCardID)
+    }
+
+    @MainActor
+    func testCreateAssessAndDeleteKeepLocalRecallNotificationInSync() async throws {
+        let created = notificationTestCard(nextReviewAt: "2026-08-09T08:00:00Z")
+        let assessed = notificationTestCard(
+            nextReviewAt: "2026-08-12T08:00:00Z",
+            reviewCount: 1,
+            lastAssessment: .remembered
+        )
+        let scheduler = NotificationSchedulerSpy()
+        let store = OmoStore(
+            api: OmoAPIStub(createdCard: created, assessedCard: assessed),
+            notificationScheduler: scheduler
+        )
+        let imageData = try XCTUnwrap(UIImage(systemName: "circle")?.pngData())
+
+        let createdSuccessfully = await store.createCard(from: imageData)
+        XCTAssertTrue(createdSuccessfully)
+        _ = try await store.assess(created, as: .remembered)
+        await store.delete(assessed)
+
+        let snapshot = await scheduler.snapshot()
+        XCTAssertEqual(snapshot.scheduled.map(\.nextReviewAt), [
+            "2026-08-09T08:00:00Z",
+            "2026-08-12T08:00:00Z"
+        ])
+        XCTAssertEqual(snapshot.cancelledCardIDs, [created.id])
+    }
+
     func testScratchMustReachEightyPercentBeforeRatingAppears() {
         var state = RecallRoundState(cardCount: 2)
 
@@ -80,5 +161,63 @@ final class RecallInteractionStateTests: XCTestCase {
         )
         XCTAssertNil(RecallKnowledgeSegments.make(coreKnowledge: "认知卸载", hiddenSemantic: "认知  卸载"))
         XCTAssertNil(RecallKnowledgeSegments.make(coreKnowledge: "认知卸载", hiddenSemantic: ""))
+    }
+}
+
+private func notificationTestCard(
+    nextReviewAt: String = "2026-08-08T00:00:00Z",
+    reviewCount: Int = 0,
+    lastAssessment: MemoryAssessment? = nil
+) -> MemoryCard {
+    MemoryCard(
+        id: "notification-card",
+        coreKnowledge: "截图可能削弱记忆，因为它会触发认知卸载。",
+        hiddenSemantic: "认知卸载",
+        recallCue: "为什么保存截图反而可能更难记住？",
+        answer: "认知卸载",
+        explanation: "设备替代了主动编码。",
+        sourceTitle: "合成测试来源",
+        sourceAccount: nil,
+        sourcePlatform: nil,
+        sourceUrl: nil,
+        sourceStatus: "screenshot_only",
+        sourceProvider: nil,
+        sourceConfidence: nil,
+        rarity: "R",
+        createdAt: "2026-08-08T00:00:00Z",
+        masteryStage: "sealed",
+        nextReviewAt: nextReviewAt,
+        reviewCount: reviewCount,
+        successfulRecallCount: 0,
+        lastAssessment: lastAssessment
+    )
+}
+
+private struct OmoAPIStub: OmoAPIProviding {
+    let createdCard: MemoryCard
+    let assessedCard: MemoryCard
+
+    func cards() async throws -> [MemoryCard] { [] }
+    func createCard(from imageData: Data) async throws -> MemoryCard { createdCard }
+    func assess(_ card: MemoryCard, as assessment: MemoryAssessment) async throws -> MemoryCard {
+        assessedCard
+    }
+    func delete(_ card: MemoryCard) async throws {}
+}
+
+private actor NotificationSchedulerSpy: RecallNotificationScheduling {
+    private var scheduled: [MemoryCard] = []
+    private var cancelledCardIDs: [String] = []
+
+    func schedule(_ card: MemoryCard) async throws {
+        scheduled.append(card)
+    }
+
+    func cancel(cardID: String) async {
+        cancelledCardIDs.append(cardID)
+    }
+
+    func snapshot() -> (scheduled: [MemoryCard], cancelledCardIDs: [String]) {
+        (scheduled, cancelledCardIDs)
     }
 }

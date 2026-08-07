@@ -20,25 +20,43 @@ struct RecallHomeView: View {
             onOpenProfile: onOpenProfile,
             onOpenSettings: onOpenSettings
         ) {
-            if isRoundActive {
-                ZStack(alignment: .topLeading) {
-                    RecallRoundView(
-                        cards: deck,
-                        onAssess: assess,
-                        onComplete: finishRound
-                    )
+            ZStack(alignment: .topLeading) {
+                if isRoundActive {
+                    ZStack(alignment: .topLeading) {
+                        RecallRoundView(
+                            cards: deck,
+                            onAssess: assess,
+                            onComplete: finishRound
+                        )
 
-                    persistentHomeActions
+                        persistentHomeActions
+                    }
+                    .frame(
+                        width: RecallHomeMetrics.referenceSize.width,
+                        height: RecallHomeMetrics.referenceSize.height,
+                        alignment: .topLeading
+                    )
+                } else if store.cards.isEmpty {
+                    firstLaunchContent
+                } else {
+                    idleContent
                 }
-                .frame(
-                    width: RecallHomeMetrics.referenceSize.width,
-                    height: RecallHomeMetrics.referenceSize.height,
-                    alignment: .topLeading
-                )
-            } else if store.cards.isEmpty {
-                firstLaunchContent
-            } else {
-                idleContent
+
+                if let card = store.notificationRecallCard {
+                    RecallRoundView(
+                        cards: [card],
+                        onAssess: assessNotification,
+                        onComplete: finishNotificationRecall
+                    )
+                    .id("notification-\(card.id)")
+                    .frame(
+                        width: RecallHomeMetrics.referenceSize.width,
+                        height: RecallHomeMetrics.referenceSize.height,
+                        alignment: .topLeading
+                    )
+                    .transition(.opacity.combined(with: .scale(scale: 1.02)))
+                    .zIndex(20)
+                }
             }
         }
         .onChange(of: selectedScreenshot) { _, item in
@@ -173,6 +191,19 @@ struct RecallHomeView: View {
 
     private func assess(_ card: MemoryCard, as assessment: MemoryAssessment) async throws {
         _ = try await store.assess(card, as: assessment)
+    }
+
+    private func assessNotification(
+        _ card: MemoryCard,
+        as assessment: MemoryAssessment
+    ) async throws {
+        _ = try await store.assess(card, as: assessment)
+    }
+
+    private func finishNotificationRecall() {
+        withAnimation(.easeOut(duration: 0.22)) {
+            store.notificationRecallCard = nil
+        }
     }
 
     private func finishRound() {

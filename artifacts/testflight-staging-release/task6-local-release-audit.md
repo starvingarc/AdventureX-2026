@@ -26,6 +26,7 @@
 7. 在 `Omo Verify iPhone SE 3` 复核知识库：默认字号保持两列；最大辅助字号下自动切为单列宽卡，长文本不再逐字竖排或被截断。
 8. 在 iPhone 17 Pro 使用 Debug 合成数据验证知识库文字搜索、语音权限拒绝提示及跳转 Settings 的恢复入口。
 9. 使用运行时 Accessibility 快照核对回顾卡：刮开前既不包含承重语义，也不提供“查看完整知识上下文”；达到 80% 后才同时出现完整语义、自评条与上下文入口。
+10. 在系统“减弱动态效果”开启时启动回顾：卡片无需等待动画即可进入揭示态，自评拖拽仍会提交；本地 API 不可用时正常停留在当前卡并显示重试，不误切下一张。验证后已把测试 Simulator 设置恢复为关闭。
 
 ## 本轮发现并修复
 
@@ -44,9 +45,10 @@
 - `speech-permission-denied.jpg`：语音权限拒绝后的可恢复提示。
 - `context-before-reveal.png`：刮开前无完整上下文入口。
 - `context-after-reveal.png`：达到揭示阈值后显示上下文入口与自评条。
+- `reduce-motion-rating-retry.png`：Reduce Motion 下自评与失败重试仍可达。
 
 ## 尚未验证
 
 - 真实截图生成、持久化、搜索、assessment、删除和重启 readback：等待隔离 staging 的 Qwen/TikHub 专用密钥后执行。
-- 小屏键盘、真实系统语音授权、Reduce Motion、VoiceOver 实机朗读与完整 TestFlight 安装：Task 6/7 后续。
+- 小屏键盘、真实系统语音授权、VoiceOver 实机朗读与完整 TestFlight 安装：Task 6/7 后续。
 - App Store Connect：已安装 `asc 3.5.1`，本机无 ASC API 凭据；仅有 Apple Development 证书、无 Distribution profile，未访问或修改远端记录。

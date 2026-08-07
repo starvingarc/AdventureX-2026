@@ -141,7 +141,7 @@ SwiftUI、PhotosUI、Speech、UserNotifications、XCTest、Node.js 20、`node:te
 
 - [ ] 探测 Apple Developer/App Store Connect 账号、Bundle ID `com.maxhan.shibei` 对应 App 记录、团队权限和远端安全 build number；不创建重复 App。
 - [ ] 若 CLI 缺失，安装并验证当前 `asc`；若本机授权不足，只向用户请求最小的 App Store Connect API key/角色或一次 Xcode 登录。
-- [ ] 使用自动签名或现有团队资产生成 Release archive；验证 bundle、版本、隐私 manifest、图标、HTTPS staging URL、Fixture 隔离和 export compliance。
+- [ ] 使用自动签名或现有团队资产生成 Release archive；已增加不会自动上传、仅限内部 TestFlight 的 ExportOptions，真实 Archive 仍等待 staging URL 与 Distribution 签名；随后验证 bundle、版本、隐私 manifest、图标、HTTPS staging URL、Fixture 隔离和 export compliance。
 - [ ] 导出 IPA，运行本地 Release smoke；上传 App Store Connect 并等待 build processing 为 `VALID`。
 - [ ] 配置内部 TestFlight group 与“测试内容”，只分发该 staging build，不提交 App Store 正式审核，不邀请外部测试员。
 - [ ] 从 TestFlight 安装后走真实 staging 闭环；记录 build ID、测试组、验证结果和仍需真机验证的权限行为。
@@ -186,7 +186,8 @@ SwiftUI、PhotosUI、Speech、UserNotifications、XCTest、Node.js 20、`node:te
 - 2026-08-08：Task 6 小屏复核发现最大辅助字号下知识卡双列文本严重截断；以分页器可配置列数实现仅辅助字号单列，默认两列不变。新增失败测试后修复，全量 iOS XCTest 37/37 通过；未扩展为全机型适配。
 - 2026-08-08：Task 6 Accessibility 快照发现回顾卡可在刮开前通过“完整上下文”绕过答案遮挡；以回顾状态门禁将入口延后至 80% 揭示，目标测试与全量 37/37 通过。同期验证 Debug 合成搜索与语音拒绝恢复入口；未部署任何环境。
 - 2026-08-08：Task 6 Reduce Motion 实机设置验证通过：开启“减弱动态效果”后回顾卡直接稳定呈现，自评仍能提交，失败时留在原卡显示重试；测试结束后已恢复 Simulator 设置。
-- 2026-08-08：Task 7 本地探测开始。安装 `asc 3.5.1` 后确认本机没有 ASC API 凭据；Keychain 只有 Apple Development 身份且无 provisioning profile，因此没有访问、创建或修改远端 App／签名资产。App 仅使用系统 HTTPS，补充 `ITSAppUsesNonExemptEncryption=false`。
+- 2026-08-08：Task 7 本地探测开始。安装 `asc 3.5.1` 后确认本机没有 ASC API 凭据；Keychain 只有 Apple Development 身份，因此没有访问、创建或修改远端 App／签名资产。App 仅使用系统 HTTPS，补充 `ITSAppUsesNonExemptEncryption=false`。
+- 2026-08-08：Task 7 再探测确认本机已有 `com.maxhan.shibei` 的 App Store provisioning profile，但仍无 Apple Distribution 身份与 ASC 凭据。新增 `destination=export`、`testFlightInternalTestingOnly=true` 的导出配置和显式 Archive/上传门禁；未生成签名资产、未访问或修改 App Store Connect。
 
 ## 阻塞与恢复
 

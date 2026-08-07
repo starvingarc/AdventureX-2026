@@ -76,10 +76,10 @@ SwiftUI、PhotosUI、Speech、UserNotifications、XCTest、Node.js 20、`node:te
 
 **Files:** PR #36/#37 与 PR #30 变更范围；冲突只由本计划整合者处理。
 
-- [ ] 合并 `codex/knowledge-library-search` 到当前最新 `origin/main`，保留完整提交历史并确认首页、抽卡、刮刮、自评、知识库和卡片详情文件存在。
-- [ ] 合并 `feat/postgres-persistence`，逐项解决 backend/docs 冲突，不删除任一侧的幂等、readiness 或来源证据测试。
-- [ ] 运行 `npm --prefix backend run check`、`npm --prefix backend run test:all`、`npm --prefix backend run docs:check` 与 iOS `build-for-testing`，记录整合基线。
-- [ ] 提交整合结果与本计划进度。
+- [x] 合并 `codex/knowledge-library-search` 到当前最新 `origin/main`，保留完整提交历史并确认首页、抽卡、刮刮、自评、知识库和卡片详情文件存在。
+- [x] 合并 `feat/postgres-persistence`，逐项解决 backend/docs 冲突，不删除任一侧的幂等、readiness 或来源证据测试。
+- [x] 运行 `npm --prefix backend run check`、`npm --prefix backend run test:all`、`npm --prefix backend run docs:check` 与 iOS `build-for-testing`，记录整合基线。
+- [x] 提交整合结果与本计划进度。
 
 ### Task 2：隔离 Debug Fixture 与 TestFlight Staging
 
@@ -177,6 +177,7 @@ SwiftUI、PhotosUI、Speech、UserNotifications、XCTest、Node.js 20、`node:te
 - 2026-08-08：用户授权以 TestFlight 真实测试为终点，并要求自主开发、Simulator 测试和缺陷修复。
 - 2026-08-08：用户新增硬约束：所有迭代只留在自己的分支，绝不部署生产；因此采用独立 Railway staging 与独立 Postgres，TestFlight 只连接 staging。
 - 2026-08-08：选择从最新 `origin/main` 建 `codex/testflight-staging-release`，再保留历史地整合 PR #36/#37/#30。
+- 2026-08-08：Task 1 完成。后端 `check`、38 pass / 1 skipped 的默认门禁、独立 PostgreSQL 1 pass、文档检查与 iOS `build-for-testing` 通过；XCTest 运行仍留待 Task 6 修复 Simulator 启动后验证。
 
 ## 阻塞与恢复
 

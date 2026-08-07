@@ -57,6 +57,19 @@ final class KnowledgeLibraryPaginationTests: XCTestCase {
         XCTAssertEqual(accessibility.flatMap(\.readingOrder), ["a", "b", "c", "d", "e"])
     }
 
+    func testAccessibilitySingleColumnPreservesReadableOrder() {
+        let pages = KnowledgeLibraryPaginator<String>().pages(
+            itemHeights: [("a", 180), ("b", 180), ("c", 180)],
+            availableHeight: 300,
+            verticalSpacing: 18,
+            columnCount: 1
+        )
+
+        XCTAssertEqual(pages.count, 3)
+        XCTAssertEqual(pages.flatMap(\.readingOrder), ["a", "b", "c"])
+        XCTAssertTrue(pages.flatMap(\.placements).allSatisfy { $0.column == 0 })
+    }
+
     func testEmptyInputProducesNoPages() {
         XCTAssertTrue(
             KnowledgeLibraryPaginator<String>().pages(

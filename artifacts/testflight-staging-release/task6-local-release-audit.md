@@ -7,7 +7,7 @@
 
 ## 自动化结果
 
-- iOS XCTest：36/36 通过，确认测试方法真实执行。
+- iOS XCTest：37/37 通过，确认测试方法真实执行。
 - Backend：46 项，45 通过，1 项 PostgreSQL 集成测试在默认无数据库环境下跳过。
 - Backend syntax check：通过。
 - 文档检查：25 个 Markdown、185 个 wiki link，全部通过。
@@ -23,20 +23,24 @@
 4. 再次选图并点“同意并生成”，确认许可持久化；测试 backend 未部署时只显示连接失败，不伪造成功。
 5. 打开 Settings，确认存在隐私说明、联系支持和撤回许可入口。
 6. 点击撤回后，入口立即变为“下次上传截图时会询问 AI 处理许可”；再次选图会重新提示。
+7. 在 `Omo Verify iPhone SE 3` 复核知识库：默认字号保持两列；最大辅助字号下自动切为单列宽卡，长文本不再逐字竖排或被截断。
 
 ## 本轮发现并修复
 
 - 初版许可提示只覆盖知识库次级上传页，首页主上传入口仍直接生成。通过真实系统照片选择器复现后，将相同许可门槛补到首页主入口。
 - Debug localhost 判断仍残留在 Release 二进制。将整个本地 HTTP 分支收进 `#if DEBUG`，clean Release 重建后字符串门禁通过。
 - 隐私文档包含尚未实现的配额、反馈入口和诊断字段。已按当前代码实际行为收敛，并补齐 App 内可访问隐私说明。
+- 小屏最大辅助字号下，固定双列卡片会把正文压缩为逐字竖排。分页器新增显式列数，页面仅在辅助字号下切为单列；默认字号的两列 Figma 布局保持不变。
 
 ## 证据
 
 - `ai-processing-consent.png`：首页真实选图后的首次 AI 处理许可。
 - `privacy-settings-revoked.png`：Settings 中撤回后的状态与隐私入口。
+- `small-screen-library.png`：小屏默认字号的两列知识库布局。
+- `small-screen-library-axxxl.png`：小屏最大辅助字号的单列可读布局。
 
 ## 尚未验证
 
 - 真实截图生成、持久化、搜索、assessment、删除和重启 readback：等待隔离 staging 的 Qwen/TikHub 专用密钥后执行。
-- 小屏、VoiceOver、语音权限与完整 TestFlight 安装：Task 6/7 后续。
+- 小屏键盘、VoiceOver、语音权限与完整 TestFlight 安装：Task 6/7 后续。
 - App Store Connect：已安装 `asc 3.5.1`，本机无 ASC API 凭据；仅有 Apple Development 证书、无 Distribution profile，未访问或修改远端记录。

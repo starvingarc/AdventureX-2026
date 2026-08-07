@@ -377,9 +377,15 @@ private struct KnowledgeLibraryPager: View {
     var body: some View {
         GeometryReader { geometry in
             let contentWidth = geometry.size.width - 18
-            let columnWidth = (contentWidth - KnowledgeLibraryMetrics.columnSpacing) / 2
+            let columnCount = dynamicTypeSize.isAccessibilitySize ? 1 : 2
+            let columnWidth = columnCount == 1
+                ? contentWidth - 14
+                : (contentWidth - KnowledgeLibraryMetrics.columnSpacing) / 2
             let pagerHeight = geometry.size.height - 38
-            let pages = makePages(availableHeight: pagerHeight)
+            let pages = makePages(
+                availableHeight: pagerHeight,
+                columnCount: columnCount
+            )
 
             ZStack(alignment: .bottom) {
                 TabView(selection: $currentPage) {
@@ -425,14 +431,18 @@ private struct KnowledgeLibraryPager: View {
         }
     }
 
-    private func makePages(availableHeight: CGFloat) -> [KnowledgeLibraryPage<String>] {
+    private func makePages(
+        availableHeight: CGFloat,
+        columnCount: Int
+    ) -> [KnowledgeLibraryPage<String>] {
         let heights = cards.map { card in
             (card.id, (measuredHeights[card.id] ?? 200) + 8)
         }
         return KnowledgeLibraryPaginator<String>().pages(
             itemHeights: heights,
             availableHeight: availableHeight,
-            verticalSpacing: KnowledgeLibraryMetrics.rowSpacing
+            verticalSpacing: KnowledgeLibraryMetrics.rowSpacing,
+            columnCount: columnCount
         )
     }
 

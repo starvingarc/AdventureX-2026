@@ -22,14 +22,16 @@ struct KnowledgeLibraryPaginator<ID: Hashable & Sendable> {
     func pages(
         itemHeights: [(ID, CGFloat)],
         availableHeight: CGFloat,
-        verticalSpacing: CGFloat
+        verticalSpacing: CGFloat,
+        columnCount: Int = 2
     ) -> [KnowledgeLibraryPage<ID>] {
         guard !itemHeights.isEmpty else { return [] }
         let usableHeight = max(0, availableHeight)
         let spacing = max(0, verticalSpacing)
         var result: [KnowledgeLibraryPage<ID>] = []
         var placements: [KnowledgeLibraryPage<ID>.Placement] = []
-        var columnHeights: [CGFloat] = [0, 0]
+        let resolvedColumnCount = max(1, columnCount)
+        var columnHeights = Array(repeating: CGFloat.zero, count: resolvedColumnCount)
 
         func completedPage() -> KnowledgeLibraryPage<ID>? {
             guard !placements.isEmpty else { return nil }
@@ -38,7 +40,7 @@ struct KnowledgeLibraryPaginator<ID: Hashable & Sendable> {
 
         func resetPage() {
             placements = []
-            columnHeights = [0, 0]
+            columnHeights = Array(repeating: CGFloat.zero, count: resolvedColumnCount)
         }
 
         for (sourceIndex, element) in itemHeights.enumerated() {
@@ -50,7 +52,9 @@ struct KnowledgeLibraryPaginator<ID: Hashable & Sendable> {
                 resetPage()
             }
 
-            var column = columnHeights[0] <= columnHeights[1] ? 0 : 1
+            var column = columnHeights.indices.min {
+                columnHeights[$0] < columnHeights[$1]
+            } ?? 0
             var y = columnHeights[column] == 0 ? 0 : columnHeights[column] + spacing
             let wouldOverflow = y + height > usableHeight
 

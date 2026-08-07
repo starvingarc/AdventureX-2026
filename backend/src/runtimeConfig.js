@@ -43,6 +43,9 @@ export function readRuntimeConfig(env = process.env) {
   );
   const qwenApiKey = clean(env.QWEN_API);
   const databaseURL = clean(env.DATABASE_URL);
+  const requestedStorageDriver = clean(env.STORE_DRIVER).toLowerCase();
+  const storageDriver = requestedStorageDriver || (databaseURL ? "postgres" : "json");
+  const storageDriverValid = ["json", "postgres"].includes(storageDriver);
   const databaseURLValid = !databaseURL || isPostgresURL(databaseURL);
   const databasePoolMax = parsePositiveInteger(
     env.DATABASE_POOL_MAX || String(DEFAULT_DATABASE_POOL_MAX)
@@ -97,8 +100,10 @@ export function readRuntimeConfig(env = process.env) {
       idleTimeoutValid: databaseIdleTimeout.valid
     },
     storage: {
-      driver: databaseURL ? "postgres" : "json",
-      durable: Boolean(databaseURL),
+      driver: storageDriver,
+      driverExplicit: Boolean(requestedStorageDriver),
+      driverValid: storageDriverValid,
+      durable: storageDriver === "postgres" && Boolean(databaseURL),
       filePath: clean(env.CARD_STORE_PATH)
     },
     deprecatedEnvironmentVariables
@@ -119,7 +124,9 @@ export function buildReadiness(config, runtime = {}) {
   const sourceReady = config.tikhub.configured
     && config.tikhub.baseURLValid
     && config.tikhub.timeoutValid;
-  const storageRequired = config.production || config.database.configured;
+  const storageRequired = config.production
+    || config.storage.driver === "postgres"
+    || config.database.configured;
   const storageStatus = runtime.storage || {
     ready: !storageRequired && config.storage.driver === "json",
     driver: config.storage.driver,
@@ -131,6 +138,19 @@ export function buildReadiness(config, runtime = {}) {
 
   if (!config.demo.valid) blockers.push("demo_mode_invalid");
   if (demoForbidden) blockers.push("demo_mode_forbidden");
+  if (config.production && !config.storage.driverExplicit) {
+    blockers.push("storage_driver_missing");
+  }
+  if (!config.storage.driverValid) blockers.push("storage_driver_invalid");
+  if (config.production && config.storage.driver !== "postgres") {
+    blockers.push("storage_driver_not_postgres");
+  }
+  if (config.database.configured && config.storage.driver !== "postgres") {
+    blockers.push("storage_driver_mismatch");
+  }
+  if (config.storage.driver === "postgres" && !config.database.configured) {
+    blockers.push("database_url_missing");
+  }
   if (!config.qwen.configured && !config.demo.enabled) blockers.push("qwen_api_missing");
   if (config.qwen.configured && !config.qwen.baseURLValid) blockers.push("qwen_base_url_invalid");
   if (config.qwen.configured && !config.qwen.timeoutValid) blockers.push("qwen_timeout_invalid");

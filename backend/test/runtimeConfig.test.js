@@ -48,6 +48,8 @@ test("invalid provider URLs and timeouts are explicit readiness blockers", () =>
   }));
 
   assert.deepEqual(report.blockers, [
+    "storage_driver_missing",
+    "storage_driver_not_postgres",
     "qwen_base_url_invalid",
     "qwen_timeout_invalid",
     "tikhub_base_url_invalid",
@@ -87,6 +89,7 @@ test("legacy aliases remain compatible but are reported by name only", () => {
 test("configured PostgreSQL is not ready until connection and migrations pass", () => {
   const config = readRuntimeConfig({
     NODE_ENV: "production",
+    STORE_DRIVER: "postgres",
     QWEN_API: "qwen-secret",
     TIKHUB_API_KEY: "tikhub-secret",
     DATABASE_URL: "postgresql://omo:database-secret@db.example/omo"
@@ -108,6 +111,38 @@ test("configured PostgreSQL is not ready until connection and migrations pass", 
   assert.equal(ready.checks.storage.driver, "postgres");
   assert.deepEqual(ready.checks.storage.appliedVersions, ["001", "002"]);
   assert.equal(JSON.stringify(ready).includes("database-secret"), false);
+});
+
+test("production requires an explicit PostgreSQL driver and rejects mismatches", () => {
+  const missing = buildReadiness(readRuntimeConfig({
+    NODE_ENV: "production",
+    QWEN_API: "qwen-secret",
+    TIKHUB_API_KEY: "tikhub-secret",
+    DATABASE_URL: "postgresql://omo:database-secret@db.example/omo"
+  }));
+  const mismatched = buildReadiness(readRuntimeConfig({
+    NODE_ENV: "production",
+    STORE_DRIVER: "json",
+    QWEN_API: "qwen-secret",
+    TIKHUB_API_KEY: "tikhub-secret",
+    DATABASE_URL: "postgresql://omo:database-secret@db.example/omo"
+  }));
+
+  assert.ok(missing.blockers.includes("storage_driver_missing"));
+  assert.ok(mismatched.blockers.includes("storage_driver_not_postgres"));
+  assert.ok(mismatched.blockers.includes("storage_driver_mismatch"));
+  assert.equal(JSON.stringify(mismatched).includes("database-secret"), false);
+});
+
+test("invalid storage driver is rejected without falling back", () => {
+  const report = buildReadiness(readRuntimeConfig({
+    NODE_ENV: "development",
+    OMO_DEMO_MODE: "1",
+    STORE_DRIVER: "sqlite"
+  }));
+
+  assert.ok(report.blockers.includes("storage_driver_invalid"));
+  assert.equal(report.checks.storage.driver, "sqlite");
 });
 
 test("invalid database URL and pool settings fail readiness explicitly", () => {

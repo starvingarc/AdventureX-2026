@@ -117,9 +117,9 @@ SwiftUI、PhotosUI、Speech、UserNotifications、XCTest、Node.js 20、`node:te
 
 **Files:** `railway.json`、`railpack.json`、`backend/migrations/`、`backend/.env.example`、`docs/staging-testflight-runbook.md`。
 
-- [ ] 创建全新 Railway 项目 `Omo TestFlight Staging`，不 link、不读取、不修改现有“拾贝”项目；添加独立 Postgres 服务。
+- [x] 创建全新 Railway 项目 `Omo TestFlight Staging`，不 link、不读取、不修改现有“拾贝”项目；添加独立 Postgres 服务。
 - [ ] 仅在 staging 设置 `NODE_ENV=production`、`STORE_DRIVER=postgres`、staging `DATABASE_URL`、Qwen/TikHub 所需变量；变量值不写入仓库或日志。
-- [ ] 在 staging 数据库执行只读 migration status，再执行顺序 migration；记录版本和 checksum，不导入生产数据。
+- [x] 在 staging 数据库执行只读 migration status，再执行顺序 migration；记录版本和 checksum，不导入生产数据。
 - [ ] 部署当前分支 backend，验证 `/api/health`、`/api/readiness`、空库、真实授权截图生成、重启后读取、assessment 幂等、删除和搜索。
 - [ ] 将 staging HTTPS URL 注入 TestFlight 构建配置，形成可复现但不含密钥的 runbook。
 - [ ] 提交配置与文档；Railway 外部状态只限新 staging 项目。
@@ -181,12 +181,13 @@ SwiftUI、PhotosUI、Speech、UserNotifications、XCTest、Node.js 20、`node:te
 - 2026-08-08：Task 2 完成。Release 缺少合法 HTTPS URL 时 fail closed，旧生产域名回退已删除，Mock 仅能由 Debug 显式启动参数开启；iOS 串行 XCTest 28/28 通过，Release Simulator 构建与包内 staging URL／禁用 Mock 字符串检查通过。
 - 2026-08-08：Task 3 完成。新增 owner 隔离的 `POST /api/memory-cards/search` 与 Qwen 请求时语义重排；客户端只提交 query，服务端只返回稳定去重 ID。后端 44 项（43 pass / 1 PostgreSQL 默认 skip）、iOS 31/31、文档与 Release 包门禁通过。
 - 2026-08-08：Task 4 完成。本机通知仅携带回忆问题与卡片 ID，点击后在首页当前层叠卡；生成／assessment／删除与通知时间同步。Simulator 实际验证刮擦、80% 揭示、自评和失败重试；iOS 35/35、Release build 与文档门禁通过，无 APNs entitlement 或 Debug/旧生产字符串。
+- 2026-08-08：Task 5 部分完成。已新建 `Omo TestFlight Staging` 与独立 `staging` 环境、`omo-api-staging` 和 Postgres；001/002 migration 已应用并验证 ready，临时 TCP proxy 已删除。新增 production 必须显式 `STORE_DRIVER=postgres` 的 fail-closed 门禁。backend 尚缺 staging 专用 `QWEN_API` 与 `TIKHUB_API_KEY`，因此未部署。
 
 ## 阻塞与恢复
 
-- 当前阻塞：无代码阻塞。App Store Connect 当前缺少 `asc` 和已确认的 Distribution 资产；先自动探测和尝试 Xcode 自动签名，只有确实缺权限时才请求用户。
-- 解除条件：若 Apple 权限不足，用户提供最小 App Store Connect API key（App Manager/Developer 适用角色）或在 Xcode 完成一次账号登录。
-- 下一位 Agent 从哪里继续：执行 Task 5，仅创建新的 `Omo TestFlight Staging` 项目与独立 Postgres；禁止 link、读取或修改 Railway 项目“拾贝”。
+- 当前阻塞：staging backend 的真实部署需要两个 staging 专用密钥 `QWEN_API` 和 `TIKHUB_API_KEY`，本机与新服务均未配置；禁止从生产项目读取或复制。App Store Connect 仍需后续探测 `asc` 与 Distribution 权限。
+- 解除条件：用户通过安全方式提供 staging 专用 Qwen/TikHub 密钥；若 Apple 权限不足，再提供最小 App Store Connect API key 或在 Xcode 完成一次登录。
+- 下一位 Agent 从哪里继续：密钥未就绪时可先执行 Task 6/7 的本地审计与无密钥验证；密钥就绪后回到 Task 5 部署 `omo-api-staging`，禁止连接 Railway 项目“拾贝”。
 
 ## 相关文档
 

@@ -2,6 +2,15 @@ import XCTest
 @testable import Omo
 
 final class KnowledgeLibrarySearchTests: XCTestCase {
+    func testDebugMockSearchRequiresExplicitFixtureArgument() {
+        XCTAssertFalse(KnowledgeLibraryDebugConfiguration.current(arguments: []).usesMockSearch)
+        XCTAssertTrue(
+            KnowledgeLibraryDebugConfiguration.current(
+                arguments: ["Omo", "-OmoLibraryMockSearch"]
+            ).usesMockSearch
+        )
+    }
+
     @MainActor
     func testBlankQueryRestoresAllCardsAndCancelsSearch() async {
         let cards = [testCard("a", "认知卸载"), testCard("b", "提取练习")]
@@ -147,7 +156,7 @@ final class KnowledgeLibrarySearchTests: XCTestCase {
 
         await model.startOrStopVoice()
         speech.send(.denied)
-        await Task.yield()
+        await model.waitForSpeechStateForTesting(.denied)
 
         XCTAssertEqual(model.query, "已经输入的内容")
         XCTAssertEqual(model.speechState, .denied)

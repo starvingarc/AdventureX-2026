@@ -32,9 +32,22 @@
 		FA70C0152FC0000000000015 /* KnowledgeLibraryPaginationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeLibraryPaginationTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		FA70C0202FC0000000000020 /* Exceptions for "Omo" folder in "Omo" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = FA48BAF12FB8628200A66913 /* Omo */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		FA48BAF42FB8628200A66913 /* Omo */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				FA70C0202FC0000000000020 /* Exceptions for "Omo" folder in "Omo" target */,
+			);
 			path = Omo;
 			sourceTree = "<group>";
 		};
@@ -352,6 +365,7 @@
 				DEVELOPMENT_TEAM = 44589Y6FA6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Omo/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Omo;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "用语音描述你想找的知识。";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "把你的语音转成知识库搜索文字。";
@@ -364,6 +378,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				OMO_API_BASE_URL = "http://127.0.0.1:5174";
 				PRODUCT_BUNDLE_IDENTIFIER = com.maxhan.shibei;
 				PRODUCT_NAME = Omo;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -382,6 +397,7 @@
 				DEVELOPMENT_TEAM = 44589Y6FA6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Omo/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Omo;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "用语音描述你想找的知识。";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "把你的语音转成知识库搜索文字。";
@@ -394,6 +410,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				OMO_API_BASE_URL = "";
 				PRODUCT_BUNDLE_IDENTIFIER = com.maxhan.shibei;
 				PRODUCT_NAME = Omo;
 				SWIFT_EMIT_LOC_STRINGS = YES;

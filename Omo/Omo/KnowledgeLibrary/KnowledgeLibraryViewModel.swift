@@ -122,9 +122,27 @@ final class KnowledgeLibraryViewModel: ObservableObject {
         speechTranscriber?.stop()
     }
 
+    #if DEBUG
     func waitForSearchForTesting() async {
-        await searchTask?.value
+        // Voice events arrive through an AsyncStream. The test may ask to wait
+        // immediately after yielding a final transcript, before that event has
+        // created the search task on the main actor.
+        for _ in 0..<100 {
+            if let searchTask {
+                await searchTask.value
+                return
+            }
+            await Task.yield()
+        }
     }
+
+    func waitForSpeechStateForTesting(_ expectedState: KnowledgeLibrarySpeechState) async {
+        for _ in 0..<100 {
+            if speechState == expectedState { return }
+            await Task.yield()
+        }
+    }
+    #endif
 
     private func apply(_ response: KnowledgeLibrarySearchResponse, generation: UUID) {
         guard generation == requestGeneration else { return }

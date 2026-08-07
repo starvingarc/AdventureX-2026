@@ -1,19 +1,94 @@
 import Foundation
 
-struct APIClient {
-    #if DEBUG
-    static let defaultBaseURL = URL(string: "http://127.0.0.1:5174")!
-    #else
-    static let defaultBaseURL = URL(string: "https://shibei-production.up.railway.app")!
-    #endif
+enum AppEnvironmentError: LocalizedError, Equatable {
+    case missingAPIBaseURL
+    case invalidAPIBaseURL
 
-    private let baseURL: URL
+    var errorDescription: String? {
+        switch self {
+        case .missingAPIBaseURL:
+            "测试服务尚未配置。"
+        case .invalidAPIBaseURL:
+            "测试服务地址无效。"
+        }
+    }
+}
+
+enum AppEnvironment {
+    static let apiBaseURLInfoKey = "OmoAPIBaseURL"
+    static let debugLocalhostURL = URL(string: "http://127.0.0.1:5174")!
+
+    static func currentAPIBaseURL() throws -> URL {
+        try resolveAPIBaseURL(
+            infoDictionary: Bundle.main.infoDictionary ?? [:],
+            processEnvironment: ProcessInfo.processInfo.environment,
+            allowsDebugLocalhostFallback: allowsDebugLocalhostFallback
+        )
+    }
+
+    static func resolveAPIBaseURL(
+        infoDictionary: [String: Any],
+        processEnvironment: [String: String],
+        allowsDebugLocalhostFallback: Bool
+    ) throws -> URL {
+        let environmentValue = allowsDebugLocalhostFallback
+            ? clean(processEnvironment["OMO_API_BASE_URL"])
+            : nil
+        let bundleValue = clean(infoDictionary[apiBaseURLInfoKey] as? String)
+        guard let rawValue = environmentValue ?? bundleValue else {
+            if allowsDebugLocalhostFallback { return debugLocalhostURL }
+            throw AppEnvironmentError.missingAPIBaseURL
+        }
+        guard let components = URLComponents(string: rawValue),
+              components.user == nil,
+              components.password == nil,
+              components.query == nil,
+              components.fragment == nil,
+              let scheme = components.scheme?.lowercased(),
+              let host = components.host?.lowercased(),
+              !host.isEmpty,
+              !isBlockedLegacyProductionHost(host),
+              let url = components.url else {
+            throw AppEnvironmentError.invalidAPIBaseURL
+        }
+
+        if scheme == "https" { return url }
+        if allowsDebugLocalhostFallback,
+           scheme == "http",
+           ["127.0.0.1", "localhost"].contains(host) {
+            return url
+        }
+        throw AppEnvironmentError.invalidAPIBaseURL
+    }
+
+    private static var allowsDebugLocalhostFallback: Bool {
+        #if DEBUG
+        true
+        #else
+        false
+        #endif
+    }
+
+    private static func clean(_ value: String?) -> String? {
+        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty,
+              !value.contains("$(") else { return nil }
+        return value
+    }
+
+    private static func isBlockedLegacyProductionHost(_ host: String) -> Bool {
+        host.split(separator: ".").map(String.init)
+            == ["shibei-production", "up", "railway", "app"]
+    }
+}
+
+struct APIClient {
+    private let baseURL: URL?
     private let session: URLSession
     private let deviceID: String
 
-    init(baseURL: URL = APIClient.defaultBaseURL, session: URLSession = .shared) {
-        self.baseURL = ProcessInfo.processInfo.environment["OMO_API_BASE_URL"]
-            .flatMap(URL.init(string:)) ?? baseURL
+    init(baseURL: URL? = nil, session: URLSession = .shared) {
+        self.baseURL = baseURL ?? (try? AppEnvironment.currentAPIBaseURL())
         self.session = session
         self.deviceID = Self.deviceID()
     }
@@ -74,6 +149,9 @@ struct APIClient {
         body: Body?,
         timeout: TimeInterval = 30
     ) async throws -> Response {
+        guard let baseURL else {
+            throw AppEnvironment.currentAPIBaseURLConfigurationError
+        }
         var request = URLRequest(url: baseURL.appending(path: path))
         request.cachePolicy = .reloadIgnoringLocalCacheData
         request.httpMethod = method
@@ -107,6 +185,17 @@ struct APIClient {
         let value = UUID().uuidString.lowercased()
         UserDefaults.standard.set(value, forKey: key)
         return value
+    }
+}
+
+private extension AppEnvironment {
+    static var currentAPIBaseURLConfigurationError: Error {
+        do {
+            _ = try currentAPIBaseURL()
+            return AppEnvironmentError.invalidAPIBaseURL
+        } catch {
+            return error
+        }
     }
 }
 

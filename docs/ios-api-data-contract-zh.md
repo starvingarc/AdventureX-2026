@@ -125,6 +125,12 @@ iOS 通过 `KnowledgeLibrarySearching` 提交查询和当前用户已加载卡�
 
 PostgreSQL 持久化使用 `(owner_id, card_id)` 作为 canonical key；重复截图不会覆盖已存在卡片的 mastery、assessment 或 schedule。assessment 的 `attemptId` 在数据库内唯一，重复提交只返回当前状态；并发更新使用行锁与版本 fencing。数据库或 migration 未就绪时业务请求返回 `service_not_ready`，驱动原始错误、连接串和 SQL 参数不会进入响应。
 
+## iOS 运行环境合同
+
+iOS 从生成的 Info.plist 键 `OmoAPIBaseURL` 读取真实服务地址。Debug 可使用进程环境变量 `OMO_API_BASE_URL` 覆盖，并在两者均缺失时只回退到 `http://127.0.0.1:5174`；非 Debug 构建忽略进程环境变量，只接受构建时注入的 HTTPS URL。缺失或无效配置必须显示可恢复错误，不能回退到任何历史生产域名。
+
+知识库合成卡与 Mock 搜索仍由 `#if DEBUG` 包围，并且只有启动参数 `-OmoLibraryFixture`、`-OmoLibraryMockSearch` 或具体搜索验收参数显式出现时才启用。普通 Debug 启动与所有 Archive/Release 构建均走真实 Adapter 或明确的不可用状态，不得自动展示 Fixture 成功。
+
 ## 掌握阶段状态机
 
 - `remembered` 推进一个掌握阶段，最高停在 `engraved`。

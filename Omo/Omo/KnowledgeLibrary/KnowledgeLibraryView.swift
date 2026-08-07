@@ -80,9 +80,6 @@ struct KnowledgeLibraryView: View {
         }
         .onDisappear { model.onDisappear() }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: model.state)
-        #if DEBUG
-        .accessibilityValue("模拟搜索数据")
-        #endif
     }
 
     private var referenceCanvas: some View {

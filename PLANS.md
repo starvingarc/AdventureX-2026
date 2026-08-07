@@ -6,7 +6,7 @@
 
 | 计划 | 分支 | 负责人 | 状态 | 模式 | 进度 | 下一步 |
 |---|---|---|---|---|---:|---|
-| [[plans/codex-testflight-staging-release]] | `codex/testflight-staging-release` | Codex `/root` | `in_progress` | `manual` | 1/7 | 隔离 Debug Fixture 与 TestFlight Staging 配置 |
+| [[plans/codex-testflight-staging-release]] | `codex/testflight-staging-release` | Codex `/root` | `in_progress` | `manual` | 2/7 | 实现真实用户隔离的知识库搜索 |
 
 ## 使用规则
 

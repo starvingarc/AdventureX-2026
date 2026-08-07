@@ -2,6 +2,7 @@ import Foundation
 
 #if DEBUG
 struct KnowledgeLibraryDebugConfiguration {
+    let usesMockSearch: Bool
     let searchMode: DebugMockKnowledgeLibrarySearcher.Mode
     let speechTranscript: String?
     let speechDenied: Bool
@@ -17,6 +18,10 @@ struct KnowledgeLibraryDebugConfiguration {
             mode = .matching
         }
         return Self(
+            usesMockSearch: arguments.contains("-OmoLibraryMockSearch")
+                || arguments.contains("-OmoLibrarySearchFailure")
+                || arguments.contains("-OmoLibrarySearchNoResults")
+                || arguments.contains("-OmoLibraryFixture"),
             searchMode: mode,
             speechTranscript: value(after: "-OmoLibraryVoiceTranscript", in: arguments),
             speechDenied: arguments.contains("-OmoLibrarySpeechDenied"),
@@ -102,7 +107,10 @@ enum KnowledgeLibraryDependencies {
     static func makeSearcher() -> any KnowledgeLibrarySearching {
         #if DEBUG
         let configuration = KnowledgeLibraryDebugConfiguration.current()
-        return DebugMockKnowledgeLibrarySearcher(mode: configuration.searchMode)
+        if configuration.usesMockSearch {
+            return DebugMockKnowledgeLibrarySearcher(mode: configuration.searchMode)
+        }
+        return UnavailableKnowledgeLibrarySearcher()
         #else
         return UnavailableKnowledgeLibrarySearcher()
         #endif

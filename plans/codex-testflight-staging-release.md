@@ -85,11 +85,11 @@ SwiftUI、PhotosUI、Speech、UserNotifications、XCTest、Node.js 20、`node:te
 
 **Files:** `Omo/Omo/Services/APIClient.swift`、`Omo/Omo/KnowledgeLibrary/KnowledgeLibraryDebugFixtures.swift`、`Omo/Omo.xcodeproj/project.pbxproj`、`Omo/OmoTests/ReleaseConfigurationTests.swift`、`docs/ios-api-data-contract-zh.md`。
 
-- [ ] 先写失败 XCTest：Release 配置缺少合法 HTTPS API URL 时拒绝创建真实客户端，Debug 显式启动参数才允许 Fixture。
-- [ ] 运行目标测试并确认因当前硬编码生产 URL／Fixture 边界不足而失败。
-- [ ] 实现 `AppEnvironment`：从 Bundle/build setting 读取 API URL，Release 仅接受 HTTPS staging URL，移除任何生产域名默认回退；Debug Fixture 保持 `#if DEBUG`。
-- [ ] 运行目标测试与全部 iOS 测试，确认 TestFlight 构建无法进入 Mock。
-- [ ] 更新稳定合同并提交。
+- [x] 先写失败 XCTest：Release 配置缺少合法 HTTPS API URL 时拒绝创建真实客户端，Debug 显式启动参数才允许 Fixture。
+- [x] 运行目标测试并确认因当前硬编码生产 URL／Fixture 边界不足而失败。
+- [x] 实现 `AppEnvironment`：从 Bundle/build setting 读取 API URL，Release 仅接受 HTTPS staging URL，移除任何生产域名默认回退；Debug Fixture 保持 `#if DEBUG`。
+- [x] 运行目标测试与全部 iOS 测试，确认 TestFlight 构建无法进入 Mock。
+- [x] 更新稳定合同并提交。
 
 ### Task 3：实现真实用户隔离的知识库搜索
 
@@ -178,12 +178,13 @@ SwiftUI、PhotosUI、Speech、UserNotifications、XCTest、Node.js 20、`node:te
 - 2026-08-08：用户新增硬约束：所有迭代只留在自己的分支，绝不部署生产；因此采用独立 Railway staging 与独立 Postgres，TestFlight 只连接 staging。
 - 2026-08-08：选择从最新 `origin/main` 建 `codex/testflight-staging-release`，再保留历史地整合 PR #36/#37/#30。
 - 2026-08-08：Task 1 完成。后端 `check`、38 pass / 1 skipped 的默认门禁、独立 PostgreSQL 1 pass、文档检查与 iOS `build-for-testing` 通过；XCTest 运行仍留待 Task 6 修复 Simulator 启动后验证。
+- 2026-08-08：Task 2 完成。Release 缺少合法 HTTPS URL 时 fail closed，旧生产域名回退已删除，Mock 仅能由 Debug 显式启动参数开启；iOS 串行 XCTest 28/28 通过，Release Simulator 构建与包内 staging URL／禁用 Mock 字符串检查通过。
 
 ## 阻塞与恢复
 
 - 当前阻塞：无代码阻塞。App Store Connect 当前缺少 `asc` 和已确认的 Distribution 资产；先自动探测和尝试 Xcode 自动签名，只有确实缺权限时才请求用户。
 - 解除条件：若 Apple 权限不足，用户提供最小 App Store Connect API key（App Manager/Developer 适用角色）或在 Xcode 完成一次账号登录。
-- 下一位 Agent 从哪里继续：先完成 Task 1，禁止连接 Railway 项目“拾贝”。
+- 下一位 Agent 从哪里继续：执行 Task 3 的用户隔离搜索 TDD；禁止连接 Railway 项目“拾贝”。
 
 ## 相关文档
 

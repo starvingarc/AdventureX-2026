@@ -1,2 +1,4 @@
 "CFBundleDisplayName" = "哦莫";
 "CFBundleName" = "哦莫";
+"NSMicrophoneUsageDescription" = "用语音描述你想找的知识。";
+"NSSpeechRecognitionUsageDescription" = "把你的语音转成知识库搜索文字。";

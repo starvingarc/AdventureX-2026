@@ -5,7 +5,12 @@
 ## 产品与合同
 
 - [[docs/product-principles]]：产品北极星、证据、召回、隐私与体验护栏。
+- [[docs/frontend-interaction-prd]]：Omo MVP 从首次上传、处理恢复、抽卡、刮开、自评到知识库与通知的统一前端交互和验收基线。
+- [[docs/knowledge-library-prd]]：知识库完整卡片浏览、文字／语音搜索、分页与 mock 边界的 MVP 产品需求。
 - [[docs/ios-api-data-contract-zh]]：当前截图主链、iOS 模型、API、兼容与失败语义。
+- [[docs/superpowers/specs/2026-08-02-active-recall-selective-reintegration-design]]：以团队最新主线为基准，选择性恢复已验收首页与主动回忆交互的实施规格。
+- [[docs/superpowers/specs/2026-08-03-knowledge-library-search-design]]：知识库完整卡片浏览、文字／语音输入、分页与可替换搜索层的设计规格。
+- [[docs/superpowers/plans/2026-08-03-knowledge-library-search]]：知识库页面的测试先行实施步骤与 Simulator 验收计划。
 - [[docs/privacy-policy-zh]]：面向用户的隐私政策。
 - [[docs/support-zh]]：面向用户的支持说明。
 
@@ -14,10 +19,14 @@
 - [[docs/frontend/v2-frontend-architecture]]：当前精简 SwiftUI 视图、状态与 API 边界。
 - [[docs/frontend/v2-layout-system]]：当前布局 Token、召回动效和 UI 验证要求。
 - [[docs/asset-provenance]]：App 素材来源、授权、处理方式与哈希。
+- [[docs/knowledge-library-validation]]：知识库页面的 Simulator 路径、截图与未验证边界。
+- [[docs/core-interaction-release-validation]]：核心交互的 Release UI Test、真实 staging、截图与 TestFlight 验收证据。
+- [[docs/staging-testflight-runbook]]：隔离 Railway staging、migration、部署与 TestFlight 运行手册。
 
 ## 工程与协作
 
 - [[docs/quality-baseline]]：验证矩阵、UI 原则门禁与证据分级。
+- [[docs/postgres-persistence]]：PostgreSQL Store、顺序 migration、readiness、导入与恢复边界。
 - [[docs/issue-management-workflow]]：Issue、Project、临时 Plan 与 PR 的统一流转、标签和完成门槛。
 - [[docs/documentation-guide]]：稳定文档、临时计划和决定记录的分层方式。
 - [[docs/decision-log]]：重大且难以逆转的决定。

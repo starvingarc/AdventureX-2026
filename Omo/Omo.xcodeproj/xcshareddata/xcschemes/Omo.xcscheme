@@ -21,6 +21,20 @@
                ReferencedContainer = "container:Omo.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "FA80C0052FC0000000000005"
+               BuildableName = "OmoUITests.xctest"
+               BlueprintName = "OmoUITests"
+               ReferencedContainer = "container:Omo.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
@@ -38,6 +52,17 @@
                BlueprintIdentifier = "FA70C0052FC0000000000005"
                BuildableName = "OmoTests.xctest"
                BlueprintName = "OmoTests"
+               ReferencedContainer = "container:Omo.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "FA80C0052FC0000000000005"
+               BuildableName = "OmoUITests.xctest"
+               BlueprintName = "OmoUITests"
                ReferencedContainer = "container:Omo.xcodeproj">
             </BuildableReference>
          </TestableReference>

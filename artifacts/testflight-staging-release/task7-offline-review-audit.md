@@ -7,11 +7,16 @@
 
 ## 已完成止损
 
-1. Build 28 已从旧内部测试组解除。
+1. Build 28 已执行移组并永久过期。由于旧内部组配置为 `hasAccessToAllBuilds=true`，关系 API 仍列出过期 build 28，但其 internal/external state 均为 `EXPIRED`，不可安装。
 2. Build 28 已永久设为 `EXPIRED`；`internalBuildState` 与 `externalBuildState` 均为 `EXPIRED`。
 3. 错误 Draft PR #38 已关闭并注明原因，不能合并。
 4. 旧 App 的 build 1–27、历史用户、测试员、生产数据和生产环境均未修改。
 5. 新产品 Bundle ID `com.maxhan.omo` 已注册，资源 ID 为 `B696RZHHNR`；注册前确认团队中不存在该 Bundle ID，也不存在对应 App Store Connect App。
+6. Recallo App 名称仍为 `Recallo`，副标题仍为 `不记笔记`；商店描述、关键词与宣传文字保持旧产品内容。
+7. App Privacy URL 已恢复为 `https://shibei-production.up.railway.app/privacy`，Support URL 已恢复为 `https://shibei-production.up.railway.app/support`。
+8. TestFlight 中文说明已恢复为仓库中保存的 Recallo Beta 测试流程，反馈邮箱保持原值。
+9. 旧 build 27 为 `VALID / IN_BETA_TESTING`，自动通知开启；原内部组仍有 10 位测试员，原外部组未删除。
+10. 两份本次误建的旧 Bundle App Store profile（`XKVZHAZMZ5`、`4NPHQ877RA`）已删除；既有旧签名资源未改动。
 
 ## 新 Omo 发布边界
 
@@ -36,3 +41,4 @@
 - IPA SHA-256 为 `6f010cfb9ee1c5f27fad60eb89050307256b44882d9f2b614aa83f0d85ea7b10`；Bundle ID、版本、iOS 17.0、staging URL、PrivacyInfo、签名 entitlement 与 forbidden-string 审计通过。
 - Backend 51 项中 50 pass、1 项默认 PostgreSQL skip；独立身份门禁通过。
 - 本轮 Simulator `build-for-testing` 成功，但 CoreSimulator 在测试安装前反复退出／阻塞，XCTest 没有实际执行；不能用上一轮旧 Bundle 下的 37/37 冒充新身份测试证据。
+- 独立 Omo App 记录尚未创建：Apple 要求已登录 Apple Account 网页会话；API Key/Issuer ID 不能代替此步骤。登录后使用 `Omo · 知识回顾`、`com.maxhan.omo`、`omo-ios-001` 创建，且不得继承 Recallo 测试员。

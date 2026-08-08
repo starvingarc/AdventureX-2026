@@ -191,11 +191,12 @@ SwiftUI、PhotosUI、Speech、UserNotifications、XCTest、Node.js 20、`node:te
 - 2026-08-08：Task 5 完成。用户已在隔离 staging 添加 Qwen/TikHub 变量；显式 Node 20 Dockerfile 消除了空服务镜像复用问题，部署 `c35b57f1-90da-4d80-b78a-0eb9145f56d0` 成功。公网 health/readiness、真实合成截图生成、读取、搜索、assessment 幂等、重启回读和删除均通过；Release 包已固定并验证 staging HTTPS URL，iOS XCTest 37/37 通过。生产项目与 `main` 未触碰。
 - 2026-08-08：Task 6 增加 Release Simulator × 真实 staging 验收。空库、系统选图、AI 许可、真实生成、通知权限、IP 抽卡、揭示门禁、实际刮擦、自评取消与 remembered 提交、真实搜索、完整上下文和重启空库均通过；iOS 写入在 PostgreSQL 中确认后已删除合成卡。当前 MVP 没有 Figma 定义的用户删除入口，因此没有临时扩展 UI。
 - 2026-08-08：Task 7 离线 App Review 审计完成。图标尺寸/Alpha、实际权限文案、隐私清单、系统框架依赖、无 ATT/IAP/APNs/额外 entitlement、Release forbidden-string 均通过。现有 Store profile 的 Apple Distribution 证书已于 2026-07-09 过期，Keychain 无对应有效私钥；ASC 凭据仍是远端 build number、新签名和上传的硬边界。
+- 2026-08-08：用户提供 Key ID `KNJ4MZ6CUK` 的 `.p8`，文件权限已收紧为 `0600`；团队 Key 尚缺 Issuer ID，未尝试错误 key type、未保存不完整凭据。同期 generic iOS 无签名 Release Archive `1.0 (4)` 通过，包内 staging URL、PrivacyInfo 和加密声明复核通过；覆盖 iOS 17.0 的 Release device build 也成功，当前工程 iOS 26.0 最低版本不是源码硬依赖，是否下调留作明确发布决定。
 
 ## 阻塞与恢复
 
-- 当前阻塞：App Store Connect 仍缺少可用凭据与 Apple Distribution 身份；支持页和隐私政策也尚无公开 HTTPS 地址。staging backend 已完成，不再阻塞。
-- 解除条件：提供最小 App Store Connect API key（建议 App Manager）或在 Xcode 完成一次有效登录；并确定支持邮箱、隐私政策与支持页的公开 HTTPS 地址。
+- 当前阻塞：App Store Connect 团队 API key 仍缺 Issuer ID，且本机没有 Apple Distribution 身份；支持页和隐私政策也尚无公开 HTTPS 地址。staging backend 已完成，不再阻塞。
+- 解除条件：提供现有团队 API key 的 Issuer ID（建议 App Manager）；并在正式对外元数据需要时确定支持邮箱、隐私政策与支持页的公开 HTTPS 地址。
 - 下一位 Agent 从哪里继续：先执行 Task 6 的真实 staging Simulator 闭环，再回到 Task 7 探测远端 App/build number、签名和上传；始终禁止连接 Railway 项目“拾贝”。
 
 ## 相关文档

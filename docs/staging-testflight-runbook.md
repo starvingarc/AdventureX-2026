@@ -122,3 +122,6 @@ xcodebuild -exportArchive \
 - Release 默认连接上述 staging HTTPS 域名；实际 Simulator App 包检查与 iOS XCTest 37/37 通过。
 - 本机有 `com.maxhan.shibei` 的 App Store provisioning profile，但 Keychain 仅有 Apple Development 身份、没有 Apple Distribution 身份。
 - `asc 3.5.1` 已安装，但当前没有 App Store Connect 凭据；尚未访问或修改远端 App 记录。
+- 用户已提供 Key ID `KNJ4MZ6CUK` 的 `.p8` 文件并已收紧本机权限；团队 Key 仍须 Issuer ID 才能安全登录。
+- 无签名的 generic iOS Release Archive 已通过；实际归档包的 bundle、staging URL、隐私清单和加密声明复核通过。
+- 工程当前最低系统为 iOS 26.0；独立覆盖到 iOS 17.0 的 Release device build 也通过，因此下调最低系统在技术上可行，但尚未作为发布决定写入工程。

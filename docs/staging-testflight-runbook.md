@@ -102,14 +102,15 @@ xcodebuild -exportArchive \
 >
 > 如遇生成、搜索或自评失败，请保留截图与大致发生时间，并联系测试支持邮箱。测试数据仅写入隔离 staging，不与生产数据互通。
 
-## 当前最小外部输入
+## 当前剩余人工确认
 
-继续到真实 TestFlight 前只缺以下用户侧输入／权限：
+内部 TestFlight 已可安装，不再缺签名或上传凭据。后续只有以下非阻塞人工事项：
 
-1. App Store Connect API key（建议 App Manager 权限）或一次有效的 Xcode/App Store Connect 登录，用于查询 App 记录和安全 build number、签名、上传及关联内部测试组。
-2. 确认可公开使用的支持邮箱（草案当前为 `mingyuhan0814@gmail.com`），以及隐私政策和支持页面的公开 HTTPS 地址；当前仓库只有静态页面，尚未托管。
+1. 首位测试员在自己的真机上从 TestFlight 安装 build 28，复核相册、麦克风、语音识别和通知权限；未经明确授权，不由自动化代操作用户设备。
+2. 精确商店名称 `Omo` 已被其他账号占用。正式 App Store 发布前需选择唯一的商店名称；已安装二进制仍显示 `Omo`，内部 TestFlight 不受影响。
+3. 正式公开发布前再次确认公开支持邮箱。当前内部 TestFlight 沿用 App Store Connect 已有 feedback email。
 
-上述信息不得提交到 Git；密钥只进入 Railway staging 或本机安全凭据存储。
+API 私钥不得提交到 Git；只保存在本机安全凭据存储。
 
 ## 当前状态（2026-08-08）
 
@@ -117,11 +118,13 @@ xcodebuild -exportArchive \
 - Migration `001` / `002` 已应用并验证 ready。
 - 临时 Postgres TCP proxy 已删除，当前 proxy 列表为空。
 - staging 变量已配置；供应商密钥只存在 Railway staging，未写入仓库或日志。
-- backend 部署 `c35b57f1-90da-4d80-b78a-0eb9145f56d0` 为 `SUCCESS`，公网域名为 `https://omo-api-staging-staging.up.railway.app`。
+- backend 最终部署 `b00a4f66-f006-420f-8a7b-91cb1b21e590` 为 `SUCCESS`，公网域名为 `https://omo-api-staging-staging.up.railway.app`。
 - health/readiness、空库、真实生成、读取、搜索、assessment 幂等、重启回读和删除均已通过；合成测试数据已删除。
 - Release 默认连接上述 staging HTTPS 域名；实际 Simulator App 包检查与 iOS XCTest 37/37 通过。
-- 本机有 `com.maxhan.shibei` 的 App Store provisioning profile，但 Keychain 仅有 Apple Development 身份、没有 Apple Distribution 身份。
-- `asc 3.5.1` 已安装，但当前没有 App Store Connect 凭据；尚未访问或修改远端 App 记录。
-- 用户已提供 Key ID `KNJ4MZ6CUK` 的 `.p8` 文件并已收紧本机权限；团队 Key 仍须 Issuer ID 才能安全登录。
-- 无签名的 generic iOS Release Archive 已通过；实际归档包的 bundle、staging URL、隐私清单和加密声明复核通过。
-- 工程当前最低系统为 iOS 26.0；独立覆盖到 iOS 17.0 的 Release device build 也通过，因此下调最低系统在技术上可行，但尚未作为发布决定写入工程。
+- `asc 3.5.1` 已使用系统 Keychain profile 完成认证并通过在线验证；私钥和凭据未进入仓库。
+- 新 Apple Distribution 证书和 App Store provisioning profile 均有效至 2027-08-08。
+- 工程最低系统已正式设为 iOS 17.0；签名 Archive 与导出 IPA 均通过。
+- IPA `Omo.ipa` 为 `1.0 (28)`，只连接上述 staging，SHA-256 为 `7c92f246574d78c8ea26b565fa382542b05a5259d52be4dad91e3041b56fd64d`。
+- App Store Connect build ID `029508e7-5041-47e0-a6ba-1bd4bb3e6ea5` 已处理为 `VALID`，并处于内部测试状态 `IN_BETA_TESTING`。
+- Build 28 已关联现有内部测试组并启用自动通知；未邀请外部测试员，也未提交 App Store 正式审核。
+- 隐私政策与支持页已分别托管在 `/privacy` 和 `/support`；兼容地址 `/privacy-policy.html` 亦可用。

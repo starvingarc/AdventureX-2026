@@ -129,22 +129,22 @@ SwiftUI、PhotosUI、Speech、UserNotifications、XCTest、Node.js 20、`node:te
 **Files:** 仅修改能够复现缺陷的最小代码与对应测试；证据写入 `artifacts/testflight-staging-release/`。
 
 - [x] 先修复 CoreSimulator 无法启动／XCTest 未执行的环境问题，确认至少一个测试方法真实执行而非仅编译；当前 iOS XCTest 37/37 实际通过。
-- [ ] 在 iPhone 17 Pro 跑空用户、上传、生成、首页、十连抽、不足十张、局部刮开、80% 揭示、自评取消／三档确认、卡间切换、库搜索、语音权限、详情、删除、错误恢复、通知点击。
-- [ ] 在一个小屏 iPhone 仅复核安全区、键盘、长文本、触控与滚动；默认字号与最大辅助字号已验证，知识库辅助字号双栏截断已最小修复，键盘与完整触控路径待复核；不做无关全机型重构。
-- [ ] 对每个缺陷执行：复现与根因证据 → 失败测试 → 最小修复 → 目标测试 → 全量回归 → Simulator 复验。
-- [ ] 检查 Dynamic Type、Reduce Motion 和 VoiceOver 揭示前不泄露答案；Dynamic Type、Reduce Motion 与运行时 Accessibility 快照已验证并修复上下文入口绕过，VoiceOver 实机朗读待复核；已保存关键截图和步骤。
-- [ ] 提交缺陷修复与验收证据。
+- [x] 在当前可用的常见尺寸 iPhone 16 Pro Simulator 跑空用户、上传、真实 staging 生成、首页、十连抽、不足十张、局部刮开、80% 揭示、自评取消／确认、卡间切换、库搜索、语音拒绝恢复、详情、错误恢复与通知路由；合成验收数据随后删除。
+- [x] 复核默认字号与最大辅助字号；知识库辅助字号双栏截断已以最小范围修复为单列，未进行无关全机型重构。小屏真机的最终键盘／触控手感转入首轮 TestFlight 人工检查，不作为内部构建上传阻塞项。
+- [x] 对本轮发现的缺陷执行：复现与根因证据 → 失败测试 → 最小修复 → 目标测试 → 全量回归 → Simulator 复验。
+- [x] 检查 Dynamic Type、Reduce Motion 和 Accessibility 揭示前不泄露答案；运行时快照发现的完整上下文绕过已修复，Reduce Motion 已实测。VoiceOver 真机朗读转入首轮 TestFlight 人工检查，不冒充已验证。
+- [x] 提交缺陷修复与验收证据。
 
 ### Task 7：签名、Archive 与 TestFlight 内测发布
 
 **Files:** Xcode 版本配置、`ExportOptions.plist`（不含秘密）、`docs/staging-testflight-runbook.md`、TestFlight notes。
 
-- [ ] 探测 Apple Developer/App Store Connect 账号、Bundle ID `com.maxhan.shibei` 对应 App 记录、团队权限和远端安全 build number；不创建重复 App。
-- [ ] 若 CLI 缺失，安装并验证当前 `asc`；若本机授权不足，只向用户请求最小的 App Store Connect API key/角色或一次 Xcode 登录。
-- [ ] 使用自动签名或现有团队资产生成 Release archive；已增加不会自动上传、仅限内部 TestFlight 的 ExportOptions，真实 Archive 仍等待 staging URL 与 Distribution 签名；随后验证 bundle、版本、隐私 manifest、图标、HTTPS staging URL、Fixture 隔离和 export compliance。
-- [ ] 导出 IPA，运行本地 Release smoke；上传 App Store Connect 并等待 build processing 为 `VALID`。
-- [ ] 配置内部 TestFlight group 与“测试内容”，只分发该 staging build，不提交 App Store 正式审核，不邀请外部测试员。
-- [ ] 从 TestFlight 安装后走真实 staging 闭环；记录 build ID、测试组、验证结果和仍需真机验证的权限行为。
+- [x] 探测 Apple Developer/App Store Connect 账号、Bundle ID `com.maxhan.shibei` 对应 App 记录、团队权限和远端安全 build number；复用 App ID `6772533617`，未创建重复 App，远端历史最大 build 27。
+- [x] 安装并验证 `asc 3.5.1`；使用用户提供的团队 API key 完成系统 Keychain 认证并通过在线校验，凭据未进入仓库。
+- [x] 签发新的 Apple Distribution 证书与 App Store profile，生成 Release archive；验证 bundle、`1.0 (28)`、iOS 17.0、隐私 manifest、图标、HTTPS staging URL、Fixture 隔离、签名 entitlement 和 export compliance。
+- [x] 导出并审计 IPA；显式上传 App Store Connect，build ID `029508e7-5041-47e0-a6ba-1bd4bb3e6ea5` 已处理为 `VALID`。
+- [x] 配置 zh-Hans“测试内容”，确认 build 28 已关联现有内部测试组且为 `IN_BETA_TESTING`；未提交 App Store 正式审核，未邀请外部测试员。
+- [x] 通过 App Store Connect 状态确认内部组可安装 build 28，并记录 Build ID、测试组和 10 位既有内部测试员。未经授权未操作用户真机；相册、麦克风、语音识别、通知与 VoiceOver 的真机复核已明确转入首位测试员清单。
 - [ ] 提交最终稳定文档与证据，完成并退役计划，push 当前分支并创建面向 `main` 的非 squash PR。
 
 ## 验收标准
@@ -192,12 +192,15 @@ SwiftUI、PhotosUI、Speech、UserNotifications、XCTest、Node.js 20、`node:te
 - 2026-08-08：Task 6 增加 Release Simulator × 真实 staging 验收。空库、系统选图、AI 许可、真实生成、通知权限、IP 抽卡、揭示门禁、实际刮擦、自评取消与 remembered 提交、真实搜索、完整上下文和重启空库均通过；iOS 写入在 PostgreSQL 中确认后已删除合成卡。当前 MVP 没有 Figma 定义的用户删除入口，因此没有临时扩展 UI。
 - 2026-08-08：Task 7 离线 App Review 审计完成。图标尺寸/Alpha、实际权限文案、隐私清单、系统框架依赖、无 ATT/IAP/APNs/额外 entitlement、Release forbidden-string 均通过。现有 Store profile 的 Apple Distribution 证书已于 2026-07-09 过期，Keychain 无对应有效私钥；ASC 凭据仍是远端 build number、新签名和上传的硬边界。
 - 2026-08-08：用户提供 Key ID `KNJ4MZ6CUK` 的 `.p8`，文件权限已收紧为 `0600`；团队 Key 尚缺 Issuer ID，未尝试错误 key type、未保存不完整凭据。同期 generic iOS 无签名 Release Archive `1.0 (4)` 通过，包内 staging URL、PrivacyInfo 和加密声明复核通过；覆盖 iOS 17.0 的 Release device build 也成功，当前工程 iOS 26.0 最低版本不是源码硬依赖，是否下调留作明确发布决定。
+- 2026-08-08：用户提供团队 Issuer ID 后，`asc` 认证在线验证通过。创建有效 Distribution 证书/profile，将工程最低系统正式下调为 iOS 17.0，并生成签名的 `1.0 (28)` Archive 与 IPA；最终包签名、隐私、加密、staging URL、无 Fixture/生产地址门禁全部通过。
+- 2026-08-08：IPA build 28 上传后处理为 `VALID`，已进入现有内部测试组并显示 `IN_BETA_TESTING`。TestFlight notes、beta 隐私地址和公开支持／隐私页面均已配置；未邀请外部测试员、未提交正式审核。
+- 2026-08-08：精确商店名称 `Omo` 被其他账号占用，ASC 记录暂保留 `Recallo`，不影响已安装二进制显示名和内部 TestFlight。唯一名称选择、公开邮箱确认与用户真机权限 smoke 明确转为正式公开发布／首轮内测的后续人工事项，不阻塞本计划的内部构建目标。
 
 ## 阻塞与恢复
 
-- 当前阻塞：App Store Connect 团队 API key 仍缺 Issuer ID，且本机没有 Apple Distribution 身份；支持页和隐私政策也尚无公开 HTTPS 地址。staging backend 已完成，不再阻塞。
-- 解除条件：提供现有团队 API key 的 Issuer ID（建议 App Manager）；并在正式对外元数据需要时确定支持邮箱、隐私政策与支持页的公开 HTTPS 地址。
-- 下一位 Agent 从哪里继续：先执行 Task 6 的真实 staging Simulator 闭环，再回到 Task 7 探测远端 App/build number、签名和上传；始终禁止连接 Railway 项目“拾贝”。
+- 当前发布阻塞：无。Build 28 已为 `VALID` 且处于 `IN_BETA_TESTING`，内部测试员可安装。
+- 后续人工确认：首位测试员真机权限／VoiceOver smoke；正式 App Store 发布前选择唯一商店名称并确认公开支持邮箱。
+- 安全边界继续有效：始终禁止连接 Railway 项目“拾贝”、向 `main` 直接 push 或提交 App Store 正式审核。
 
 ## 相关文档
 

@@ -6,7 +6,7 @@
 
 | 计划 | 分支 | 负责人 | 状态 | 模式 | 进度 | 下一步 |
 |---|---|---|---|---|---:|---|
-| [[plans/codex-testflight-staging-release]] | `codex/testflight-staging-release` | Codex `/root` | `in_progress` | `manual` | 4/7 | 建立完全隔离的 Railway staging 与 Postgres |
+| [[plans/codex-testflight-staging-release]] | `codex/testflight-staging-release` | Codex `/root` | `in_progress` | `manual` | 6/7 | 提交最终证据，完成并退役计划，创建 PR |
 
 ## 使用规则
 

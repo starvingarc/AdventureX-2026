@@ -37,6 +37,24 @@ test("health is liveness while explicit local fixture mode can become ready", as
   });
 });
 
+test("public privacy and support pages are served as HTML without requiring API readiness", async () => {
+  await withServer({ NODE_ENV: "development" }, async (baseURL) => {
+    const privacy = await fetch(`${baseURL}/privacy`);
+    const support = await fetch(`${baseURL}/support`);
+    const linkedPrivacy = await fetch(`${baseURL}/privacy-policy.html`);
+    const privacyBody = await privacy.text();
+    const supportBody = await support.text();
+
+    assert.equal(privacy.status, 200);
+    assert.match(privacy.headers.get("content-type"), /^text\/html; charset=utf-8$/);
+    assert.match(privacyBody, /<title>Omo 隐私政策<\/title>/);
+    assert.equal(support.status, 200);
+    assert.match(support.headers.get("content-type"), /^text\/html; charset=utf-8$/);
+    assert.match(supportBody, /<title>Omo 支持<\/title>/);
+    assert.equal(linkedPrivacy.status, 200);
+  });
+});
+
 test("production readiness and business routes fail closed on non-durable storage", async () => {
   const env = {
     NODE_ENV: "production",

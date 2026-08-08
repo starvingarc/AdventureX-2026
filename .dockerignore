@@ -2,7 +2,9 @@
 .gitignore
 .release
 artifacts
-docs
+docs/*
+!docs/privacy-policy.html
+!docs/support.html
 Omo
 plans
 **/node_modules

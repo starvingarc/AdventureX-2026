@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 
@@ -13,6 +14,9 @@ export function createOmoServer(options = {}) {
   const store = options.store || createCardStore(config, options.storeOptions);
   const createCard = options.createCard || createMemoryCard;
   const searchCards = options.searchCards || searchMemoryCards;
+  const publicPagesDirectory = options.publicPagesDirectory
+    || env.OMO_PUBLIC_PAGES_DIR
+    || fileURLToPath(new URL("../../docs/", import.meta.url));
   const currentReadiness = async () => {
     let storage;
     try {
@@ -53,6 +57,12 @@ export function createOmoServer(options = {}) {
       if (request.method === "GET" && url.pathname === "/api/readiness") {
         const readiness = await currentReadiness();
         return send(response, readiness.ready ? 200 : 503, readiness);
+      }
+
+      const publicPage = publicPageFilename(url.pathname);
+      if (request.method === "GET" && publicPage) {
+        const html = await readFile(resolve(publicPagesDirectory, publicPage), "utf8");
+        return sendHTML(response, 200, html);
       }
 
       if (
@@ -203,6 +213,34 @@ function send(response, status, body) {
     "cache-control": "no-store"
   });
   response.end(JSON.stringify(body));
+}
+
+function sendHTML(response, status, body) {
+  response.writeHead(status, {
+    "content-type": "text/html; charset=utf-8",
+    "cache-control": "public, max-age=300",
+    "content-security-policy": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; frame-ancestors 'none'",
+    "x-content-type-options": "nosniff"
+  });
+  response.end(body);
+}
+
+function publicPageFilename(pathname) {
+  if (
+    pathname === "/privacy"
+    || pathname === "/privacy/"
+    || pathname === "/privacy-policy.html"
+  ) {
+    return "privacy-policy.html";
+  }
+  if (
+    pathname === "/support"
+    || pathname === "/support/"
+    || pathname === "/support.html"
+  ) {
+    return "support.html";
+  }
+  return null;
 }
 
 function cors(response) {

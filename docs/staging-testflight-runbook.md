@@ -4,7 +4,7 @@
 
 - 仅使用 Railway 项目 `Omo TestFlight Staging` 的 `staging` 环境。
 - 禁止 link、读取、改变量、迁移或部署现有项目“拾贝”。
-- 禁止向 `main` push；TestFlight 迭代只来自 `codex/testflight-staging-release`。
+- 禁止向 `main` push；本轮 TestFlight 迭代只来自 `codex/omo-independent-app`。
 - staging 使用独立 Postgres，不导入、复制或查询生产数据。
 - 密钥只保存在 Railway 变量或 App Store Connect，不写入仓库、命令输出、日志或验收截图。
 
@@ -84,7 +84,7 @@ xcodebuild -exportArchive \
   -allowProvisioningUpdates
 ```
 
-导出配置使用 `destination=export`，因此不会在导出时意外上传；上传必须是后续显式动作。`testFlightInternalTestingOnly=true` 会把该构建限制为内部 TestFlight，不用于外部测试或 App Store 正式发布。`manageAppVersionAndBuildNumber=false` 保证 Xcode 不静默改写已审计的 build number。
+导出配置使用 `destination=export`，因此不会在导出时意外上传；上传必须是后续显式动作。`testFlightInternalTestingOnly=false` 保证构建可送交 Beta App Review 并加入外部测试组；它不会因此自动发布到 App Store。`manageAppVersionAndBuildNumber=false` 保证 Xcode 不静默改写已审计的 build number。
 
 导出后必须再次检查：
 

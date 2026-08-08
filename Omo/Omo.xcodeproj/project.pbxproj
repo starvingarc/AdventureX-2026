@@ -432,69 +432,69 @@
 			name = Release;
 		};
 		FA48BAFE2FB8628400A66913 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
-				DEVELOPMENT_TEAM = 44589Y6FA6;
-				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = Omo/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Omo;
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "用语音描述你想找的知识。";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "把你的语音转成知识库搜索文字。";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				OMO_API_BASE_URL = "http://127.0.0.1:5174";
-				PRODUCT_BUNDLE_IDENTIFIER = com.maxhan.omo;
-				PRODUCT_NAME = Omo;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
-			};
-			name = Debug;
-		};
+	buildSettings = {
+		"ASSETCATALOG_COMPILER_APPICON_NAME" = AppIcon;
+		"ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME" = AccentColor;
+		"CODE_SIGN_STYLE" = Automatic;
+		"CURRENT_PROJECT_VERSION" = 3;
+		"DEVELOPMENT_TEAM" = 44589Y6FA6;
+		"ENABLE_PREVIEWS" = YES;
+		"GENERATE_INFOPLIST_FILE" = YES;
+		"INFOPLIST_FILE" = "Omo/Info.plist";
+		"INFOPLIST_KEY_CFBundleDisplayName" = Omo;
+		"INFOPLIST_KEY_NSMicrophoneUsageDescription" = "\U7528\U8bed\U97f3\U63cf\U8ff0\U4f60\U60f3\U627e\U7684\U77e5\U8bc6\U3002";
+		"INFOPLIST_KEY_NSSpeechRecognitionUsageDescription" = "\U628a\U4f60\U7684\U8bed\U97f3\U8f6c\U6210\U77e5\U8bc6\U5e93\U641c\U7d22\U6587\U5b57\U3002";
+		"INFOPLIST_KEY_UIApplicationSceneManifest_Generation" = YES;
+		"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents" = YES;
+		"INFOPLIST_KEY_UILaunchScreen_Generation" = YES;
+		"INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone" = UIInterfaceOrientationPortrait;
+		"LD_RUNPATH_SEARCH_PATHS" = (
+			"$(inherited)",
+			"@executable_path/Frameworks",
+		);
+		"MARKETING_VERSION" = "1.0";
+		"OMO_API_BASE_URL" = "http://127.0.0.1:5174";
+		"PRODUCT_BUNDLE_IDENTIFIER" = "com.maxhan.omo";
+		"PRODUCT_NAME" = Omo;
+		"SWIFT_EMIT_LOC_STRINGS" = YES;
+		"SWIFT_VERSION" = "5.0";
+		"TARGETED_DEVICE_FAMILY" = 1;
+	};
+	isa = XCBuildConfiguration;
+	name = Debug;
+};
 		FA48BAFF2FB8628400A66913 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
-				DEVELOPMENT_TEAM = 44589Y6FA6;
-				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = Omo/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Omo;
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "用语音描述你想找的知识。";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "把你的语音转成知识库搜索文字。";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				OMO_API_BASE_URL = "https://omo-api-staging-staging.up.railway.app";
-				PRODUCT_BUNDLE_IDENTIFIER = com.maxhan.omo;
-				PRODUCT_NAME = Omo;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
-			};
-			name = Release;
-		};
+	buildSettings = {
+		"ASSETCATALOG_COMPILER_APPICON_NAME" = AppIcon;
+		"ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME" = AccentColor;
+		"CODE_SIGN_STYLE" = Automatic;
+		"CURRENT_PROJECT_VERSION" = 3;
+		"DEVELOPMENT_TEAM" = 44589Y6FA6;
+		"ENABLE_PREVIEWS" = YES;
+		"GENERATE_INFOPLIST_FILE" = YES;
+		"INFOPLIST_FILE" = "Omo/Info.plist";
+		"INFOPLIST_KEY_CFBundleDisplayName" = Omo;
+		"INFOPLIST_KEY_NSMicrophoneUsageDescription" = "\U7528\U8bed\U97f3\U63cf\U8ff0\U4f60\U60f3\U627e\U7684\U77e5\U8bc6\U3002";
+		"INFOPLIST_KEY_NSSpeechRecognitionUsageDescription" = "\U628a\U4f60\U7684\U8bed\U97f3\U8f6c\U6210\U77e5\U8bc6\U5e93\U641c\U7d22\U6587\U5b57\U3002";
+		"INFOPLIST_KEY_UIApplicationSceneManifest_Generation" = YES;
+		"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents" = YES;
+		"INFOPLIST_KEY_UILaunchScreen_Generation" = YES;
+		"INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone" = UIInterfaceOrientationPortrait;
+		"LD_RUNPATH_SEARCH_PATHS" = (
+			"$(inherited)",
+			"@executable_path/Frameworks",
+		);
+		"MARKETING_VERSION" = "1.0";
+		"OMO_API_BASE_URL" = "https://omo-api-staging-staging.up.railway.app";
+		"PRODUCT_BUNDLE_IDENTIFIER" = "com.maxhan.omo";
+		"PRODUCT_NAME" = Omo;
+		"SWIFT_EMIT_LOC_STRINGS" = YES;
+		"SWIFT_VERSION" = "5.0";
+		"TARGETED_DEVICE_FAMILY" = 1;
+	};
+	isa = XCBuildConfiguration;
+	name = Release;
+};
 		FA70C0092FC0000000000009 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {

@@ -37,9 +37,19 @@ test("Release builds target only the verified TestFlight staging API", async () 
 
   assert.match(
     project,
-    /OMO_API_BASE_URL = "https:\/\/omo-api-staging-staging\.up\.railway\.app";/
+    /"?OMO_API_BASE_URL"? = "https:\/\/omo-api-staging-staging\.up\.railway\.app";/
   );
   assert.doesNotMatch(project, /shibei-production\.up\.railway\.app/);
+});
+
+test("TestFlight export remains eligible for external beta review", async () => {
+  const exportOptions = await readFile(
+    new URL("config/ExportOptions-TestFlight.plist", repositoryRoot),
+    "utf8"
+  );
+
+  assert.match(exportOptions, /<key>testFlightInternalTestingOnly<\/key>\s*<false\/>/);
+  assert.doesNotMatch(exportOptions, /<key>testFlightInternalTestingOnly<\/key>\s*<true\/>/);
 });
 
 test("Omo uses an independent app identity and build sequence", async () => {
@@ -51,11 +61,11 @@ test("Omo uses an independent app identity and build sequence", async () => {
   const buildSettings = [...project.matchAll(/buildSettings = \{([\s\S]*?)\n\s*\};/g)]
     .map((match) => match[1]);
   const buildVersions = (bundleIdentifier) => buildSettings
-    .filter((settings) => settings.includes(`PRODUCT_BUNDLE_IDENTIFIER = ${bundleIdentifier};`))
-    .map((settings) => settings.match(/CURRENT_PROJECT_VERSION = (\d+);/)?.[1])
+    .filter((settings) => settings.match(/"?PRODUCT_BUNDLE_IDENTIFIER"? = "?([^";]+)"?;/)?.[1] === bundleIdentifier)
+    .map((settings) => settings.match(/"?CURRENT_PROJECT_VERSION"? = (\d+);/)?.[1])
     .filter(Boolean);
 
-  assert.deepEqual(buildVersions("com.maxhan.omo"), ["2", "2"]);
+  assert.deepEqual(buildVersions("com.maxhan.omo"), ["3", "3"]);
   assert.deepEqual(buildVersions("com.maxhan.omo.Tests"), ["1", "1"]);
   assert.deepEqual(buildVersions("com.maxhan.omo.UITests"), ["1", "1"]);
   assert.doesNotMatch(project, /com\.maxhan\.shibei/);

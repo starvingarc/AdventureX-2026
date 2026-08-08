@@ -186,6 +186,17 @@ final class OmoStore: ObservableObject {
     }
 
     func assess(_ card: MemoryCard, as assessment: MemoryAssessment) async throws -> MemoryCard {
+        #if DEBUG || OMO_TESTING
+        if Self.usesSuccessfulAssessmentFixture {
+            var updated = card
+            updated.nextReviewAt = "2100-01-01T00:00:00Z"
+            updated.reviewCount += 1
+            updated.successfulRecallCount += assessment == .remembered ? 1 : 0
+            updated.lastAssessment = assessment
+            upsert(updated)
+            return updated
+        }
+        #endif
         let updated = try await api.assess(card, as: assessment)
         upsert(updated)
         try? await notificationScheduler.schedule(updated)
@@ -330,6 +341,13 @@ final class OmoStore: ObservableObject {
     }
 
     #if DEBUG || OMO_TESTING
+    private static var usesSuccessfulAssessmentFixture: Bool {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let index = arguments.firstIndex(of: "-OmoAssessmentFixture"),
+              arguments.indices.contains(index + 1) else { return false }
+        return arguments[index + 1] == "success"
+    }
+
     func applyScreenshotJobDebugArguments(_ arguments: [String]) {
         guard let index = arguments.firstIndex(of: "-OmoScreenshotJobFixture"),
               arguments.indices.contains(index + 1) else { return }

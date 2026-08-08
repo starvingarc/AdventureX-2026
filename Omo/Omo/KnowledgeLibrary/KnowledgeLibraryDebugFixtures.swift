@@ -92,6 +92,9 @@ extension OmoStore {
         case "many":
             cards = KnowledgeLibraryDebugFixtures.cards
             message = ""
+        case "single":
+            cards = Array(KnowledgeLibraryDebugFixtures.cards.prefix(1))
+            message = ""
         case "empty":
             cards = []
             message = ""

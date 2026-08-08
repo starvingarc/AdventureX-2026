@@ -1,6 +1,6 @@
 # Omo 核心交互故障审查与修复计划
 
-- 状态：`blocked`
+- 状态：`in_progress`
 - 优先级：P0
 - 创建：2026-08-08
 - 更新：2026-08-08
@@ -21,10 +21,11 @@
 - 已完成异步截图任务合同、Postgres migration `003`、worker lease / heartbeat / attempt fencing、iOS 本地恢复与同 ID 重试。
 - 已完成空库、处理中、失败、复习和通知叠卡状态的持久入口修复；App 内两个上传入口共用 Upload Coordinator。
 - 后端全量验证：59 通过、0 失败、1 项仅因本机未提供真实 Postgres 测试地址而跳过；真实 Railway staging migration、readiness 和截图 API 已另外验证。
-- iOS 全量验证：49 通过、0 失败、0 跳过；包含 5 条核心交互 UI Test。
-- 同一套 49 项已在 Release 优化配置下再次通过；8 张关键状态截图已沉淀到 [[docs/core-interaction-release-validation]]。
+- iOS Debug 与 Release 全量验证各 52 通过、0 失败、0 跳过；每套包含 44 项逻辑测试和 8 条核心用户旅程 UI Test。
+- 空库跨页面返回、处理中继续导航／取消另一次上传、完整单卡刮开／自评／返回可用首页均以真实手势通过；13 张关键状态截图已沉淀到 [[docs/core-interaction-release-validation]]。
+- 提供的真实截图已通过系统照片选择器进入 Omo staging；同一自动化旅程完成首次许可、处理中杀 App、恢复、生成、刮开、自评和知识库确认。
 - 提供的真实截图已在 staging 成功生成卡片；另一次真实 App 上传遇到模型超时后进入明确失败态，同 ID 重试、入口可用和杀 App 恢复均已验证。
-- 独立 Omo `1.0 (2)` 已完成 Release Archive、App Store 导出与包审计；App Store Connect 状态为 `VALID` / `IN_BETA_TESTING`，已加入独立 Omo 内部组并开启自动通知。
+- 独立 Omo `1.0 (3)` 已完成 Release Archive 与包审计；导出配置已从 internal-only 改为可外部 Beta Review，并新增回归门禁。
 - Share Extension 的首次 AI 授权跳转仍属于 PRD 第 17 节待产品确认边界，不在本次 P0 首页死锁修复中伪实现。
 
 ## 阻塞与解除条件（2026-08-09）
@@ -32,6 +33,12 @@
 - 阻塞 1：完成标准要求最终 TestFlight Release 真机通过同一份 PRD；当前 build 2 已为 `VALID / IN_BETA_TESTING`，但实体手机上的上传、杀进程恢复、刮开和自评手势必须由产品方实际操作确认，Agent 无法远程代替。
 - 阻塞 2：阶段 D 要求 Share Extension，但 PRD 第 17 节仍要求产品确认“首次未授权时先打开 Omo，再继续同一截图”的额外跳转是否可接受。没有该决定时不能安全确定扩展的授权与任务交接流程。
 - 解除条件：产品方反馈 build 2 的真机逐项结果，并确认 Share Extension 首次授权流程。收到反馈后恢复本计划；若发现问题则继续修复并发布新 build，全部通过后再进入 `completed` 与退役流程。
+
+## 恢复记录（2026-08-09）
+
+- 产品方已恢复本计划，并将完成标准明确为完整用户旅程无死路，而不只是控件可点击。
+- 本轮必须把首次启动、上传、处理、恢复、失败、重试、知识库、抽卡、刮开、自评和下一张串成可复现的用户验收；发现死路必须先补失败测试再修复。
+- 最终构建必须进入独立 Omo 的外部 TestFlight 流程，不能只加入内部测试组；仍禁止修改 `main`、Railway production 或旧 Recallo。
 
 ## 合同冻结
 

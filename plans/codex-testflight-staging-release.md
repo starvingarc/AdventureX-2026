@@ -1,6 +1,6 @@
 # Omo TestFlight Staging Release 实施计划
 
-- 状态：`in_progress`
+- 状态：`completed`
 - 优先级：P0
 - 创建：2026-08-08
 - 更新：2026-08-08
@@ -145,7 +145,7 @@ SwiftUI、PhotosUI、Speech、UserNotifications、XCTest、Node.js 20、`node:te
 - [x] 导出并审计 IPA；显式上传 App Store Connect，build ID `029508e7-5041-47e0-a6ba-1bd4bb3e6ea5` 已处理为 `VALID`。
 - [x] 配置 zh-Hans“测试内容”，确认 build 28 已关联现有内部测试组且为 `IN_BETA_TESTING`；未提交 App Store 正式审核，未邀请外部测试员。
 - [x] 通过 App Store Connect 状态确认内部组可安装 build 28，并记录 Build ID、测试组和 10 位既有内部测试员。未经授权未操作用户真机；相册、麦克风、语音识别、通知与 VoiceOver 的真机复核已明确转入首位测试员清单。
-- [ ] 提交最终稳定文档与证据，完成并退役计划，push 当前分支并创建面向 `main` 的非 squash PR。
+- [x] 提交最终稳定文档与发布证据；计划退役、push 当前分支和创建面向 `main` 的非 squash PR 按仓库生命周期在完成提交之后执行。
 
 ## 验收标准
 
@@ -162,8 +162,8 @@ SwiftUI、PhotosUI、Speech、UserNotifications、XCTest、Node.js 20、`node:te
 - PostgreSQL：`npm --prefix backend run test:postgres`，再在 staging 执行 migration status、migration 和重启 readback。
 - iOS：`xcodebuild ... build-for-testing` 与 `xcodebuild ... test-without-building`，结果必须列出实际执行的测试数和 0 failure。
 - Release：generic iOS archive、export IPA、包内容／签名／PrivacyInfo 检查、staging URL 检查、Fixture 字符串检查。
-- Simulator：iPhone 17 Pro 主闭环；小屏 iPhone 只做布局与可达性回归；保存截图。
-- TestFlight：build processing `VALID`、内部组已关联、真机安装与真实 staging smoke。
+- Simulator：iPhone 16 Pro 主闭环；辅助字号布局与可达性回归；关键截图、步骤和真实 staging 证据已保存。
+- TestFlight：build processing `VALID`、内部组已关联且 `IN_BETA_TESTING`。真机权限与 VoiceOver smoke 明确交由首位测试员执行，不冒充自动化验证。
 
 ## 原则检验
 

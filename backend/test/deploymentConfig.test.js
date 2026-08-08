@@ -55,6 +55,10 @@ test("Omo uses an independent app identity and build sequence", async () => {
     project.match(/PRODUCT_BUNDLE_IDENTIFIER = com\.maxhan\.omo\.Tests;/g)?.length,
     2
   );
-  assert.equal(project.match(/CURRENT_PROJECT_VERSION = 1;/g)?.length, 4);
+  assert.equal(
+    project.match(/PRODUCT_BUNDLE_IDENTIFIER = com\.maxhan\.omo\.UITests;/g)?.length,
+    2
+  );
+  assert.equal(project.match(/CURRENT_PROJECT_VERSION = 1;/g)?.length, 6);
   assert.doesNotMatch(project, /com\.maxhan\.shibei/);
 });

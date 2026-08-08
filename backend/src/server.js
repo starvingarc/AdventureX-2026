@@ -14,6 +14,7 @@ export function createOmoServer(options = {}) {
   const store = options.store || createCardStore(config, options.storeOptions);
   const createCard = options.createCard || createMemoryCard;
   const searchCards = options.searchCards || searchMemoryCards;
+  const activeScreenshotJobs = new Set();
   const publicPagesDirectory = options.publicPagesDirectory
     || env.OMO_PUBLIC_PAGES_DIR
     || fileURLToPath(new URL("../../docs/", import.meta.url));
@@ -32,6 +33,64 @@ export function createOmoServer(options = {}) {
       };
     }
     return buildReadiness(config, { storage });
+  };
+  const scheduleScreenshotJob = (owner, jobId) => {
+    const activeKey = `${owner}:${jobId}`;
+    if (activeScreenshotJobs.has(activeKey)) return;
+    activeScreenshotJobs.add(activeKey);
+    setImmediate(async () => {
+      let claimedJob;
+      let leaseHeartbeat;
+      try {
+        claimedJob = await store.claimScreenshotJob(owner, jobId);
+        if (!claimedJob) return;
+        leaseHeartbeat = setInterval(async () => {
+          try {
+            await store.renewScreenshotJobLease(
+              owner,
+              jobId,
+              claimedJob.attemptToken
+            );
+          } catch {
+            // Terminal writes are still fenced if a heartbeat cannot reach storage.
+          }
+        }, 60_000);
+        leaseHeartbeat.unref();
+        const card = await createCard({
+          imageBase64: claimedJob.imageBase64,
+          mimeType: claimedJob.mimeType
+        }, { config });
+        const storedCard = await store.save(owner, card);
+        await store.succeedScreenshotJob(
+          owner,
+          jobId,
+          claimedJob.attemptToken,
+          storedCard.id
+        );
+      } catch (error) {
+        const failure = screenshotJobFailure(error);
+        try {
+          if (claimedJob) {
+            await store.failScreenshotJob(
+              owner,
+              jobId,
+              claimedJob.attemptToken,
+              failure
+            );
+          }
+        } catch {
+          // Readiness and the job list surface storage failures on the next request.
+        }
+      } finally {
+        if (leaseHeartbeat) clearInterval(leaseHeartbeat);
+        activeScreenshotJobs.delete(activeKey);
+      }
+    });
+  };
+  const resumeScreenshotJobs = async () => {
+    if (typeof store.recoverScreenshotJobs !== "function") return;
+    const jobs = await store.recoverScreenshotJobs();
+    for (const job of jobs) scheduleScreenshotJob(job.owner || "", job.id);
   };
 
   const httpServer = createServer(async (request, response) => {
@@ -81,6 +140,56 @@ export function createOmoServer(options = {}) {
 
       if (request.method === "GET" && url.pathname === "/api/memory-cards") {
         return send(response, 200, { cards: await store.list(owner) });
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/screenshot-jobs") {
+        const body = await readJSON(request);
+        const job = await store.enqueueScreenshotJob(owner, {
+          imageBase64: body.imageBase64,
+          mimeType: body.mimeType
+        });
+        scheduleScreenshotJob(owner, job.id);
+        return send(response, 202, { job });
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/screenshot-jobs") {
+        return send(response, 200, {
+          jobs: await store.listScreenshotJobs(owner)
+        });
+      }
+
+      const screenshotJobRetry = url.pathname.match(
+        /^\/api\/screenshot-jobs\/([^/]+)\/retry$/
+      );
+      if (request.method === "POST" && screenshotJobRetry) {
+        const jobId = decodeURIComponent(screenshotJobRetry[1]);
+        const body = await readJSON(request);
+        const job = await store.retryScreenshotJob(owner, jobId, {
+          imageBase64: body.imageBase64,
+          mimeType: body.mimeType
+        });
+        if (!job) {
+          return send(response, 404, {
+            code: "screenshot_job_not_found",
+            message: "截图任务不存在。"
+          });
+        }
+        scheduleScreenshotJob(owner, job.id);
+        return send(response, 202, { job });
+      }
+
+      const screenshotJob = url.pathname.match(/^\/api\/screenshot-jobs\/([^/]+)$/);
+      if (request.method === "GET" && screenshotJob) {
+        const job = await store.getScreenshotJob(
+          owner,
+          decodeURIComponent(screenshotJob[1])
+        );
+        return job
+          ? send(response, 200, { job })
+          : send(response, 404, {
+              code: "screenshot_job_not_found",
+              message: "截图任务不存在。"
+            });
       }
 
       if (request.method === "POST" && url.pathname === "/api/memory-cards/search") {
@@ -144,6 +253,14 @@ export function createOmoServer(options = {}) {
       return send(response, safeErrorStatus(error), safeErrorBody(error));
     }
   });
+  httpServer.once("listening", () => {
+    void resumeScreenshotJobs().catch(() => {});
+    const recoveryTimer = setInterval(() => {
+      void resumeScreenshotJobs().catch(() => {});
+    }, 30_000);
+    recoveryTimer.unref();
+    httpServer.once("close", () => clearInterval(recoveryTimer));
+  });
   if (!options.store) {
     httpServer.on("close", () => {
       void store.close?.();
@@ -173,8 +290,26 @@ function safeErrorBody(error) {
   };
 }
 
+function screenshotJobFailure(error) {
+  const code = String(error?.code || "processing_failed");
+  const messages = {
+    model_timeout: "截图处理超时，请重试。",
+    model_unavailable: "AI 暂时无法处理这张截图，请重试。",
+    model_upstream_error: "AI 暂时无法处理这张截图，请重试。",
+    model_invalid_response: "这张截图暂时无法生成知识卡，请重试。",
+    storage_unavailable: "知识卡暂时无法保存，请重试。"
+  };
+  return {
+    code,
+    message: messages[code] || "截图处理失败，请重试。",
+    retryable: true
+  };
+}
+
 function isBusinessRoute(pathname) {
   return pathname === "/api/sources/image-flow"
+    || pathname === "/api/screenshot-jobs"
+    || pathname.startsWith("/api/screenshot-jobs/")
     || pathname === "/api/memory-cards"
     || pathname.startsWith("/api/memory-cards/");
 }

@@ -124,6 +124,36 @@ struct CardResponse: Decodable {
     let card: MemoryCard
 }
 
+enum ScreenshotJobState: String, Codable, Sendable {
+    case accepted
+    case processing
+    case succeeded
+    case failed
+}
+
+struct ScreenshotJob: Codable, Identifiable, Equatable, Sendable {
+    let id: String
+    var state: ScreenshotJobState
+    let createdAt: String
+    var updatedAt: String
+    var attemptCount: Int
+    var cardId: String
+    var errorCode: String
+    var errorMessage: String
+    var retryable: Bool
+
+    var isActive: Bool { state == .accepted || state == .processing }
+    var canRetry: Bool { state == .failed && retryable }
+}
+
+struct ScreenshotJobsResponse: Decodable {
+    let jobs: [ScreenshotJob]
+}
+
+struct ScreenshotJobResponse: Decodable {
+    let job: ScreenshotJob
+}
+
 struct DeleteResponse: Decodable {
     let deleted: Bool
     let cardId: String

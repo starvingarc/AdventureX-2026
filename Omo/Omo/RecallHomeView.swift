@@ -8,11 +8,11 @@ struct RecallHomeView: View {
     let onOpenSettings: () -> Void
 
     @State private var selectedScreenshot: PhotosPickerItem?
-    @State private var pendingScreenshotData: Data?
     @State private var showsAIConsent = false
     @State private var selectionError = ""
     @State private var deck: [MemoryCard] = []
     @State private var isRoundActive = false
+    @StateObject private var uploadCoordinator = ScreenshotUploadCoordinator()
     @AppStorage(AIProcessingConsent.defaultsKey) private var allowsAIProcessing = false
 
     var body: some View {
@@ -46,11 +46,14 @@ struct RecallHomeView: View {
                 }
 
                 if let card = store.notificationRecallCard {
-                    RecallRoundView(
-                        cards: [card],
-                        onAssess: assessNotification,
-                        onComplete: finishNotificationRecall
-                    )
+                    ZStack(alignment: .topLeading) {
+                        RecallRoundView(
+                            cards: [card],
+                            onAssess: assessNotification,
+                            onComplete: finishNotificationRecall
+                        )
+                        persistentHomeActions
+                    }
                     .id("notification-\(card.id)")
                     .frame(
                         width: RecallHomeMetrics.referenceSize.width,
@@ -67,14 +70,16 @@ struct RecallHomeView: View {
         }
         .alert("允许 AI 处理这张截图？", isPresented: $showsAIConsent) {
             Button("取消", role: .cancel) {
-                pendingScreenshotData = nil
+                uploadCoordinator.cancelConsent()
                 selectedScreenshot = nil
             }
             Button("同意并生成") {
-                guard let data = pendingScreenshotData else { return }
                 allowsAIProcessing = true
-                pendingScreenshotData = nil
-                Task { await generate(from: data) }
+                Task {
+                    _ = await uploadCoordinator.confirmConsent { data in
+                        await store.createCard(from: data)
+                    }
+                }
             }
         } message: {
             Text("截图会经 Omo 的测试服务发送给第三方 AI，用于识别内容并生成记忆卡。请不要上传含敏感个人信息的截图。")
@@ -93,12 +98,7 @@ struct RecallHomeView: View {
 
             statusText
 
-            Image("FirstLaunchFolder")
-                .resizable()
-                .scaledToFit()
-                .frame(width: RecallHomeMetrics.folderFrame.width, height: RecallHomeMetrics.folderFrame.height)
-                .position(x: RecallHomeMetrics.folderFrame.midX, y: RecallHomeMetrics.folderFrame.midY)
-                .accessibilityHidden(true)
+            libraryButton
 
             Image("FirstLaunchArrow")
                 .resizable()
@@ -125,12 +125,18 @@ struct RecallHomeView: View {
                     .accessibilityHidden(true)
             }
 
+            statusText
             persistentHomeActions
         }
     }
 
     @ViewBuilder
     private var persistentHomeActions: some View {
+        libraryButton
+        uploadPicker(label: "上传新的知识截屏")
+    }
+
+    private var libraryButton: some View {
         Button(action: onOpenLibrary) {
             Image("FirstLaunchFolder")
                 .resizable()
@@ -147,42 +153,73 @@ struct RecallHomeView: View {
             y: RecallHomeMetrics.folderFrame.midY
         )
         .accessibilityLabel("打开知识库")
-
-        uploadPicker(label: "上传新的知识截屏")
     }
 
     @ViewBuilder
     private var statusText: some View {
-        let text = selectionError.isEmpty ? store.message : selectionError
-        if store.isCreating || !text.isEmpty {
-            Text(store.isCreating ? "正在整理第一张知识卡" : text)
+        if case .failed(let loadMessage) = store.loadState,
+           store.failedScreenshotJobs.isEmpty,
+           store.activeScreenshotJobs.isEmpty {
+            Button {
+                Task { await store.load() }
+            } label: {
+                Text("连接失败，点此重试")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(RecallPalette.error)
+            .frame(width: RecallHomeMetrics.statusFrame.width, height: RecallHomeMetrics.statusFrame.height)
+            .position(x: RecallHomeMetrics.statusFrame.midX, y: RecallHomeMetrics.statusFrame.midY)
+            .accessibilityHint(loadMessage)
+        } else if let failed = store.failedScreenshotJobs.first {
+            Button {
+                Task { await store.retryScreenshotJob(failed) }
+            } label: {
+                Text("整理失败，点此重试")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(RecallPalette.error)
+            .frame(width: RecallHomeMetrics.statusFrame.width, height: RecallHomeMetrics.statusFrame.height)
+            .position(x: RecallHomeMetrics.statusFrame.midX, y: RecallHomeMetrics.statusFrame.midY)
+            .accessibilityHint(failed.errorMessage)
+        } else {
+            let fallback = selectionError.isEmpty ? store.message : selectionError
+            let activeCount = store.activeScreenshotJobs.count
+            let text = activeCount > 0
+                ? (activeCount == 1 ? "正在整理知识卡" : "正在整理 \(activeCount) 张知识卡")
+                : fallback
+            if !text.isEmpty {
+                Text(text)
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(text.isEmpty ? RecallPalette.teal : RecallPalette.error)
+                .foregroundStyle(activeCount > 0 ? RecallPalette.teal : RecallPalette.error)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
                 .frame(width: RecallHomeMetrics.statusFrame.width, height: RecallHomeMetrics.statusFrame.height)
                 .position(x: RecallHomeMetrics.statusFrame.midX, y: RecallHomeMetrics.statusFrame.midY)
+            }
         }
     }
 
     private func uploadPicker(label: String) -> some View {
-        let isCreating = store.isCreating
         return PhotosPicker(selection: $selectedScreenshot, matching: .images, photoLibrary: .shared()) {
             Image("FirstLaunchUpload")
                 .resizable()
                 .frame(width: RecallHomeMetrics.uploadFrame.width, height: RecallHomeMetrics.uploadFrame.height)
-                .opacity(isCreating ? 0.62 : 1)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(isCreating)
         .position(x: RecallHomeMetrics.uploadFrame.midX, y: RecallHomeMetrics.uploadFrame.midY)
         .accessibilityLabel(label)
         .accessibilityHint("打开系统照片选择器，只选择一张截图")
     }
 
     private func loadScreenshot(from item: PhotosPickerItem?) {
-        guard let item, !store.isCreating else { return }
+        guard let item else { return }
         selectionError = ""
         Task {
             defer { selectedScreenshot = nil }
@@ -191,17 +228,14 @@ struct RecallHomeView: View {
                 return
             }
             if AIProcessingConsent.requiresPrompt(hasConsent: allowsAIProcessing) {
-                pendingScreenshotData = data
+                uploadCoordinator.receive(data, hasConsent: false)
                 showsAIConsent = true
             } else {
-                await generate(from: data)
+                uploadCoordinator.receive(data, hasConsent: true)
+                _ = await uploadCoordinator.submitReceived { image in
+                    await store.createCard(from: image)
+                }
             }
-        }
-    }
-
-    private func generate(from data: Data) async {
-        if await store.createCard(from: data) {
-            store.pendingCard = nil
         }
     }
 

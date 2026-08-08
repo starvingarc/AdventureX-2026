@@ -3,8 +3,28 @@ import Foundation
 protocol OmoAPIProviding: Sendable {
     func cards() async throws -> [MemoryCard]
     func createCard(from imageData: Data) async throws -> MemoryCard
+    func screenshotJobs() async throws -> [ScreenshotJob]
+    func createScreenshotJob(from imageData: Data) async throws -> ScreenshotJob
+    func screenshotJob(id: String) async throws -> ScreenshotJob
+    func retryScreenshotJob(id: String, imageData: Data) async throws -> ScreenshotJob
     func assess(_ card: MemoryCard, as assessment: MemoryAssessment) async throws -> MemoryCard
     func delete(_ card: MemoryCard) async throws
+}
+
+extension OmoAPIProviding {
+    func screenshotJobs() async throws -> [ScreenshotJob] { [] }
+
+    func createScreenshotJob(from imageData: Data) async throws -> ScreenshotJob {
+        throw APIError.server("截图任务接口尚未配置。")
+    }
+
+    func screenshotJob(id: String) async throws -> ScreenshotJob {
+        throw APIError.server("截图任务接口尚未配置。")
+    }
+
+    func retryScreenshotJob(id: String, imageData: Data) async throws -> ScreenshotJob {
+        throw APIError.server("截图任务接口尚未配置。")
+    }
 }
 
 enum AppEnvironmentError: LocalizedError, Equatable {
@@ -126,6 +146,44 @@ struct APIClient: Sendable {
             timeout: 120
         )
         return response.card
+    }
+
+    func screenshotJobs() async throws -> [ScreenshotJob] {
+        let response: ScreenshotJobsResponse = try await request("/api/screenshot-jobs")
+        return response.jobs
+    }
+
+    func createScreenshotJob(from imageData: Data) async throws -> ScreenshotJob {
+        let body = ScreenshotRequest(
+            imageBase64: imageData.base64EncodedString(),
+            mimeType: "image/jpeg"
+        )
+        let response: ScreenshotJobResponse = try await request(
+            "/api/screenshot-jobs",
+            method: "POST",
+            body: body
+        )
+        return response.job
+    }
+
+    func screenshotJob(id: String) async throws -> ScreenshotJob {
+        let response: ScreenshotJobResponse = try await request(
+            "/api/screenshot-jobs/\(id)"
+        )
+        return response.job
+    }
+
+    func retryScreenshotJob(id: String, imageData: Data) async throws -> ScreenshotJob {
+        let body = ScreenshotRequest(
+            imageBase64: imageData.base64EncodedString(),
+            mimeType: "image/jpeg"
+        )
+        let response: ScreenshotJobResponse = try await request(
+            "/api/screenshot-jobs/\(id)/retry",
+            method: "POST",
+            body: body
+        )
+        return response.job
     }
 
     func searchKnowledgeLibrary(query: String) async throws -> KnowledgeLibrarySearchResponse {

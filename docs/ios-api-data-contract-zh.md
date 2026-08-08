@@ -10,11 +10,39 @@
 | GET | `/api/readiness` | 模型、来源服务与存储依赖状态 |
 | GET | `/api/memory-cards` | 获取当前设备的全部卡片 |
 | POST | `/api/memory-cards/search` | 在当前设备卡片内进行语义排序，返回卡片 ID |
-| POST | `/api/sources/image-flow` | 上传 Base64 截图并生成一张卡 |
+| POST | `/api/screenshot-jobs` | 快速接收截图，返回 `202 + ScreenshotJob` |
+| GET | `/api/screenshot-jobs` | 获取当前设备的截图任务 |
+| GET | `/api/screenshot-jobs/:id` | 轮询单个截图任务 |
+| POST | `/api/screenshot-jobs/:id/retry` | 用同一截图重试失败任务 |
+| POST | `/api/sources/image-flow` | 旧构建兼容接口；同步上传并生成一张卡 |
 | POST | `/api/memory-cards/:id/assessments` | 提交 remembered / fuzzy / forgot |
 | DELETE | `/api/memory-cards/:id` | 删除卡片 |
 
 所有 JSON 响应均返回 `Cache-Control: no-store`；iOS 客户端也使用忽略本地缓存的请求策略，避免上传或自评后继续读取旧卡片列表。
+
+## ScreenshotJob
+
+截图生成不再由一个长连接表示完整生命周期。客户端先压缩图片，在本地保存任务元数据和重试副本，再提交 `POST /api/screenshot-jobs`；服务端持久化任务后必须快速返回 202。任务公共结构为：
+
+```json
+{
+  "id": "job-...",
+  "state": "accepted",
+  "createdAt": "2026-08-08T00:00:00.000Z",
+  "updatedAt": "2026-08-08T00:00:00.000Z",
+  "attemptCount": 0,
+  "cardId": "",
+  "errorCode": "",
+  "errorMessage": "",
+  "retryable": false
+}
+```
+
+`state` 只允许 `accepted`、`processing`、`succeeded`、`failed`。同一 owner 重复提交相同截图必须返回同一个 job ID；失败重试复用该 ID。服务端内部使用截图指纹、五分钟 worker lease 和每次 claim 唯一的 attempt token；活跃 worker 每分钟续租。这些字段以及截图正文不得出现在 API 响应中。只有持有当前 attempt token 的 worker 可以写入终态，过期 worker 不得覆盖后续 attempt。服务重启或滚动发布只重新领取租约已过期的 processing 任务。
+
+服务端仅在 `accepted / processing` 期间临时持久化压缩截图；任务进入 `succeeded / failed` 时必须清空服务端截图字段。iOS 在任务成功时删除本地重试副本，失败时保留供用户明确重试。启动加载如果发现服务端已经成功，也必须补做本地副本清理。
+
+生成失败使用脱敏稳定码和可操作中文文案；上游正文、截图、模型载荷和 attempt token 永不返回。兼容接口 `/api/sources/image-flow` 暂留给旧 TestFlight 构建，新 iOS 不得继续调用。
 
 ## MemoryCard
 

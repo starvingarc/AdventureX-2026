@@ -35,10 +35,10 @@ test("PostgreSQL migrations, persistence, concurrency and import", {
   );
   const upgradeRequired = await getMigrationStatus(pool);
   assert.equal(upgradeRequired.ready, false);
-  assert.deepEqual(upgradeRequired.pendingVersions, ["002"]);
+  assert.deepEqual(upgradeRequired.pendingVersions, ["002", "003"]);
 
   const upgraded = await runMigrations(pool);
-  assert.deepEqual(upgraded.newlyApplied, ["002"]);
+  assert.deepEqual(upgraded.newlyApplied, ["002", "003"]);
   assert.equal((await getMigrationStatus(pool)).ready, true);
   await verifyChecksumDrift(pool, context);
 
@@ -55,6 +55,7 @@ test("PostgreSQL migrations, persistence, concurrency and import", {
   pool = createPool();
   store = new PostgresCardStore(pool);
   assert.equal((await store.get("device-a", card.id)).answer, "合成答案");
+  await verifyScreenshotJobLifecycle(store, pool);
 
   const firstAssessment = await store.assess(
     "device-a",
@@ -119,7 +120,8 @@ async function verifyChecksumDrift(pool, context) {
   const migrationsDirectory = new URL("../migrations/", import.meta.url);
   for (const name of [
     "001-create-owners-and-memory-cards.sql",
-    "002-add-assessment-idempotency-and-version.sql"
+    "002-add-assessment-idempotency-and-version.sql",
+    "003-create-screenshot-jobs.sql"
   ]) {
     copyFileSync(new URL(name, migrationsDirectory), join(directory, basename(name)));
   }
@@ -128,6 +130,37 @@ async function verifyChecksumDrift(pool, context) {
   const status = await getMigrationStatus(pool, { migrationsDirectory: directory });
   assert.equal(status.ready, false);
   assert.equal(status.reason, "storage_migration_drift");
+}
+
+async function verifyScreenshotJobLifecycle(store, pool) {
+  const accepted = await store.enqueueScreenshotJob("job-owner", {
+    imageBase64: "cG9zdGdyZXMtbGVhc2U=",
+    mimeType: "image/jpeg"
+  });
+  const claimed = await store.claimScreenshotJob("job-owner", accepted.id);
+  assert.ok(claimed.attemptToken);
+  assert.equal(
+    await store.failScreenshotJob("job-owner", accepted.id, "stale-token", {
+      code: "model_timeout",
+      message: "截图处理超时，请重试。"
+    }),
+    null
+  );
+  const succeeded = await store.succeedScreenshotJob(
+    "job-owner",
+    accepted.id,
+    claimed.attemptToken,
+    "job-card"
+  );
+  assert.equal(succeeded.state, "succeeded");
+  const stored = await pool.query(
+    `SELECT image_base64, attempt_token, lease_expires_at
+     FROM omo_screenshot_jobs WHERE owner_id = $1 AND job_id = $2`,
+    ["job-owner", accepted.id]
+  );
+  assert.equal(stored.rows[0].image_base64, null);
+  assert.equal(stored.rows[0].attempt_token, null);
+  assert.equal(stored.rows[0].lease_expires_at, null);
 }
 
 async function verifyFailedMigrationRollback(pool, context) {
@@ -153,6 +186,7 @@ async function verifyFailedMigrationRollback(pool, context) {
 }
 
 async function resetSchema(pool) {
+  await pool.query("DROP TABLE IF EXISTS omo_screenshot_jobs CASCADE");
   await pool.query("DROP TABLE IF EXISTS omo_assessment_attempts CASCADE");
   await pool.query("DROP TABLE IF EXISTS omo_memory_cards CASCADE");
   await pool.query("DROP TABLE IF EXISTS omo_owners CASCADE");

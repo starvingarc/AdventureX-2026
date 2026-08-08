@@ -30,15 +30,18 @@ struct ContentView: View {
                 .transition(.opacity.combined(with: .scale(scale: 0.985)))
         }
         .task {
-            await store.load()
             #if DEBUG
             let arguments = ProcessInfo.processInfo.arguments
+            if !arguments.contains("-OmoUseFixtures") { await store.load() }
             if arguments.contains("-OmoOpenLibrary") { store.selectedTab = .library }
             store.applyKnowledgeLibraryDebugArguments(arguments)
+            store.applyScreenshotJobDebugArguments(arguments)
             if let index = arguments.firstIndex(of: "-OmoNotificationCardID"),
                arguments.indices.contains(index + 1) {
                 store.handleRecallNotification(cardID: arguments[index + 1])
             }
+            #else
+            await store.load()
             #endif
         }
         .sheet(isPresented: $showsAdd) {
@@ -98,8 +101,12 @@ struct ContentView: View {
         case .library:
             KnowledgeLibraryView(
                 cards: store.cards,
+                screenshotJobs: store.screenshotJobs,
                 onBack: { store.selectedTab = .today },
                 onAdd: { showsAdd = true },
+                onRetryJob: { job in
+                    Task { await store.retryScreenshotJob(job) }
+                },
                 onOpenCard: { store.presentedCard = $0 }
             )
         case .profile:
@@ -195,18 +202,18 @@ private struct AddScreenshotView: View {
     @EnvironmentObject private var store: OmoStore
     @Environment(\.dismiss) private var dismiss
     @State private var selection: PhotosPickerItem?
-    @State private var pendingImageData: Data?
     @State private var showsAIConsent = false
     @State private var pulse = false
+    @StateObject private var uploadCoordinator = ScreenshotUploadCoordinator()
     @AppStorage(AIProcessingConsent.defaultsKey) private var allowsAIProcessing = false
 
     var body: some View {
-        let isCreating = store.isCreating
+        let isSubmitting = uploadCoordinator.isSubmitting
         NavigationStack {
             VStack(spacing: 24) {
                 Spacer()
                 ZStack {
-                    if isCreating {
+                    if isSubmitting {
                         OmoOrbit().scaleEffect(0.7)
                         OmoAtlasPlayer(
                             asset: "OmoMotionRunAtlas",
@@ -230,17 +237,17 @@ private struct AddScreenshotView: View {
                     .multilineTextAlignment(.center)
 
                 PhotosPicker(selection: $selection, matching: .images) {
-                    Label(isCreating ? "正在生成" : "选择截图", systemImage: "photo")
+                    Label(isSubmitting ? "正在接收截图" : "选择截图", systemImage: "photo")
                         .frame(maxWidth: .infinity)
                         .frame(height: 54)
                         .foregroundStyle(.white)
                         .background(OmoTheme.primary, in: RoundedRectangle(cornerRadius: 16))
                 }
-                .disabled(isCreating)
+                .disabled(isSubmitting)
                 .buttonStyle(SpringPressStyle())
 
-                if isCreating {
-                    ProgressView("正在识别标题并通过 TickHub 核对来源")
+                if isSubmitting {
+                    ProgressView("正在安全保存任务")
                         .tint(OmoTheme.primary)
                 }
                 Spacer()
@@ -260,23 +267,27 @@ private struct AddScreenshotView: View {
                         return
                     }
                     if AIProcessingConsent.requiresPrompt(hasConsent: allowsAIProcessing) {
-                        pendingImageData = data
+                        uploadCoordinator.receive(data, hasConsent: false)
                         showsAIConsent = true
                     } else {
-                        await generate(from: data)
+                        await submit(data, hasConsent: true)
                     }
                 }
             }
             .alert("允许 AI 处理这张截图？", isPresented: $showsAIConsent) {
                 Button("取消", role: .cancel) {
-                    pendingImageData = nil
+                    uploadCoordinator.cancelConsent()
                     selection = nil
                 }
                 Button("同意并生成") {
-                    guard let data = pendingImageData else { return }
                     allowsAIProcessing = true
-                    pendingImageData = nil
-                    Task { await generate(from: data) }
+                    Task {
+                        let accepted = await uploadCoordinator.confirmConsent { data in
+                            await store.createCard(from: data)
+                        }
+                        if accepted { dismiss() }
+                        selection = nil
+                    }
                 }
             } message: {
                 Text("截图会经 Omo 的测试服务发送给第三方 AI，用于识别内容并生成记忆卡。请不要上传含敏感个人信息的截图。")
@@ -287,8 +298,12 @@ private struct AddScreenshotView: View {
         }
     }
 
-    private func generate(from data: Data) async {
-        if await store.createCard(from: data) { dismiss() }
+    private func submit(_ data: Data, hasConsent: Bool) async {
+        uploadCoordinator.receive(data, hasConsent: hasConsent)
+        let accepted = await uploadCoordinator.submitReceived { image in
+            await store.createCard(from: image)
+        }
+        if accepted { dismiss() }
         selection = nil
     }
 }
@@ -297,7 +312,7 @@ private struct OmoPrivacyView: View {
     var body: some View {
         List {
             Section("截图与 AI") {
-                Text("只有你主动选择的截图才会上传。截图经 Omo 测试服务发送给第三方 AI，用于提炼知识点；Omo 当前不在自己的数据库保存原截图。")
+                Text("只有你主动选择的截图才会上传。Omo 测试服务会临时保存压缩截图以完成可恢复的 AI 处理任务，并在任务成功或失败后删除服务端副本。设备会在成功后删除本地重试副本；失败时保留该副本供你重试。")
             }
             Section("保存的数据") {
                 Text("Omo 使用随机生成的匿名设备标识区分数据，并保存生成后的记忆卡、来源信息、自评结果和复习时间。")

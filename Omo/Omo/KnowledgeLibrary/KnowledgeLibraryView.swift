@@ -3,8 +3,10 @@ import UIKit
 
 struct KnowledgeLibraryView: View {
     let cards: [MemoryCard]
+    let screenshotJobs: [ScreenshotJob]
     let onBack: () -> Void
     let onAdd: () -> Void
+    let onRetryJob: (ScreenshotJob) -> Void
     let onOpenCard: (MemoryCard) -> Void
 
     @StateObject private var model: KnowledgeLibraryViewModel
@@ -14,16 +16,20 @@ struct KnowledgeLibraryView: View {
     @MainActor
     init(
         cards: [MemoryCard],
+        screenshotJobs: [ScreenshotJob] = [],
         onBack: @escaping () -> Void,
         onAdd: @escaping () -> Void,
+        onRetryJob: @escaping (ScreenshotJob) -> Void = { _ in },
         onOpenCard: @escaping (MemoryCard) -> Void
     ) {
         self.init(
             cards: cards,
+            screenshotJobs: screenshotJobs,
             searcher: KnowledgeLibraryDependencies.makeSearcher(),
             speechTranscriber: KnowledgeLibraryDependencies.makeSpeechTranscriber(),
             onBack: onBack,
             onAdd: onAdd,
+            onRetryJob: onRetryJob,
             onOpenCard: onOpenCard
         )
     }
@@ -31,15 +37,19 @@ struct KnowledgeLibraryView: View {
     @MainActor
     init(
         cards: [MemoryCard],
+        screenshotJobs: [ScreenshotJob] = [],
         searcher: any KnowledgeLibrarySearching,
         speechTranscriber: any KnowledgeLibrarySpeechTranscribing,
         onBack: @escaping () -> Void,
         onAdd: @escaping () -> Void,
+        onRetryJob: @escaping (ScreenshotJob) -> Void = { _ in },
         onOpenCard: @escaping (MemoryCard) -> Void
     ) {
         self.cards = cards
+        self.screenshotJobs = screenshotJobs
         self.onBack = onBack
         self.onAdd = onAdd
+        self.onRetryJob = onRetryJob
         self.onOpenCard = onOpenCard
         _model = StateObject(
             wrappedValue: KnowledgeLibraryViewModel(
@@ -180,46 +190,107 @@ struct KnowledgeLibraryView: View {
 
     @ViewBuilder
     private var content: some View {
-        if cards.isEmpty {
-            KnowledgeLibraryStateView(
-                title: "还没有知识卡",
-                message: "从相册选择一张有价值的截图，哦莫会替你整理好。",
-                actionTitle: "上传第一张截图",
-                action: onAdd
-            )
-        } else {
-            switch model.state {
-            case .all, .results:
-                KnowledgeLibraryPager(
-                    cards: model.visibleCards,
-                    currentPage: $model.currentPage,
-                    onOpenCard: onOpenCard
-                )
-            case .searching:
-                VStack(spacing: 14) {
-                    ProgressView().tint(RecallPalette.teal)
-                    Text("正在帮你找")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .foregroundStyle(RecallPalette.teal)
+        ZStack(alignment: .top) {
+            Group {
+                if cards.isEmpty {
+                    KnowledgeLibraryStateView(
+                        title: screenshotJobs.contains(where: \.isActive)
+                            ? "第一张知识卡正在整理"
+                            : "还没有知识卡",
+                        message: screenshotJobs.contains(where: \.isActive)
+                            ? "你可以继续上传，处理完成后卡片会出现在这里。"
+                            : "从相册选择一张有价值的截图，哦莫会替你整理好。",
+                        actionTitle: "继续上传截图",
+                        action: onAdd
+                    )
+                } else {
+                    libraryCardsContent
                 }
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("正在搜索知识库")
-            case .noResults:
-                KnowledgeLibraryStateView(
-                    title: "没有找到相关卡片",
-                    message: "换一种描述，或者先回到全部卡片看看。",
-                    actionTitle: "查看全部",
-                    action: model.clearQuery
-                )
-            case .failed(let message):
-                KnowledgeLibraryStateView(
-                    title: "这次没找到",
-                    message: message,
+            }
+
+            if let failed = screenshotJobs.first(where: { $0.canRetry }) {
+                KnowledgeLibraryJobBanner(
+                    title: "一张截图整理失败",
+                    showsProgress: false,
                     actionTitle: "重试",
-                    action: model.retry
+                    action: { onRetryJob(failed) }
+                )
+            } else if !screenshotJobs.filter(\.isActive).isEmpty {
+                KnowledgeLibraryJobBanner(
+                    title: "正在整理 \(screenshotJobs.filter(\.isActive).count) 张截图",
+                    showsProgress: true,
+                    actionTitle: nil,
+                    action: {}
                 )
             }
         }
+    }
+
+    @ViewBuilder
+    private var libraryCardsContent: some View {
+        switch model.state {
+        case .all, .results:
+            KnowledgeLibraryPager(
+                cards: model.visibleCards,
+                currentPage: $model.currentPage,
+                onOpenCard: onOpenCard
+            )
+        case .searching:
+            VStack(spacing: 14) {
+                ProgressView().tint(RecallPalette.teal)
+                Text("正在帮你找")
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundStyle(RecallPalette.teal)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("正在搜索知识库")
+        case .noResults:
+            KnowledgeLibraryStateView(
+                title: "没有找到相关卡片",
+                message: "换一种描述，或者先回到全部卡片看看。",
+                actionTitle: "查看全部",
+                action: model.clearQuery
+            )
+        case .failed(let message):
+            KnowledgeLibraryStateView(
+                title: "这次没找到",
+                message: message,
+                actionTitle: "重试",
+                action: model.retry
+            )
+        }
+    }
+}
+
+private struct KnowledgeLibraryJobBanner: View {
+    let title: String
+    let showsProgress: Bool
+    let actionTitle: String?
+    let action: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            if showsProgress {
+                ProgressView().tint(RecallPalette.teal)
+            }
+            Text(title)
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundStyle(RecallPalette.teal)
+                .lineLimit(1)
+            if let actionTitle {
+                Button(actionTitle, action: action)
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(RecallPalette.coral)
+                    .frame(minWidth: 44, minHeight: 44)
+            }
+        }
+        .padding(.leading, 14)
+        .padding(.trailing, actionTitle == nil ? 14 : 4)
+        .frame(minHeight: 44)
+        .background(RecallPalette.drawer, in: Capsule())
+        .overlay(Capsule().stroke(RecallPalette.teal.opacity(0.45), lineWidth: 1))
+        .shadow(color: RecallPalette.ink.opacity(0.12), radius: 4, y: 3)
+        .padding(.top, 4)
     }
 }
 

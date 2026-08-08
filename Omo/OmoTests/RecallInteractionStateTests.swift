@@ -3,6 +3,127 @@ import UIKit
 @testable import Omo
 
 final class RecallInteractionStateTests: XCTestCase {
+    @MainActor
+    func testUploadCoordinatorUsesOneConsentAndSubmissionStateMachine() async {
+        let coordinator = ScreenshotUploadCoordinator()
+        let image = Data([1, 2, 3])
+        var submitted = Data()
+
+        coordinator.receive(image, hasConsent: false)
+        XCTAssertEqual(coordinator.phase, .awaitingConsent)
+
+        let accepted = await coordinator.confirmConsent { data in
+            submitted = data
+            return true
+        }
+
+        XCTAssertTrue(accepted)
+        XCTAssertEqual(submitted, image)
+        XCTAssertEqual(coordinator.phase, .idle)
+    }
+
+    @MainActor
+    func testLoadFailureIsExplicitAndRetryCanRecoverWithoutBlockingNavigation() async {
+        let directory = temporaryJobDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let api = RecoverableLoadAPI()
+        let store = OmoStore(
+            api: api,
+            notificationScheduler: NotificationSchedulerSpy(),
+            screenshotJobCache: ScreenshotJobCache(directory: directory)
+        )
+
+        await store.load()
+        XCTAssertEqual(store.loadState, .failed("暂时无法连接测试服务。"))
+
+        await api.recover()
+        await store.load()
+        XCTAssertEqual(store.loadState, .loaded)
+    }
+
+    @MainActor
+    func testSlowScreenshotAcceptanceKeepsOptimisticTaskAndExistingRecallAvailable() async throws {
+        let directory = temporaryJobDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let dueCard = notificationTestCard()
+        let api = ControllableScreenshotAPI(cards: [dueCard])
+        let store = OmoStore(
+            api: api,
+            notificationScheduler: NotificationSchedulerSpy(),
+            screenshotJobCache: ScreenshotJobCache(directory: directory)
+        )
+        store.cards = [dueCard]
+        let imageData = try XCTUnwrap(UIImage(systemName: "circle")?.pngData())
+
+        let submission = Task { await store.createCard(from: imageData) }
+        await api.waitUntilCreationStarts()
+
+        XCTAssertEqual(store.screenshotJobs.count, 1)
+        XCTAssertEqual(store.screenshotJobs[0].state, .accepted)
+        XCTAssertEqual(store.nextRecallDeck.map(\.id), [dueCard.id])
+
+        await api.finishCreation(with: makeScreenshotJob(id: store.screenshotJobs[0].id))
+        let accepted = await submission.value
+        XCTAssertTrue(accepted)
+    }
+
+    @MainActor
+    func testFailedScreenshotTaskSurvivesReloadAndRetriesWithCachedImage() async throws {
+        let directory = temporaryJobDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let failed = makeScreenshotJob(
+            id: "job-retry",
+            state: .failed,
+            attemptCount: 1,
+            errorCode: "model_timeout",
+            errorMessage: "截图处理超时，请重试。",
+            retryable: true
+        )
+        let imageData = try XCTUnwrap(UIImage(systemName: "circle")?.pngData())
+        let cache = ScreenshotJobCache(directory: directory)
+        try await cache.save(job: failed, imageData: imageData)
+        let api = ControllableScreenshotAPI(serverJobs: [failed])
+        let store = OmoStore(
+            api: api,
+            notificationScheduler: NotificationSchedulerSpy(),
+            screenshotJobCache: cache
+        )
+
+        await store.load()
+        XCTAssertEqual(store.screenshotJobs, [failed])
+
+        let retried = await store.retryScreenshotJob(failed)
+        let retriedJobIDs = await api.retriedJobIDs()
+        XCTAssertTrue(retried)
+        XCTAssertEqual(store.screenshotJobs[0].state, .accepted)
+        XCTAssertEqual(retriedJobIDs, [failed.id])
+    }
+
+    @MainActor
+    func testReloadDeletesLocalRetryImageWhenServerAlreadySucceeded() async throws {
+        let directory = temporaryJobDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let card = notificationTestCard()
+        let succeeded = makeScreenshotJob(
+            id: "job-notification",
+            state: .succeeded,
+            cardId: card.id
+        )
+        let imageData = try XCTUnwrap(UIImage(systemName: "circle")?.pngData())
+        let cache = ScreenshotJobCache(directory: directory)
+        try await cache.save(job: succeeded, imageData: imageData)
+        let store = OmoStore(
+            api: OmoAPIStub(createdCard: card, assessedCard: card),
+            notificationScheduler: NotificationSchedulerSpy(),
+            screenshotJobCache: cache
+        )
+
+        await store.load()
+
+        let retainedImage = try await cache.imageData(for: succeeded.id)
+        XCTAssertNil(retainedImage)
+    }
+
     func testNotificationPlanCarriesQuestionAndCardIDWithoutAnswerContent() {
         let card = notificationTestCard()
         let now = Date(timeIntervalSince1970: 1_700_000_000)
@@ -57,6 +178,8 @@ final class RecallInteractionStateTests: XCTestCase {
 
     @MainActor
     func testCreateAssessAndDeleteKeepLocalRecallNotificationInSync() async throws {
+        let directory = temporaryJobDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
         let created = notificationTestCard(nextReviewAt: "2026-08-09T08:00:00Z")
         let assessed = notificationTestCard(
             nextReviewAt: "2026-08-12T08:00:00Z",
@@ -66,11 +189,13 @@ final class RecallInteractionStateTests: XCTestCase {
         let scheduler = NotificationSchedulerSpy()
         let store = OmoStore(
             api: OmoAPIStub(createdCard: created, assessedCard: assessed),
-            notificationScheduler: scheduler
+            notificationScheduler: scheduler,
+            screenshotJobCache: ScreenshotJobCache(directory: directory)
         )
         let imageData = try XCTUnwrap(UIImage(systemName: "circle")?.pngData())
 
         let createdSuccessfully = await store.createCard(from: imageData)
+        await store.refreshScreenshotJobs()
         XCTAssertTrue(createdSuccessfully)
         _ = try await store.assess(created, as: .remembered)
         await store.delete(assessed)
@@ -199,8 +324,20 @@ private struct OmoAPIStub: OmoAPIProviding {
     let createdCard: MemoryCard
     let assessedCard: MemoryCard
 
-    func cards() async throws -> [MemoryCard] { [] }
+    func cards() async throws -> [MemoryCard] { [createdCard] }
     func createCard(from imageData: Data) async throws -> MemoryCard { createdCard }
+    func screenshotJobs() async throws -> [ScreenshotJob] {
+        [makeScreenshotJob(id: "job-notification", state: .succeeded, cardId: createdCard.id)]
+    }
+    func createScreenshotJob(from imageData: Data) async throws -> ScreenshotJob {
+        makeScreenshotJob(id: "job-notification", state: .succeeded, cardId: createdCard.id)
+    }
+    func screenshotJob(id: String) async throws -> ScreenshotJob {
+        makeScreenshotJob(id: id, state: .succeeded, cardId: createdCard.id)
+    }
+    func retryScreenshotJob(id: String, imageData: Data) async throws -> ScreenshotJob {
+        makeScreenshotJob(id: id)
+    }
     func assess(_ card: MemoryCard, as assessment: MemoryAssessment) async throws -> MemoryCard {
         assessedCard
     }
@@ -222,4 +359,107 @@ private actor NotificationSchedulerSpy: RecallNotificationScheduling {
     func snapshot() -> (scheduled: [MemoryCard], cancelledCardIDs: [String]) {
         (scheduled, cancelledCardIDs)
     }
+}
+
+private actor ControllableScreenshotAPI: OmoAPIProviding {
+    private let storedCards: [MemoryCard]
+    private var jobs: [ScreenshotJob]
+    private var creationContinuation: CheckedContinuation<ScreenshotJob, Error>?
+    private var creationStarted = false
+    private var retries: [String] = []
+
+    init(cards: [MemoryCard] = [], serverJobs: [ScreenshotJob] = []) {
+        storedCards = cards
+        jobs = serverJobs
+    }
+
+    func cards() async throws -> [MemoryCard] { storedCards }
+
+    func createCard(from imageData: Data) async throws -> MemoryCard {
+        throw APIError.server("legacy creation should not be used")
+    }
+
+    func screenshotJobs() async throws -> [ScreenshotJob] { jobs }
+
+    func createScreenshotJob(from imageData: Data) async throws -> ScreenshotJob {
+        creationStarted = true
+        return try await withCheckedThrowingContinuation { continuation in
+            creationContinuation = continuation
+        }
+    }
+
+    func screenshotJob(id: String) async throws -> ScreenshotJob {
+        jobs.first(where: { $0.id == id }) ?? makeScreenshotJob(id: id)
+    }
+
+    func retryScreenshotJob(id: String, imageData: Data) async throws -> ScreenshotJob {
+        retries.append(id)
+        let accepted = makeScreenshotJob(id: id, state: .accepted, attemptCount: 1)
+        jobs = [accepted]
+        return accepted
+    }
+
+    func assess(_ card: MemoryCard, as assessment: MemoryAssessment) async throws -> MemoryCard {
+        card
+    }
+
+    func delete(_ card: MemoryCard) async throws {}
+
+    func waitUntilCreationStarts() async {
+        while !creationStarted { await Task.yield() }
+    }
+
+    func finishCreation(with job: ScreenshotJob) {
+        jobs = [job]
+        creationContinuation?.resume(returning: job)
+        creationContinuation = nil
+    }
+
+    func retriedJobIDs() -> [String] { retries }
+}
+
+private actor RecoverableLoadAPI: OmoAPIProviding {
+    private var shouldFail = true
+
+    func cards() async throws -> [MemoryCard] {
+        if shouldFail { throw APIError.server("暂时无法连接测试服务。") }
+        return []
+    }
+
+    func screenshotJobs() async throws -> [ScreenshotJob] {
+        if shouldFail { throw APIError.server("暂时无法连接测试服务。") }
+        return []
+    }
+
+    func createCard(from imageData: Data) async throws -> MemoryCard { throw APIError.invalidResponse }
+    func assess(_ card: MemoryCard, as assessment: MemoryAssessment) async throws -> MemoryCard { card }
+    func delete(_ card: MemoryCard) async throws {}
+    func recover() { shouldFail = false }
+}
+
+private func makeScreenshotJob(
+    id: String,
+    state: ScreenshotJobState = .accepted,
+    attemptCount: Int = 0,
+    errorCode: String = "",
+    errorMessage: String = "",
+    retryable: Bool = false,
+    cardId: String = ""
+) -> ScreenshotJob {
+    ScreenshotJob(
+        id: id,
+        state: state,
+        createdAt: "2026-08-08T00:00:00Z",
+        updatedAt: "2026-08-08T00:00:00Z",
+        attemptCount: attemptCount,
+        cardId: cardId,
+        errorCode: errorCode,
+        errorMessage: errorMessage,
+        retryable: retryable
+    )
+}
+
+private func temporaryJobDirectory() -> URL {
+    FileManager.default.temporaryDirectory
+        .appending(path: "omo-store-jobs-\(UUID().uuidString)", directoryHint: .isDirectory)
 }

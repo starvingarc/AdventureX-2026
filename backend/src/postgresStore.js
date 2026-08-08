@@ -1,4 +1,5 @@
 import { Pool } from "pg";
+import { createHash, randomUUID } from "node:crypto";
 
 import { getMigrationStatus } from "./migrations.js";
 import {
@@ -6,6 +7,8 @@ import {
   toPublicCard,
   validateAssessmentInput
 } from "./store.js";
+
+const screenshotLeaseMilliseconds = 5 * 60 * 1000;
 
 export function createPostgresPool(databaseConfig) {
   const pool = new Pool({
@@ -154,6 +157,223 @@ export class PostgresCardStore {
     });
   }
 
+  async enqueueScreenshotJob(owner, { imageBase64, mimeType = "image/jpeg" } = {}) {
+    validateIdentifier(owner, "owner");
+    validateScreenshotInput(imageBase64);
+    const fingerprint = screenshotFingerprint(imageBase64);
+    const jobId = `job-${fingerprint.slice(0, 20)}`;
+
+    return storageOperation(() => withTransaction(this.pool, async (client) => {
+      await ensureOwner(client, owner);
+      const result = await client.query(
+        `INSERT INTO omo_screenshot_jobs (
+           owner_id, job_id, fingerprint, state, image_base64, mime_type
+         )
+         VALUES ($1, $2, $3, 'accepted', $4, $5)
+         ON CONFLICT (owner_id, fingerprint) DO UPDATE
+         SET updated_at = omo_screenshot_jobs.updated_at
+         RETURNING *`,
+        [owner, jobId, fingerprint, imageBase64, mimeType]
+      );
+      return toPublicScreenshotJobRow(result.rows[0]);
+    }));
+  }
+
+  async listScreenshotJobs(owner) {
+    validateIdentifier(owner, "owner");
+    return storageOperation(async () => {
+      const result = await this.pool.query(
+        `SELECT *
+         FROM omo_screenshot_jobs
+         WHERE owner_id = $1
+         ORDER BY created_at DESC, job_id`,
+        [owner]
+      );
+      return result.rows.map(toPublicScreenshotJobRow);
+    });
+  }
+
+  async getScreenshotJob(owner, jobId) {
+    validateIdentifier(owner, "owner");
+    validateIdentifier(jobId, "job");
+    return storageOperation(async () => {
+      const result = await this.pool.query(
+        `SELECT *
+         FROM omo_screenshot_jobs
+         WHERE owner_id = $1 AND job_id = $2`,
+        [owner, jobId]
+      );
+      return result.rows[0] ? toPublicScreenshotJobRow(result.rows[0]) : null;
+    });
+  }
+
+  async claimScreenshotJob(owner, jobId) {
+    validateIdentifier(owner, "owner");
+    validateIdentifier(jobId, "job");
+    return storageOperation(async () => {
+      const attemptToken = randomUUID();
+      const leaseExpiresAt = new Date(Date.now() + screenshotLeaseMilliseconds).toISOString();
+      const result = await this.pool.query(
+        `UPDATE omo_screenshot_jobs
+         SET state = 'processing',
+             attempt_count = attempt_count + 1,
+             attempt_token = $3,
+             lease_expires_at = $4,
+             updated_at = NOW()
+         WHERE owner_id = $1
+           AND job_id = $2
+           AND state = 'accepted'
+           AND image_base64 IS NOT NULL
+         RETURNING *`,
+        [owner, jobId, attemptToken, leaseExpiresAt]
+      );
+      return result.rows[0] ? toInternalScreenshotJobRow(result.rows[0]) : null;
+    });
+  }
+
+  async renewScreenshotJobLease(owner, jobId, attemptToken) {
+    validateIdentifier(owner, "owner");
+    validateIdentifier(jobId, "job");
+    validateIdentifier(attemptToken, "attempt");
+    const leaseExpiresAt = new Date(Date.now() + screenshotLeaseMilliseconds).toISOString();
+    return storageOperation(async () => {
+      const result = await this.pool.query(
+        `UPDATE omo_screenshot_jobs
+         SET lease_expires_at = $4, updated_at = NOW()
+         WHERE owner_id = $1 AND job_id = $2
+           AND state = 'processing' AND attempt_token = $3
+         RETURNING job_id`,
+        [owner, jobId, attemptToken, leaseExpiresAt]
+      );
+      return Boolean(result.rows[0]);
+    });
+  }
+
+  async succeedScreenshotJob(owner, jobId, attemptToken, cardId) {
+    validateIdentifier(owner, "owner");
+    validateIdentifier(jobId, "job");
+    validateIdentifier(cardId, "card");
+    return storageOperation(async () => {
+      const result = await this.pool.query(
+        `UPDATE omo_screenshot_jobs
+         SET state = 'succeeded',
+             card_id = $4,
+             image_base64 = NULL,
+             attempt_token = NULL,
+             lease_expires_at = NULL,
+             error_code = '',
+             error_message = '',
+             retryable = FALSE,
+             updated_at = NOW()
+         WHERE owner_id = $1 AND job_id = $2
+           AND state = 'processing' AND attempt_token = $3
+         RETURNING *`,
+        [owner, jobId, attemptToken, cardId]
+      );
+      return result.rows[0] ? toPublicScreenshotJobRow(result.rows[0]) : null;
+    });
+  }
+
+  async failScreenshotJob(owner, jobId, attemptToken, { code, message, retryable = true }) {
+    validateIdentifier(owner, "owner");
+    validateIdentifier(jobId, "job");
+    return storageOperation(async () => {
+      const result = await this.pool.query(
+        `UPDATE omo_screenshot_jobs
+         SET state = 'failed',
+             image_base64 = NULL,
+             attempt_token = NULL,
+             lease_expires_at = NULL,
+             error_code = $4,
+             error_message = $5,
+             retryable = $6,
+             updated_at = NOW()
+         WHERE owner_id = $1 AND job_id = $2
+           AND state = 'processing' AND attempt_token = $3
+         RETURNING *`,
+        [
+          owner,
+          jobId,
+          attemptToken,
+          String(code || "processing_failed"),
+          String(message),
+          Boolean(retryable)
+        ]
+      );
+      return result.rows[0] ? toPublicScreenshotJobRow(result.rows[0]) : null;
+    });
+  }
+
+  async retryScreenshotJob(owner, jobId, { imageBase64, mimeType = "image/jpeg" } = {}) {
+    validateIdentifier(owner, "owner");
+    validateIdentifier(jobId, "job");
+    validateScreenshotInput(imageBase64);
+    const fingerprint = screenshotFingerprint(imageBase64);
+    return storageOperation(() => withTransaction(this.pool, async (client) => {
+      const selected = await client.query(
+        `SELECT * FROM omo_screenshot_jobs
+         WHERE owner_id = $1 AND job_id = $2
+         FOR UPDATE`,
+        [owner, jobId]
+      );
+      if (!selected.rows[0]) return null;
+      if (selected.rows[0].fingerprint !== fingerprint) {
+        throw storageError(409, "screenshot_job_image_mismatch", "重试截图与原任务不一致。");
+      }
+      if (selected.rows[0].state === "succeeded") {
+        return toPublicScreenshotJobRow(selected.rows[0]);
+      }
+      if (selected.rows[0].state === "processing") {
+        return toPublicScreenshotJobRow(selected.rows[0]);
+      }
+      const result = await client.query(
+        `UPDATE omo_screenshot_jobs
+         SET state = 'accepted',
+             image_base64 = $3,
+             mime_type = $4,
+             error_code = '',
+             error_message = '',
+             retryable = FALSE,
+             attempt_token = NULL,
+             lease_expires_at = NULL,
+             updated_at = NOW()
+         WHERE owner_id = $1 AND job_id = $2
+         RETURNING *`,
+        [owner, jobId, imageBase64, mimeType]
+      );
+      return toPublicScreenshotJobRow(result.rows[0]);
+    }));
+  }
+
+  async recoverScreenshotJobs() {
+    return storageOperation(async () => {
+      const result = await this.pool.query(
+        `UPDATE omo_screenshot_jobs
+         SET state = 'accepted',
+             attempt_token = NULL,
+             lease_expires_at = NULL,
+             updated_at = NOW()
+         WHERE state = 'processing'
+           AND image_base64 IS NOT NULL
+           AND lease_expires_at <= NOW()
+         RETURNING *`
+      );
+      const accepted = await this.pool.query(
+        `SELECT * FROM omo_screenshot_jobs
+         WHERE state = 'accepted' AND image_base64 IS NOT NULL
+         ORDER BY created_at, job_id`
+      );
+      const rows = new Map();
+      for (const row of [...result.rows, ...accepted.rows]) {
+        rows.set(`${row.owner_id}:${row.job_id}`, row);
+      }
+      return [...rows.values()].map((row) => ({
+        owner: row.owner_id,
+        ...toPublicScreenshotJobRow(row)
+      }));
+    });
+  }
+
   async readiness() {
     return getMigrationStatus(this.pool, {
       ...(this.migrationsDirectory
@@ -182,6 +402,15 @@ async function withTransaction(pool, operation) {
   }
 }
 
+async function ensureOwner(client, owner) {
+  await client.query(
+    `INSERT INTO omo_owners (owner_id, owner_kind)
+     VALUES ($1, 'device')
+     ON CONFLICT (owner_id) DO NOTHING`,
+    [owner]
+  );
+}
+
 async function storageOperation(operation) {
   try {
     return await operation();
@@ -204,6 +433,44 @@ function timestamp(value, code = "card_timestamp_invalid") {
     throw storageError(422, code, "记忆卡时间字段无效。");
   }
   return new Date(milliseconds).toISOString();
+}
+
+function screenshotFingerprint(imageBase64) {
+  return createHash("sha256").update(imageBase64).digest("hex");
+}
+
+function validateScreenshotInput(imageBase64) {
+  if (!imageBase64 || typeof imageBase64 !== "string") {
+    throw storageError(400, "image_required", "请先选择一张截图。");
+  }
+}
+
+function toInternalScreenshotJobRow(row) {
+  return {
+    ...toPublicScreenshotJobRow(row),
+    attemptToken: row.attempt_token,
+    leaseExpiresAt: isoTimestamp(row.lease_expires_at),
+    imageBase64: row.image_base64,
+    mimeType: row.mime_type
+  };
+}
+
+function toPublicScreenshotJobRow(row) {
+  return {
+    id: row.job_id,
+    state: row.state,
+    createdAt: isoTimestamp(row.created_at),
+    updatedAt: isoTimestamp(row.updated_at),
+    attemptCount: Number(row.attempt_count || 0),
+    cardId: row.card_id || "",
+    errorCode: row.error_code || "",
+    errorMessage: row.error_message || "",
+    retryable: Boolean(row.retryable)
+  };
+}
+
+function isoTimestamp(value) {
+  return value instanceof Date ? value.toISOString() : String(value || "");
 }
 
 function storageError(statusCode, code, message) {

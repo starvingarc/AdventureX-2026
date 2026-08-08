@@ -2,6 +2,44 @@ import XCTest
 @testable import Omo
 
 final class APIClientDecodingTests: XCTestCase {
+    func testScreenshotSubmissionUsesDurableJobEndpointAndDecodesAcceptedState() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [APIClientURLProtocolStub.self]
+        let session = URLSession(configuration: configuration)
+        APIClientURLProtocolStub.handler = { request in
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.url?.path, "/api/screenshot-jobs")
+            XCTAssertEqual(request.timeoutInterval, 30)
+            let body = try requestBodyData(request)
+            let object = try XCTUnwrap(
+                JSONSerialization.jsonObject(with: body) as? [String: String]
+            )
+            XCTAssertEqual(object["mimeType"], "image/jpeg")
+            XCTAssertEqual(object["imageBase64"], Data("image".utf8).base64EncodedString())
+            let response = try XCTUnwrap(
+                HTTPURLResponse(
+                    url: request.url!,
+                    statusCode: 202,
+                    httpVersion: nil,
+                    headerFields: ["content-type": "application/json"]
+                )
+            )
+            let data = #"{"job":{"id":"job-1","state":"accepted","createdAt":"2026-08-08T00:00:00Z","updatedAt":"2026-08-08T00:00:00Z","attemptCount":0,"cardId":"","errorCode":"","errorMessage":"","retryable":false}}"#.data(using: .utf8)!
+            return (response, data)
+        }
+        defer { APIClientURLProtocolStub.handler = nil }
+
+        let job = try await APIClient(
+            baseURL: URL(string: "https://omo-testflight-staging.example.com")!,
+            session: session
+        ).createScreenshotJob(from: Data("image".utf8))
+
+        XCTAssertEqual(job.id, "job-1")
+        XCTAssertEqual(job.state, .accepted)
+        XCTAssertTrue(job.isActive)
+        XCTAssertFalse(job.canRetry)
+    }
+
     func testAIProcessingConsentRequiresPromptUntilExplicitlyGranted() {
         XCTAssertTrue(AIProcessingConsent.requiresPrompt(hasConsent: false))
         XCTAssertFalse(AIProcessingConsent.requiresPrompt(hasConsent: true))

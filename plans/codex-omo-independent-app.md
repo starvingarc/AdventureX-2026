@@ -16,6 +16,16 @@
 - 范围：空库首页、截图上传与任务恢复、抽卡可达性、知识库处理状态、真实验收
 - 安全边界：只修改当前功能分支与 Omo staging，不部署 production，不修改 `main`
 
+## 当前进度（2026-08-09）
+
+- 已完成异步截图任务合同、Postgres migration `003`、worker lease / heartbeat / attempt fencing、iOS 本地恢复与同 ID 重试。
+- 已完成空库、处理中、失败、复习和通知叠卡状态的持久入口修复；App 内两个上传入口共用 Upload Coordinator。
+- 后端全量验证：59 通过、0 失败、1 项仅因本机未提供真实 Postgres 测试地址而跳过；真实 Railway staging migration、readiness 和截图 API 已另外验证。
+- iOS 全量验证：49 通过、0 失败、0 跳过；包含 5 条核心交互 UI Test。
+- 提供的真实截图已在 staging 成功生成卡片；另一次真实 App 上传遇到模型超时后进入明确失败态，同 ID 重试、入口可用和杀 App 恢复均已验证。
+- 独立 Omo `1.0 (2)` 已完成 Release Archive、App Store 导出与包审计；App Store Connect 状态为 `VALID` / `IN_BETA_TESTING`，已加入独立 Omo 内部组并开启自动通知。
+- Share Extension 的首次 AI 授权跳转仍属于 PRD 第 17 节待产品确认边界，不在本次 P0 首页死锁修复中伪实现。
+
 ## 合同冻结
 
 - 输入：用户从 App 内照片选择器或后续 Share Extension 提交的一张截图。

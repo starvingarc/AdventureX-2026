@@ -6,7 +6,7 @@
 
 | 计划 | 分支 | 负责人 | 状态 | 模式 | 进度 | 下一步 |
 |---|---|---|---|---|---:|---|
-| [[plans/codex-omo-independent-app]] | `codex/omo-independent-app` | Codex `/root` | `in_progress` | `auto` | 0% | 建立失败测试并修复 P0 入口与截图任务状态 |
+| [[plans/codex-omo-independent-app]] | `codex/omo-independent-app` | Codex `/root` | `in_progress` | `auto` | 98% | 在手机安装独立 Omo build 2，按 PRD 完成最终 TestFlight 真机验收 |
 
 ## 使用规则
 

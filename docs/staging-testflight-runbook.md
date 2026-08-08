@@ -114,12 +114,12 @@ API 私钥不得提交到 Git；只保存在本机安全凭据存储。
 ## 当前状态（2026-08-08）
 
 - 新项目、`staging` 环境、`omo-api-staging` 和独立 Postgres 已创建。
-- Migration `001` / `002` 已应用并验证 ready。
+- Migration `001` / `002` / `003` 已应用并验证 ready；`003` 建立可恢复的截图任务表。
 - 临时 Postgres TCP proxy 已删除，当前 proxy 列表为空。
 - staging 变量已配置；供应商密钥只存在 Railway staging，未写入仓库或日志。
-- backend 最终部署 `b00a4f66-f006-420f-8a7b-91cb1b21e590` 为 `SUCCESS`，公网域名为 `https://omo-api-staging-staging.up.railway.app`。
+- backend 核心交互修复部署 `f8c51bc7-0d69-42d6-b8b6-15909c604822` 为 `SUCCESS`，公网域名为 `https://omo-api-staging-staging.up.railway.app`；pre-deploy 会先执行 migration，再进行 readiness 检查。
 - health/readiness、空库、真实生成、读取、搜索、assessment 幂等、重启回读和删除均已通过；合成测试数据已删除。
-- Release 默认连接上述 staging HTTPS 域名；当前独立 Bundle `com.maxhan.omo` 的 Simulator XCTest 37/37 通过。
+- Release 默认连接上述 staging HTTPS 域名；当前独立 Bundle `com.maxhan.omo` 的 Simulator XCTest（含 UI Tests）49/49 通过。
 - `asc 3.5.1` 已使用系统 Keychain profile 完成认证并通过在线验证；私钥和凭据未进入仓库。
 - 新 Apple Distribution 证书和 App Store provisioning profile 均有效至 2027-08-08。
 - 工程最低系统已正式设为 iOS 17.0；签名 Archive 与导出 IPA 均通过。
@@ -127,7 +127,8 @@ API 私钥不得提交到 Git；只保存在本机安全凭据存储。
 - 错误 Draft PR #38 已关闭。旧 App build 1–27、测试员和生产数据均未修改。
 - 全新 Bundle ID `com.maxhan.omo` 已注册且此前没有绑定 App；主工程已切换到该身份并将新 App 构建号重置为 1。
 - `com.maxhan.omo` 的独立 App Store profile、签名 `1.0 (1)` Archive 和 IPA 已生成并通过包审计；同一 IPA 已上传至新的 Omo App。
-- 当前独立 Bundle `com.maxhan.omo` 已实际执行全部 Simulator XCTest：37 通过、0 失败、0 跳过。
+- 当前独立 Bundle `com.maxhan.omo` 已实际执行全部 Simulator XCTest：49 通过、0 失败、0 跳过；其中包含 5 条核心交互 UI Test。
 - 新 Omo App Store Connect App ID 为 `6799407458`；独立 build 1（Build ID `7bb306b6-dc29-43ca-9547-782ae6fa2009`）状态为 `VALID`。
-- 独立内部组 ID 为 `109f9f4f-75b9-4419-be1f-46edd4bc016a`，当前测试员为 0；不得复用旧 App 记录、旧测试组或自动继承旧测试员。
+- 核心交互修复使用独立 build 2（Build ID `a387a603-dc77-4dda-b0a3-862e1d490936`）：Archive、App Store 导出、包内 Bundle / 版本 / staging 地址、正式签名均已校验，App Store Connect 状态为 `VALID` / `IN_BETA_TESTING`。
+- 独立内部组 ID 为 `109f9f4f-75b9-4419-be1f-46edd4bc016a`；build 2 已加入该组并开启自动通知，组内当前一名 Omo 测试员状态为 `INSTALLED`。不得复用旧 App 记录、旧测试组或旧测试员。
 - 隐私政策与支持页已分别托管在 `/privacy` 和 `/support`；兼容地址 `/privacy-policy.html` 亦可用。

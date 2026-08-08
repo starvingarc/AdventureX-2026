@@ -5,6 +5,7 @@
     "dockerfilePath": "Dockerfile"
   },
   "deploy": {
+    "preDeployCommand": "npm run db:migrate",
     "healthcheckPath": "/api/readiness",
     "healthcheckTimeout": 60
   }

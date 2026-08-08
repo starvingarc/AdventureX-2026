@@ -12,6 +12,7 @@ test("Railway staging builds the backend from an explicit Dockerfile", async () 
 
   assert.equal(railwayConfig.build?.builder, "DOCKERFILE");
   assert.equal(railwayConfig.build?.dockerfilePath, "Dockerfile");
+  assert.equal(railwayConfig.deploy?.preDeployCommand, "npm run db:migrate");
   assert.match(dockerfile, /^FROM node:20-alpine$/m);
   assert.match(
     dockerfile,

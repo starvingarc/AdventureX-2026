@@ -190,6 +190,7 @@ SwiftUI、PhotosUI、Speech、UserNotifications、XCTest、Node.js 20、`node:te
 - 2026-08-08：Task 7 再探测确认本机已有 `com.maxhan.shibei` 的 App Store provisioning profile，但仍无 Apple Distribution 身份与 ASC 凭据。新增 `destination=export`、`testFlightInternalTestingOnly=true` 的导出配置和显式 Archive/上传门禁；未生成签名资产、未访问或修改 App Store Connect。
 - 2026-08-08：Task 5 完成。用户已在隔离 staging 添加 Qwen/TikHub 变量；显式 Node 20 Dockerfile 消除了空服务镜像复用问题，部署 `c35b57f1-90da-4d80-b78a-0eb9145f56d0` 成功。公网 health/readiness、真实合成截图生成、读取、搜索、assessment 幂等、重启回读和删除均通过；Release 包已固定并验证 staging HTTPS URL，iOS XCTest 37/37 通过。生产项目与 `main` 未触碰。
 - 2026-08-08：Task 6 增加 Release Simulator × 真实 staging 验收。空库、系统选图、AI 许可、真实生成、通知权限、IP 抽卡、揭示门禁、实际刮擦、自评取消与 remembered 提交、真实搜索、完整上下文和重启空库均通过；iOS 写入在 PostgreSQL 中确认后已删除合成卡。当前 MVP 没有 Figma 定义的用户删除入口，因此没有临时扩展 UI。
+- 2026-08-08：Task 7 离线 App Review 审计完成。图标尺寸/Alpha、实际权限文案、隐私清单、系统框架依赖、无 ATT/IAP/APNs/额外 entitlement、Release forbidden-string 均通过。现有 Store profile 的 Apple Distribution 证书已于 2026-07-09 过期，Keychain 无对应有效私钥；ASC 凭据仍是远端 build number、新签名和上传的硬边界。
 
 ## 阻塞与恢复
 

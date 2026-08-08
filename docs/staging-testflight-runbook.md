@@ -106,9 +106,8 @@ xcodebuild -exportArchive \
 
 继续到真实 TestFlight 前只缺以下用户侧输入／权限：
 
-1. 两个专用于 staging 的供应商密钥：`QWEN_API`、`TIKHUB_API_KEY`。不得复用或读取生产密钥。
-2. App Store Connect API key（建议 App Manager 权限）或一次有效的 Xcode/App Store Connect 登录，用于查询 App 记录和安全 build number、签名、上传及关联内部测试组。
-3. 确认可公开使用的支持邮箱，以及隐私政策和支持页面的公开 HTTPS 地址；当前仓库只有静态页面，尚未托管。
+1. App Store Connect API key（建议 App Manager 权限）或一次有效的 Xcode/App Store Connect 登录，用于查询 App 记录和安全 build number、签名、上传及关联内部测试组。
+2. 确认可公开使用的支持邮箱，以及隐私政策和支持页面的公开 HTTPS 地址；当前仓库只有静态页面，尚未托管。
 
 上述信息不得提交到 Git；密钥只进入 Railway staging 或本机安全凭据存储。
 
@@ -117,7 +116,9 @@ xcodebuild -exportArchive \
 - 新项目、`staging` 环境、`omo-api-staging` 和独立 Postgres 已创建。
 - Migration `001` / `002` 已应用并验证 ready。
 - 临时 Postgres TCP proxy 已删除，当前 proxy 列表为空。
-- 非秘密变量已配置；`QWEN_API` 和 `TIKHUB_API_KEY` 尚缺失。
-- 因真实供应商密钥缺失，后端尚未部署，也未生成公网 domain。
+- staging 变量已配置；供应商密钥只存在 Railway staging，未写入仓库或日志。
+- backend 部署 `c35b57f1-90da-4d80-b78a-0eb9145f56d0` 为 `SUCCESS`，公网域名为 `https://omo-api-staging-staging.up.railway.app`。
+- health/readiness、空库、真实生成、读取、搜索、assessment 幂等、重启回读和删除均已通过；合成测试数据已删除。
+- Release 默认连接上述 staging HTTPS 域名；实际 Simulator App 包检查与 iOS XCTest 37/37 通过。
 - 本机有 `com.maxhan.shibei` 的 App Store provisioning profile，但 Keychain 仅有 Apple Development 身份、没有 Apple Distribution 身份。
 - `asc 3.5.1` 已安装，但当前没有 App Store Connect 凭据；尚未访问或修改远端 App 记录。

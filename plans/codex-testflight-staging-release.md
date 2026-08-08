@@ -118,11 +118,11 @@ SwiftUI、PhotosUI、Speech、UserNotifications、XCTest、Node.js 20、`node:te
 **Files:** `railway.json`、`railpack.json`、`backend/migrations/`、`backend/.env.example`、`docs/staging-testflight-runbook.md`。
 
 - [x] 创建全新 Railway 项目 `Omo TestFlight Staging`，不 link、不读取、不修改现有“拾贝”项目；添加独立 Postgres 服务。
-- [ ] 仅在 staging 设置 `NODE_ENV=production`、`STORE_DRIVER=postgres`、staging `DATABASE_URL`、Qwen/TikHub 所需变量；变量值不写入仓库或日志。
+- [x] 仅在 staging 设置 `NODE_ENV=production`、`STORE_DRIVER=postgres`、staging `DATABASE_URL`、Qwen/TikHub 所需变量；变量值不写入仓库或日志。
 - [x] 在 staging 数据库执行只读 migration status，再执行顺序 migration；记录版本和 checksum，不导入生产数据。
-- [ ] 部署当前分支 backend，验证 `/api/health`、`/api/readiness`、空库、真实授权截图生成、重启后读取、assessment 幂等、删除和搜索。
-- [ ] 将 staging HTTPS URL 注入 TestFlight 构建配置，形成可复现但不含密钥的 runbook。
-- [ ] 提交配置与文档；Railway 外部状态只限新 staging 项目。
+- [x] 部署当前分支 backend，验证 `/api/health`、`/api/readiness`、空库、真实授权截图生成、重启后读取、assessment 幂等、删除和搜索。
+- [x] 将 staging HTTPS URL 注入 TestFlight 构建配置，形成可复现但不含密钥的 runbook。
+- [x] 提交配置与文档；Railway 外部状态只限新 staging 项目。
 
 ### Task 6：Simulator 全流程与缺陷修复循环
 
@@ -188,12 +188,13 @@ SwiftUI、PhotosUI、Speech、UserNotifications、XCTest、Node.js 20、`node:te
 - 2026-08-08：Task 6 Reduce Motion 实机设置验证通过：开启“减弱动态效果”后回顾卡直接稳定呈现，自评仍能提交，失败时留在原卡显示重试；测试结束后已恢复 Simulator 设置。
 - 2026-08-08：Task 7 本地探测开始。安装 `asc 3.5.1` 后确认本机没有 ASC API 凭据；Keychain 只有 Apple Development 身份，因此没有访问、创建或修改远端 App／签名资产。App 仅使用系统 HTTPS，补充 `ITSAppUsesNonExemptEncryption=false`。
 - 2026-08-08：Task 7 再探测确认本机已有 `com.maxhan.shibei` 的 App Store provisioning profile，但仍无 Apple Distribution 身份与 ASC 凭据。新增 `destination=export`、`testFlightInternalTestingOnly=true` 的导出配置和显式 Archive/上传门禁；未生成签名资产、未访问或修改 App Store Connect。
+- 2026-08-08：Task 5 完成。用户已在隔离 staging 添加 Qwen/TikHub 变量；显式 Node 20 Dockerfile 消除了空服务镜像复用问题，部署 `c35b57f1-90da-4d80-b78a-0eb9145f56d0` 成功。公网 health/readiness、真实合成截图生成、读取、搜索、assessment 幂等、重启回读和删除均通过；Release 包已固定并验证 staging HTTPS URL，iOS XCTest 37/37 通过。生产项目与 `main` 未触碰。
 
 ## 阻塞与恢复
 
-- 当前阻塞：staging backend 的真实部署需要两个 staging 专用密钥 `QWEN_API` 和 `TIKHUB_API_KEY`，本机与新服务均未配置；禁止从生产项目读取或复制。App Store Connect 仍需后续探测 `asc` 与 Distribution 权限。
-- 解除条件：用户通过安全方式提供 staging 专用 Qwen/TikHub 密钥；若 Apple 权限不足，再提供最小 App Store Connect API key 或在 Xcode 完成一次登录。
-- 下一位 Agent 从哪里继续：密钥未就绪时可先执行 Task 6/7 的本地审计与无密钥验证；密钥就绪后回到 Task 5 部署 `omo-api-staging`，禁止连接 Railway 项目“拾贝”。
+- 当前阻塞：App Store Connect 仍缺少可用凭据与 Apple Distribution 身份；支持页和隐私政策也尚无公开 HTTPS 地址。staging backend 已完成，不再阻塞。
+- 解除条件：提供最小 App Store Connect API key（建议 App Manager）或在 Xcode 完成一次有效登录；并确定支持邮箱、隐私政策与支持页的公开 HTTPS 地址。
+- 下一位 Agent 从哪里继续：先执行 Task 6 的真实 staging Simulator 闭环，再回到 Task 7 探测远端 App/build number、签名和上传；始终禁止连接 Railway 项目“拾贝”。
 
 ## 相关文档
 

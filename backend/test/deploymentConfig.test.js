@@ -27,3 +27,16 @@ test("Railway container listens on every interface", async () => {
 
   assert.match(dockerfile, /^ENV HOST=0\.0\.0\.0$/m);
 });
+
+test("Release builds target only the verified TestFlight staging API", async () => {
+  const project = await readFile(
+    new URL("Omo/Omo.xcodeproj/project.pbxproj", repositoryRoot),
+    "utf8"
+  );
+
+  assert.match(
+    project,
+    /OMO_API_BASE_URL = "https:\/\/omo-api-staging-staging\.up\.railway\.app";/
+  );
+  assert.doesNotMatch(project, /shibei-production\.up\.railway\.app/);
+});

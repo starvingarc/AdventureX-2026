@@ -5,6 +5,7 @@
 ## 产品与合同
 
 - [[docs/product-principles]]：产品北极星、证据、召回、隐私与体验护栏。
+- [[docs/frontend-interaction-prd]]：Omo MVP 从首次上传、处理恢复、抽卡、刮开、自评到知识库与通知的统一前端交互和验收基线。
 - [[docs/knowledge-library-prd]]：知识库完整卡片浏览、文字／语音搜索、分页与 mock 边界的 MVP 产品需求。
 - [[docs/ios-api-data-contract-zh]]：当前截图主链、iOS 模型、API、兼容与失败语义。
 - [[docs/superpowers/specs/2026-08-02-active-recall-selective-reintegration-design]]：以团队最新主线为基准，选择性恢复已验收首页与主动回忆交互的实施规格。

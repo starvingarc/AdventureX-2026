@@ -138,7 +138,7 @@ final class AppleKnowledgeLibrarySpeechTranscriber: KnowledgeLibrarySpeechTransc
     }
 }
 
-#if DEBUG
+#if DEBUG || OMO_TESTING
 @MainActor
 final class DebugKnowledgeLibrarySpeechTranscriber: KnowledgeLibrarySpeechTranscribing {
     let events: AsyncStream<KnowledgeLibrarySpeechEvent>

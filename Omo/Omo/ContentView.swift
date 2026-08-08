@@ -30,7 +30,7 @@ struct ContentView: View {
                 .transition(.opacity.combined(with: .scale(scale: 0.985)))
         }
         .task {
-            #if DEBUG
+            #if DEBUG || OMO_TESTING
             let arguments = ProcessInfo.processInfo.arguments
             if !arguments.contains("-OmoUseFixtures") { await store.load() }
             if arguments.contains("-OmoOpenLibrary") { store.selectedTab = .library }

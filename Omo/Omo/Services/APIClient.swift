@@ -43,7 +43,7 @@ enum AppEnvironmentError: LocalizedError, Equatable {
 
 enum AppEnvironment {
     static let apiBaseURLInfoKey = "OmoAPIBaseURL"
-    #if DEBUG
+    #if DEBUG || OMO_TESTING
     static let debugLocalhostURL = URL(string: "http://127.0.0.1:5174")!
     #endif
 
@@ -65,7 +65,7 @@ enum AppEnvironment {
             : nil
         let bundleValue = clean(infoDictionary[apiBaseURLInfoKey] as? String)
         guard let rawValue = environmentValue ?? bundleValue else {
-            #if DEBUG
+            #if DEBUG || OMO_TESTING
             if allowsDebugLocalhostFallback { return debugLocalhostURL }
             #endif
             throw AppEnvironmentError.missingAPIBaseURL
@@ -84,7 +84,7 @@ enum AppEnvironment {
         }
 
         if scheme == "https" { return url }
-        #if DEBUG
+        #if DEBUG || OMO_TESTING
         if allowsDebugLocalhostFallback,
            scheme == "http",
            ["127.0.0.1", "localhost"].contains(host) {
@@ -95,7 +95,7 @@ enum AppEnvironment {
     }
 
     private static var allowsDebugLocalhostFallback: Bool {
-        #if DEBUG
+        #if DEBUG || OMO_TESTING
         true
         #else
         false

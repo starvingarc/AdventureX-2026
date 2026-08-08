@@ -20,6 +20,7 @@
 - [[docs/frontend/v2-layout-system]]：当前布局 Token、召回动效和 UI 验证要求。
 - [[docs/asset-provenance]]：App 素材来源、授权、处理方式与哈希。
 - [[docs/knowledge-library-validation]]：知识库页面的 Simulator 路径、截图与未验证边界。
+- [[docs/core-interaction-release-validation]]：核心交互的 Release UI Test、真实 staging、截图与 TestFlight 验收证据。
 - [[docs/staging-testflight-runbook]]：隔离 Railway staging、migration、部署与 TestFlight 运行手册。
 
 ## 工程与协作

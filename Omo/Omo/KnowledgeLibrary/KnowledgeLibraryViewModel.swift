@@ -122,7 +122,7 @@ final class KnowledgeLibraryViewModel: ObservableObject {
         speechTranscriber?.stop()
     }
 
-    #if DEBUG
+    #if DEBUG || OMO_TESTING
     func waitForSearchForTesting() async {
         // Voice events arrive through an AsyncStream. The test may ask to wait
         // immediately after yielding a final transcript, before that event has

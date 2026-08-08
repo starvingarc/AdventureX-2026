@@ -22,6 +22,7 @@
 - 已完成空库、处理中、失败、复习和通知叠卡状态的持久入口修复；App 内两个上传入口共用 Upload Coordinator。
 - 后端全量验证：59 通过、0 失败、1 项仅因本机未提供真实 Postgres 测试地址而跳过；真实 Railway staging migration、readiness 和截图 API 已另外验证。
 - iOS 全量验证：49 通过、0 失败、0 跳过；包含 5 条核心交互 UI Test。
+- 同一套 49 项已在 Release 优化配置下再次通过；8 张关键状态截图已沉淀到 [[docs/core-interaction-release-validation]]。
 - 提供的真实截图已在 staging 成功生成卡片；另一次真实 App 上传遇到模型超时后进入明确失败态，同 ID 重试、入口可用和杀 App 恢复均已验证。
 - 独立 Omo `1.0 (2)` 已完成 Release Archive、App Store 导出与包审计；App Store Connect 状态为 `VALID` / `IN_BETA_TESTING`，已加入独立 Omo 内部组并开启自动通知。
 - Share Extension 的首次 AI 授权跳转仍属于 PRD 第 17 节待产品确认边界，不在本次 P0 首页死锁修复中伪实现。

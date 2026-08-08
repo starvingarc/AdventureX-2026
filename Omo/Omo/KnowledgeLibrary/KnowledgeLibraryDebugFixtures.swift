@@ -1,6 +1,6 @@
 import Foundation
 
-#if DEBUG
+#if DEBUG || OMO_TESTING
 struct KnowledgeLibraryDebugConfiguration {
     let usesMockSearch: Bool
     let searchMode: DebugMockKnowledgeLibrarySearcher.Mode
@@ -107,7 +107,7 @@ enum KnowledgeLibraryDependencies {
     static func makeSearcher(
         arguments: [String] = ProcessInfo.processInfo.arguments
     ) -> any KnowledgeLibrarySearching {
-        #if DEBUG
+        #if DEBUG || OMO_TESTING
         let configuration = KnowledgeLibraryDebugConfiguration.current(arguments: arguments)
         if configuration.usesMockSearch {
             return DebugMockKnowledgeLibrarySearcher(mode: configuration.searchMode)
@@ -117,7 +117,7 @@ enum KnowledgeLibraryDependencies {
     }
 
     static func makeSpeechTranscriber() -> any KnowledgeLibrarySpeechTranscribing {
-        #if DEBUG
+        #if DEBUG || OMO_TESTING
         let configuration = KnowledgeLibraryDebugConfiguration.current()
         if configuration.speechTranscript != nil || configuration.speechDenied {
             return DebugKnowledgeLibrarySpeechTranscriber(
@@ -130,7 +130,7 @@ enum KnowledgeLibraryDependencies {
     }
 
     static var initialQuery: String? {
-        #if DEBUG
+        #if DEBUG || OMO_TESTING
         KnowledgeLibraryDebugConfiguration.current().initialQuery
         #else
         nil

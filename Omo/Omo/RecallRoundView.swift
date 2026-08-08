@@ -21,7 +21,7 @@ struct RecallRoundView: View {
         self.onAssess = onAssess
         self.onComplete = onComplete
         var initialState = RecallRoundState(cardCount: cards.count)
-        #if DEBUG
+        #if DEBUG || OMO_TESTING
         if ProcessInfo.processInfo.arguments.contains("-OmoRecallRevealed") {
             initialState.updateCoverage(1)
         }

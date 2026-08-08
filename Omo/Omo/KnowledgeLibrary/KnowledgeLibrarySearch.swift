@@ -61,7 +61,7 @@ struct APIKnowledgeLibrarySearcher: KnowledgeLibrarySearching {
     }
 }
 
-#if DEBUG
+#if DEBUG || OMO_TESTING
 struct DebugMockKnowledgeLibrarySearcher: KnowledgeLibrarySearching {
     enum Mode: Sendable {
         case matching

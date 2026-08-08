@@ -329,7 +329,7 @@ final class OmoStore: ObservableObject {
         return jpeg
     }
 
-    #if DEBUG
+    #if DEBUG || OMO_TESTING
     func applyScreenshotJobDebugArguments(_ arguments: [String]) {
         guard let index = arguments.firstIndex(of: "-OmoScreenshotJobFixture"),
               arguments.indices.contains(index + 1) else { return }

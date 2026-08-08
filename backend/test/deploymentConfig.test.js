@@ -48,18 +48,15 @@ test("Omo uses an independent app identity and build sequence", async () => {
     "utf8"
   );
 
-  assert.equal(
-    project.match(/PRODUCT_BUNDLE_IDENTIFIER = com\.maxhan\.omo;/g)?.length,
-    2
-  );
-  assert.equal(
-    project.match(/PRODUCT_BUNDLE_IDENTIFIER = com\.maxhan\.omo\.Tests;/g)?.length,
-    2
-  );
-  assert.equal(
-    project.match(/PRODUCT_BUNDLE_IDENTIFIER = com\.maxhan\.omo\.UITests;/g)?.length,
-    2
-  );
-  assert.equal(project.match(/CURRENT_PROJECT_VERSION = 1;/g)?.length, 6);
+  const buildSettings = [...project.matchAll(/buildSettings = \{([\s\S]*?)\n\s*\};/g)]
+    .map((match) => match[1]);
+  const buildVersions = (bundleIdentifier) => buildSettings
+    .filter((settings) => settings.includes(`PRODUCT_BUNDLE_IDENTIFIER = ${bundleIdentifier};`))
+    .map((settings) => settings.match(/CURRENT_PROJECT_VERSION = (\d+);/)?.[1])
+    .filter(Boolean);
+
+  assert.deepEqual(buildVersions("com.maxhan.omo"), ["2", "2"]);
+  assert.deepEqual(buildVersions("com.maxhan.omo.Tests"), ["1", "1"]);
+  assert.deepEqual(buildVersions("com.maxhan.omo.UITests"), ["1", "1"]);
   assert.doesNotMatch(project, /com\.maxhan\.shibei/);
 });

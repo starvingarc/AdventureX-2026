@@ -1,6 +1,6 @@
 # Omo 核心交互故障审查与修复计划
 
-- 状态：`in_progress`
+- 状态：`blocked`
 - 优先级：P0
 - 创建：2026-08-08
 - 更新：2026-08-08
@@ -26,6 +26,12 @@
 - 提供的真实截图已在 staging 成功生成卡片；另一次真实 App 上传遇到模型超时后进入明确失败态，同 ID 重试、入口可用和杀 App 恢复均已验证。
 - 独立 Omo `1.0 (2)` 已完成 Release Archive、App Store 导出与包审计；App Store Connect 状态为 `VALID` / `IN_BETA_TESTING`，已加入独立 Omo 内部组并开启自动通知。
 - Share Extension 的首次 AI 授权跳转仍属于 PRD 第 17 节待产品确认边界，不在本次 P0 首页死锁修复中伪实现。
+
+## 阻塞与解除条件（2026-08-09）
+
+- 阻塞 1：完成标准要求最终 TestFlight Release 真机通过同一份 PRD；当前 build 2 已为 `VALID / IN_BETA_TESTING`，但实体手机上的上传、杀进程恢复、刮开和自评手势必须由产品方实际操作确认，Agent 无法远程代替。
+- 阻塞 2：阶段 D 要求 Share Extension，但 PRD 第 17 节仍要求产品确认“首次未授权时先打开 Omo，再继续同一截图”的额外跳转是否可接受。没有该决定时不能安全确定扩展的授权与任务交接流程。
+- 解除条件：产品方反馈 build 2 的真机逐项结果，并确认 Share Extension 首次授权流程。收到反馈后恢复本计划；若发现问题则继续修复并发布新 build，全部通过后再进入 `completed` 与退役流程。
 
 ## 合同冻结
 

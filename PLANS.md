@@ -6,7 +6,7 @@
 
 | 计划 | 分支 | 负责人 | 状态 | 模式 | 进度 | 下一步 |
 |---|---|---|---|---|---:|---|
-| [[plans/codex-omo-independent-app]] | `codex/omo-independent-app` | Codex `/root` | `in_progress` | `auto` | 98% | 在手机安装独立 Omo build 2，按 PRD 完成最终 TestFlight 真机验收 |
+| [[plans/codex-omo-independent-app]] | `codex/omo-independent-app` | Codex `/root` | `blocked` | `auto` | 98% | 等待产品方在实体手机验收 Omo build 2，并确认 Share Extension 首次授权流程 |
 
 ## 使用规则
 

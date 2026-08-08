@@ -1,0 +1,9 @@
+.git
+.gitignore
+.release
+artifacts
+docs
+Omo
+plans
+**/node_modules
+**/.DS_Store

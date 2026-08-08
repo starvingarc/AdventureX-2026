@@ -42,10 +42,10 @@
 
 ### Task 2：把工程身份切换为 Omo
 
-- [ ] 新增失败门禁测试，要求主 target Bundle ID 为 `com.maxhan.omo`、Test target 为 `com.maxhan.omo.Tests`，并禁止 `com.maxhan.shibei` 出现在当前发布配置。
-- [ ] 将 Debug/Release 主 target Bundle ID 切换为 `com.maxhan.omo`，build number 重置为新 App 的 `1`。
-- [ ] 更新发布运行手册和审计证据，明确旧 build 28 已过期，不能再描述为可测试构建。
-- [ ] 运行后端配置测试、iOS XCTest、Release build 与 forbidden-string 审计。
+- [x] 新增失败门禁测试，要求主 target Bundle ID 为 `com.maxhan.omo`、Test target 为 `com.maxhan.omo.Tests`，并禁止 `com.maxhan.shibei` 出现在当前发布配置。
+- [x] 将 Debug/Release 主 target Bundle ID 切换为 `com.maxhan.omo`，build number 重置为新 App 的 `1`。
+- [x] 更新发布运行手册和审计证据，明确旧 build 28 已过期，不能再描述为可测试构建。
+- [ ] 运行后端配置测试、iOS XCTest、Release build 与 forbidden-string 审计；Backend 50 pass / 1 skip、Simulator build-for-testing、签名 Archive/IPA 和 forbidden strings 已通过，但 CoreSimulator 在安装测试前阻塞，XCTest 尚未实际执行。
 - [ ] 提交工程身份修复。
 
 ### Task 3：创建独立 App Store Connect App 与签名
@@ -53,8 +53,8 @@
 - [ ] 获取用户确认的唯一 App Store Connect 商店名称；SKU 使用独立且稳定的 `omo-ios-2026`，主语言为简体中文，Full Access。
 - [ ] 通过可见 App Store Connect UI 创建新 iOS App，选择 Bundle ID `com.maxhan.omo`；创建前再次确认没有现存绑定。
 - [ ] 通过 API 复核新 App ID、Bundle ID 和版本序列均与旧 App 完全独立。
-- [ ] 为 `com.maxhan.omo` 创建新的 App Store provisioning profile；只复用团队级有效 Distribution 证书，不复用旧 Bundle profile。
-- [ ] 生成并审计 `1.0 (1)` Archive 与 IPA，确认签名 Bundle ID、staging URL、PrivacyInfo、加密声明和 Fixture 隔离。
+- [x] 为 `com.maxhan.omo` 创建新的 App Store provisioning profile；只复用团队级有效 Distribution 证书，不复用旧 Bundle profile。ASC profile ID 为 `RJCF68G8U5`。
+- [x] 生成并审计本地 `1.0 (1)` Archive 与 IPA，确认签名 Bundle ID、staging URL、PrivacyInfo、加密声明和 Fixture 隔离；IPA 尚未上传。
 
 ### Task 4：独立 TestFlight 分发与交付
 
@@ -93,6 +93,8 @@
 - 2026-08-08：发现错误复用旧 App ID `6772533617` 与 Bundle ID `com.maxhan.shibei`；用户明确指出 Omo 是全新产品。
 - 2026-08-08：紧急从旧组移除 build 28 并设为 `EXPIRED`，关闭 Draft PR #38；旧历史构建未改动。
 - 2026-08-08：确认 `com.maxhan.omo` 此前未注册、未绑定 App，随后注册新 Bundle ID，资源 ID 为 `B696RZHHNR`。
+- 2026-08-08：工程主 target 切换到 `com.maxhan.omo`、build 1；独立身份门禁先失败后通过。创建独立 profile，并成功 Archive/export 本地 IPA；未创建新 App、未上传。
+- 2026-08-08：Simulator build-for-testing 成功，但 iOS 18.5 设备在安装前自行 Shutdown，已启动 iOS 26.5 设备的 testmanagerd 仍停在安装前。连续三次环境恢复后停止扩大操作，明确记录新 Bundle 下 XCTest 未实际执行。
 
 ## 阻塞与恢复
 

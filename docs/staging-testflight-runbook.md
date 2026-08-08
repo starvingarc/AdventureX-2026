@@ -88,7 +88,7 @@ xcodebuild -exportArchive \
 
 导出后必须再次检查：
 
-- Bundle ID 为 `com.maxhan.shibei`，版本号与远端 build number 不冲突。
+- Bundle ID 为独立 Omo 身份 `com.maxhan.omo`，不得使用旧 Recaro/Recallo 的 `com.maxhan.shibei`；版本号与新 Omo App 的远端 build number 不冲突。
 - App 包含 `PrivacyInfo.xcprivacy`，`ITSAppUsesNonExemptEncryption=false`。
 - 二进制不包含 localhost、Debug Fixture 启动参数、旧生产域名或 Mock 成功路径。
 - `OmoAPIBaseURL` 是已验证的 staging HTTPS URL，且 `/api/readiness` 为 200。
@@ -104,11 +104,10 @@ xcodebuild -exportArchive \
 
 ## 当前剩余人工确认
 
-内部 TestFlight 已可安装，不再缺签名或上传凭据。后续只有以下非阻塞人工事项：
-
-1. 首位测试员在自己的真机上从 TestFlight 安装 build 28，复核相册、麦克风、语音识别和通知权限；未经明确授权，不由自动化代操作用户设备。
-2. 精确商店名称 `Omo` 已被其他账号占用。正式 App Store 发布前需选择唯一的商店名称；已安装二进制仍显示 `Omo`，内部 TestFlight 不受影响。
-3. 正式公开发布前再次确认公开支持邮箱。当前内部 TestFlight 沿用 App Store Connect 已有 feedback email。
+1. 创建全新的 App Store Connect App 需要唯一商店名称。精确名称 `Omo` 已被其他账号占用，必须由产品方确认替代名称；安装后的 `CFBundleDisplayName` 仍为 `Omo`。
+2. 新 Omo 内部测试组初始不继承旧 App 测试员；产品方需确认首批测试员范围后再邀请。
+3. 新 Omo 构建可用后，首位测试员在自己的真机上复核相册、麦克风、语音识别、通知权限和 VoiceOver；未经明确授权，不由自动化代操作用户设备。
+4. 正式公开发布前再次确认公开支持邮箱。
 
 API 私钥不得提交到 Git；只保存在本机安全凭据存储。
 
@@ -124,7 +123,10 @@ API 私钥不得提交到 Git；只保存在本机安全凭据存储。
 - `asc 3.5.1` 已使用系统 Keychain profile 完成认证并通过在线验证；私钥和凭据未进入仓库。
 - 新 Apple Distribution 证书和 App Store provisioning profile 均有效至 2027-08-08。
 - 工程最低系统已正式设为 iOS 17.0；签名 Archive 与导出 IPA 均通过。
-- IPA `Omo.ipa` 为 `1.0 (28)`，只连接上述 staging，SHA-256 为 `7c92f246574d78c8ea26b565fa382542b05a5259d52be4dad91e3041b56fd64d`。
-- App Store Connect build ID `029508e7-5041-47e0-a6ba-1bd4bb3e6ea5` 已处理为 `VALID`，并处于内部测试状态 `IN_BETA_TESTING`。
-- Build 28 已关联现有内部测试组并启用自动通知；未邀请外部测试员，也未提交 App Store 正式审核。
+- 旧 App 下错误上传的 `1.0 (28)` 已从旧测试组移除并永久设为 `EXPIRED`；它不能作为 Omo 发布构建。
+- 错误 Draft PR #38 已关闭。旧 App build 1–27、测试员和生产数据均未修改。
+- 全新 Bundle ID `com.maxhan.omo` 已注册且此前没有绑定 App；主工程已切换到该身份并将新 App 构建号重置为 1。
+- `com.maxhan.omo` 的独立 App Store profile、签名 `1.0 (1)` Archive 和本地 IPA 已生成并通过包审计；该 IPA 尚未上传。
+- 本轮 Simulator build-for-testing 成功，但 CoreSimulator 在测试安装前阻塞，新的 Bundle ID 下 XCTest 尚未实际执行；上一轮 37/37 仅作为 Swift 逻辑基线。
+- 新 Omo App Store Connect App、独立 TestFlight 组和新 Build ID 尚待唯一商店名称确认后创建；不得复用旧 App 记录或旧测试组。
 - 隐私政策与支持页已分别托管在 `/privacy` 和 `/support`；兼容地址 `/privacy-policy.html` 亦可用。

@@ -40,3 +40,21 @@ test("Release builds target only the verified TestFlight staging API", async () 
   );
   assert.doesNotMatch(project, /shibei-production\.up\.railway\.app/);
 });
+
+test("Omo uses an independent app identity and build sequence", async () => {
+  const project = await readFile(
+    new URL("Omo/Omo.xcodeproj/project.pbxproj", repositoryRoot),
+    "utf8"
+  );
+
+  assert.equal(
+    project.match(/PRODUCT_BUNDLE_IDENTIFIER = com\.maxhan\.omo;/g)?.length,
+    2
+  );
+  assert.equal(
+    project.match(/PRODUCT_BUNDLE_IDENTIFIER = com\.maxhan\.omo\.Tests;/g)?.length,
+    2
+  );
+  assert.equal(project.match(/CURRENT_PROJECT_VERSION = 1;/g)?.length, 4);
+  assert.doesNotMatch(project, /com\.maxhan\.shibei/);
+});

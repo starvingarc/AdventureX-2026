@@ -1,5 +1,7 @@
 # Task 6 Release Simulator × Real Staging 验收
 
+> 历史说明：本次 Simulator 验证发生在产品身份纠正之前，App bundle 当时仍为旧 `com.maxhan.shibei`。它只证明 UI/API/staging 闭环，不构成 Omo 独立 App 的发布证据。后续发布必须使用 `com.maxhan.omo`。
+
 - 日期：2026-08-08
 - 分支：`codex/testflight-staging-release`
 - Simulator：`Omo TestFlight iPhone 17 Pro`（iOS 26.5）

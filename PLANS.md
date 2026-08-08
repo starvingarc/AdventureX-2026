@@ -6,6 +6,7 @@
 
 | 计划 | 分支 | 负责人 | 状态 | 模式 | 进度 | 下一步 |
 |---|---|---|---|---|---:|---|
+| [[plans/codex-omo-independent-app]] | `codex/omo-independent-app` | Codex `/root` | `in_progress` | `manual` | 1/4 | 切换工程 Bundle ID 并修正发布证据 |
 
 ## 使用规则
 

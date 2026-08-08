@@ -1,6 +1,6 @@
 # Omo 独立 App 身份修复计划
 
-- 状态：`in_progress`
+- 状态：`complete`
 - 优先级：P0
 - 创建：2026-08-08
 - 更新：2026-08-08
@@ -48,24 +48,24 @@
 - [x] 新增失败门禁测试，要求主 target Bundle ID 为 `com.maxhan.omo`、Test target 为 `com.maxhan.omo.Tests`，并禁止 `com.maxhan.shibei` 出现在当前发布配置。
 - [x] 将 Debug/Release 主 target Bundle ID 切换为 `com.maxhan.omo`，build number 重置为新 App 的 `1`。
 - [x] 更新发布运行手册和审计证据，明确旧 build 28 已过期，不能再描述为可测试构建。
-- [ ] 运行后端配置测试、iOS XCTest、Release build 与 forbidden-string 审计；Backend 50 pass / 1 skip、Simulator build-for-testing、签名 Archive/IPA 和 forbidden strings 已通过，但 CoreSimulator 在安装测试前阻塞，XCTest 尚未实际执行。
+- [x] 运行后端配置测试、iOS XCTest、Release build 与 forbidden-string 审计；Backend 50 pass / 1 skip、独立 Bundle 下 iOS XCTest 37/37、签名 Archive/IPA 和 forbidden strings 均通过。
 - [x] 提交工程身份修复（`3c9829a`）。
 
 ### Task 3：创建独立 App Store Connect App 与签名
 
-- [ ] 使用可修改的独立商店名称 `Omo · 知识回顾`；SKU 使用 `omo-ios-001`，主语言为简体中文。安装后的显示名仍为 `Omo`。
-- [ ] 通过可见 App Store Connect UI 创建新 iOS App，选择 Bundle ID `com.maxhan.omo`；创建前再次确认没有现存绑定。
-- [ ] 通过 API 复核新 App ID、Bundle ID 和版本序列均与旧 App 完全独立。
+- [x] 用户确定并创建独立商店名称 `Omo（哦莫）`；SKU 为 `omo-ios-001`，主语言为简体中文。安装后的显示名仍为 `Omo`。
+- [x] 通过可见 App Store Connect UI 创建新 iOS App，选择 Bundle ID `com.maxhan.omo`；创建前已确认没有现存绑定。
+- [x] 通过 API 复核新 App ID `6799407458`、Bundle ID 和版本序列均与旧 App 完全独立。
 - [x] 为 `com.maxhan.omo` 创建新的 App Store provisioning profile；只复用团队级有效 Distribution 证书，不复用旧 Bundle profile。ASC profile ID 为 `RJCF68G8U5`。
-- [x] 生成并审计本地 `1.0 (1)` Archive 与 IPA，确认签名 Bundle ID、staging URL、PrivacyInfo、加密声明和 Fixture 隔离；IPA 尚未上传。
+- [x] 生成并审计本地 `1.0 (1)` Archive 与 IPA，确认签名 Bundle ID、staging URL、PrivacyInfo、加密声明和 Fixture 隔离；同一 IPA 已上传至独立 Omo App。
 
 ### Task 4：独立 TestFlight 分发与交付
 
-- [ ] 上传 IPA 到新 Omo App，等待 processing 为 `VALID`。
-- [ ] 创建 Omo 专用内部测试组，不添加旧 App 测试员；配置 Omo 测试说明。
-- [ ] 在用户确认测试员范围后再添加测试员或开放构建访问。
-- [ ] 复核旧 build 28 仍为 `EXPIRED`，新 Omo build 属于新 App ID 且测试入口独立。
-- [ ] 更新稳定文档、完成并退役计划；推送修复分支并创建新的 Draft PR。
+- [x] 上传 IPA 到新 Omo App，build ID `7bb306b6-dc29-43ca-9547-782ae6fa2009`，processing 为 `VALID`。
+- [x] 创建 Omo 专用内部测试组 `109f9f4f-75b9-4419-be1f-46edd4bc016a`，不添加旧 App 测试员；已配置 Omo 测试说明与独立 staging 隐私 URL。
+- [x] 新测试组刻意保持 0 位测试员；未获用户授权前不邀请或迁移任何旧 App 测试员。
+- [x] 复核旧 build 28 仍为 `EXPIRED`，新 Omo build 属于新 App ID 且测试入口独立。
+- [x] 更新稳定文档并完成计划；计划在推送修复分支和创建新 Draft PR 前按仓库规则退役。
 
 ## 验收标准
 
@@ -100,12 +100,14 @@
 - 2026-08-08：Simulator build-for-testing 成功，但 iOS 18.5 设备在安装前自行 Shutdown，已启动 iOS 26.5 设备的 testmanagerd 仍停在安装前。连续三次环境恢复后停止扩大操作，明确记录新 Bundle 下 XCTest 未实际执行。
 - 2026-08-08：恢复旧 Recallo 的 production 隐私/支持 URL 与 Recallo TestFlight 说明；确认 build 27 仍在内测，删除两份仅由误发布产生的旧 Bundle profile。
 - 2026-08-08：尝试创建独立 App `Omo · 知识回顾`，Apple 要求网页 Apple Account 会话；API Key 与 Issuer ID 本身不能创建 App 记录。
+- 2026-08-08：用户通过 App Store Connect 创建正式名称 `Omo（哦莫）`；API 复核新 App ID `6799407458`、Bundle ID `com.maxhan.omo`、SKU `omo-ios-001`。
+- 2026-08-08：独立 IPA 上传为 `1.0 (1)`，Build ID `7bb306b6-dc29-43ca-9547-782ae6fa2009`，状态 `VALID`；关联独立空内部组 `109f9f4f-75b9-4419-be1f-46edd4bc016a`，测试员数量为 0。
+- 2026-08-08：在 `com.maxhan.omo` 下重新执行 Simulator XCTest，37 项全部通过、0 失败、0 跳过；此前的 CoreSimulator 阻塞已解除。
 
 ## 阻塞与恢复
 
-- 当前阻塞：创建新 App Store Connect App 必须有已登录的 Apple Account 网页会话；当前 in-app browser 被重定向到登录页。
-- 解除条件：用户在保留的 App Store Connect 登录页完成登录并回复“登录好了”。密码和双重认证码由用户本人输入，Codex 不读取或保存。
-- 登录后立即执行：创建 `Omo · 知识回顾` → API 复核独立 App ID → 上传独立 `1.0 (1)` IPA → 创建无旧测试员的 Omo 内部组 → 完成双产品隔离审计。
+- App 创建登录阻塞已由用户完成网页登录并创建新 App 后解除。
+- 当前无产品身份或 TestFlight 上传阻塞；新内部组刻意保持 0 位测试员，等待用户后续明确授权邀请范围。
 
 ## 相关文档
 

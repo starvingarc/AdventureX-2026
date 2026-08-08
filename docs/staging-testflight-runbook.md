@@ -104,9 +104,9 @@ xcodebuild -exportArchive \
 
 ## 当前剩余人工确认
 
-1. 创建全新的 App Store Connect App 需要唯一商店名称。精确名称 `Omo` 已被其他账号占用，必须由产品方确认替代名称；安装后的 `CFBundleDisplayName` 仍为 `Omo`。
-2. 新 Omo 内部测试组初始不继承旧 App 测试员；产品方需确认首批测试员范围后再邀请。
-3. 新 Omo 构建可用后，首位测试员在自己的真机上复核相册、麦克风、语音识别、通知权限和 VoiceOver；未经明确授权，不由自动化代操作用户设备。
+1. Omo 已使用商店名称 `Omo（哦莫）` 创建为独立 App；安装后的 `CFBundleDisplayName` 仍为 `Omo`。
+2. 新 Omo 内部测试组没有继承旧 App 测试员；产品方需确认首批测试员范围后再邀请。
+3. 首位测试员在自己的真机上复核相册、麦克风、语音识别、通知权限和 VoiceOver；未经明确授权，不由自动化代操作用户设备。
 4. 正式公开发布前再次确认公开支持邮箱。
 
 API 私钥不得提交到 Git；只保存在本机安全凭据存储。
@@ -119,14 +119,15 @@ API 私钥不得提交到 Git；只保存在本机安全凭据存储。
 - staging 变量已配置；供应商密钥只存在 Railway staging，未写入仓库或日志。
 - backend 最终部署 `b00a4f66-f006-420f-8a7b-91cb1b21e590` 为 `SUCCESS`，公网域名为 `https://omo-api-staging-staging.up.railway.app`。
 - health/readiness、空库、真实生成、读取、搜索、assessment 幂等、重启回读和删除均已通过；合成测试数据已删除。
-- Release 默认连接上述 staging HTTPS 域名；实际 Simulator App 包检查与 iOS XCTest 37/37 通过。
+- Release 默认连接上述 staging HTTPS 域名；当前独立 Bundle `com.maxhan.omo` 的 Simulator XCTest 37/37 通过。
 - `asc 3.5.1` 已使用系统 Keychain profile 完成认证并通过在线验证；私钥和凭据未进入仓库。
 - 新 Apple Distribution 证书和 App Store provisioning profile 均有效至 2027-08-08。
 - 工程最低系统已正式设为 iOS 17.0；签名 Archive 与导出 IPA 均通过。
 - 旧 App 下错误上传的 `1.0 (28)` 已从旧测试组移除并永久设为 `EXPIRED`；它不能作为 Omo 发布构建。
 - 错误 Draft PR #38 已关闭。旧 App build 1–27、测试员和生产数据均未修改。
 - 全新 Bundle ID `com.maxhan.omo` 已注册且此前没有绑定 App；主工程已切换到该身份并将新 App 构建号重置为 1。
-- `com.maxhan.omo` 的独立 App Store profile、签名 `1.0 (1)` Archive 和本地 IPA 已生成并通过包审计；该 IPA 尚未上传。
-- 本轮 Simulator build-for-testing 成功，但 CoreSimulator 在测试安装前阻塞，新的 Bundle ID 下 XCTest 尚未实际执行；上一轮 37/37 仅作为 Swift 逻辑基线。
-- 新 Omo App Store Connect App、独立 TestFlight 组和新 Build ID 尚待唯一商店名称确认后创建；不得复用旧 App 记录或旧测试组。
+- `com.maxhan.omo` 的独立 App Store profile、签名 `1.0 (1)` Archive 和 IPA 已生成并通过包审计；同一 IPA 已上传至新的 Omo App。
+- 当前独立 Bundle `com.maxhan.omo` 已实际执行全部 Simulator XCTest：37 通过、0 失败、0 跳过。
+- 新 Omo App Store Connect App ID 为 `6799407458`；独立 build 1（Build ID `7bb306b6-dc29-43ca-9547-782ae6fa2009`）状态为 `VALID`。
+- 独立内部组 ID 为 `109f9f4f-75b9-4419-be1f-46edd4bc016a`，当前测试员为 0；不得复用旧 App 记录、旧测试组或自动继承旧测试员。
 - 隐私政策与支持页已分别托管在 `/privacy` 和 `/support`；兼容地址 `/privacy-policy.html` 亦可用。

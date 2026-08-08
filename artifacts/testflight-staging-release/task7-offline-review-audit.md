@@ -37,8 +37,12 @@
 - 工程主 target 已切换为 `com.maxhan.omo`，版本为 `1.0 (1)`，最低系统为 iOS 17.0。
 - 独立 provisioning profile 已创建；ASC profile ID 为 `RJCF68G8U5`，绑定 `44589Y6FA6.com.maxhan.omo`，`get-task-allow=false`。
 - 签名 Archive `.release/Omo-Independent-1.0-1.xcarchive` 已成功，Store validation 通过。
-- 本地 IPA `.release/export-independent-1.0-1/Omo.ipa` 已成功导出，但没有上传到任何 App。
+- 本地 IPA `.release/export-independent-1.0-1/Omo.ipa` 已成功导出，并上传到独立 Omo App。
 - IPA SHA-256 为 `6f010cfb9ee1c5f27fad60eb89050307256b44882d9f2b614aa83f0d85ea7b10`；Bundle ID、版本、iOS 17.0、staging URL、PrivacyInfo、签名 entitlement 与 forbidden-string 审计通过。
 - Backend 51 项中 50 pass、1 项默认 PostgreSQL skip；独立身份门禁通过。
-- 本轮 Simulator `build-for-testing` 成功，但 CoreSimulator 在测试安装前反复退出／阻塞，XCTest 没有实际执行；不能用上一轮旧 Bundle 下的 37/37 冒充新身份测试证据。
-- 独立 Omo App 记录尚未创建：Apple 要求已登录 Apple Account 网页会话；API Key/Issuer ID 不能代替此步骤。登录后使用 `Omo · 知识回顾`、`com.maxhan.omo`、`omo-ios-001` 创建，且不得继承 Recallo 测试员。
+- 当前独立 Bundle `com.maxhan.omo` 已实际执行全部 Simulator XCTest：37 通过、0 失败、0 跳过；测试日志与 xcresult 均保存在本机 XcodeBuildMCP workspace 中。
+- 独立 App Store Connect App 已创建：名称 `Omo（哦莫）`，App ID `6799407458`，Bundle ID `com.maxhan.omo`，SKU `omo-ios-001`，主语言 `zh-Hans`。
+- 独立 build `1.0 (1)` 已上传，Build ID `7bb306b6-dc29-43ca-9547-782ae6fa2009`；Apple 状态为 `VALID`，最低 iOS 17.0，`usesNonExemptEncryption=false`，未过期。
+- Build 1 的 App 关系 API 只返回 Omo App ID `6799407458`，不属于 Recallo App ID `6772533617`。
+- Omo 独立内部组 ID 为 `109f9f4f-75b9-4419-be1f-46edd4bc016a`，当前只关联 build 1，测试员数量为 0；没有继承 Recallo 的 10 位内部测试员。
+- Omo TestFlight 中文说明与独立 staging 隐私 URL 已配置；Recallo 的 TestFlight 说明和 production URL 保持恢复后的旧内容。
